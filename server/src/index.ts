@@ -1,12 +1,19 @@
 import { createServer } from "node:http";
 import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
+<<<<<<< HEAD
 import { WebSocket, WebSocketServer } from "ws";
 import type { Envelope, ErrorPayload, HelloPayload, LobbyStatePayload } from "../../shared/src/protocol";
 
 const port = Number(process.env.PORT ?? 3000);
 const clientDistDir = path.resolve(__dirname, "../../client/dist");
 let sequence = 0;
+=======
+import { WebSocketServer } from "ws";
+
+const port = Number(process.env.PORT ?? 3000);
+const clientDistDir = path.resolve(__dirname, "../../client/dist");
+>>>>>>> origin/main
 
 const server = createServer(async (req, res) => {
   if (!req.url) {
@@ -50,6 +57,7 @@ const server = createServer(async (req, res) => {
 });
 
 const wss = new WebSocketServer({ server, path: "/ws" });
+<<<<<<< HEAD
 const sockets = new Set<string>();
 
 wss.on("connection", (socket) => {
@@ -98,6 +106,15 @@ wss.on("connection", (socket) => {
   socket.on("close", () => {
     sockets.delete(sid);
     broadcastLobbyState();
+=======
+
+wss.on("connection", (socket) => {
+  socket.send(JSON.stringify({ type: "welcome", message: "WebSocket connected" }));
+
+  socket.on("message", (data) => {
+    const text = data.toString();
+    socket.send(JSON.stringify({ type: "echo", message: text }));
+>>>>>>> origin/main
   });
 });
 
@@ -105,6 +122,7 @@ server.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);
 });
 
+<<<<<<< HEAD
 function broadcastLobbyState() {
   const payload: LobbyStatePayload = { online: sockets.size };
   const envelope = buildEnvelope("LOBBY_STATE", undefined, payload);
@@ -137,6 +155,8 @@ function nextSequence() {
   return sequence;
 }
 
+=======
+>>>>>>> origin/main
 function contentTypeForPath(filePath: string): string {
   const ext = path.extname(filePath).toLowerCase();
   switch (ext) {

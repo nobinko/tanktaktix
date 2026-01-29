@@ -13,5 +13,9 @@
     "strict": true,
     "jsx": "preserve"
   },
+<<<<<<< HEAD
   "include": ["src", "../shared/src"]
+=======
+  "include": ["src"]
+>>>>>>> origin/main
 }

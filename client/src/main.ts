@@ -1,5 +1,8 @@
 import "./style.css";
+<<<<<<< HEAD
 import type { Envelope, HelloPayload } from "../../shared/src/protocol";
+=======
+>>>>>>> origin/main
 
 const app = document.querySelector<HTMLDivElement>("#app");
 
@@ -35,13 +38,19 @@ if (!statusEl || !formEl || !logEl) {
 
 const socketUrl = resolveWebSocketUrl();
 const socket = new WebSocket(socketUrl);
+<<<<<<< HEAD
 let sequence = 0;
+=======
+>>>>>>> origin/main
 
 socket.addEventListener("open", () => {
   statusEl.textContent = `Connected to ${socketUrl}`;
   statusEl.dataset.state = "open";
+<<<<<<< HEAD
   const helloPayload: HelloPayload = { name: "Operator" };
   socket.send(JSON.stringify(buildEnvelope("HELLO", helloPayload)));
+=======
+>>>>>>> origin/main
 });
 
 socket.addEventListener("close", () => {
@@ -50,11 +59,14 @@ socket.addEventListener("close", () => {
 });
 
 socket.addEventListener("message", (event) => {
+<<<<<<< HEAD
   const parsed = safeParseEnvelope(event.data);
   if (parsed) {
     appendLog(`Server: ${parsed.t} → ${JSON.stringify(parsed.p)}`);
     return;
   }
+=======
+>>>>>>> origin/main
   appendLog(`Server: ${event.data}`);
 });
 
@@ -65,7 +77,11 @@ formEl.addEventListener("submit", (event) => {
     return;
   }
   const message = input.value.trim();
+<<<<<<< HEAD
   socket.send(JSON.stringify(buildEnvelope("PING", { message })));
+=======
+  socket.send(message);
+>>>>>>> origin/main
   appendLog(`You: ${message}`);
   input.value = "";
 });
@@ -76,6 +92,7 @@ function appendLog(message: string) {
   logEl.prepend(li);
 }
 
+<<<<<<< HEAD
 function safeParseEnvelope(raw: string): Envelope | null {
   try {
     const parsed = JSON.parse(raw) as Envelope;
@@ -96,6 +113,8 @@ function buildEnvelope<TPayload>(t: Envelope<TPayload>["t"], p: TPayload): Envel
   };
 }
 
+=======
+>>>>>>> origin/main
 function resolveWebSocketUrl() {
   const { protocol, hostname, port } = window.location;
   const wsProtocol = protocol === "https:" ? "wss" : "ws";

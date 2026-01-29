@@ -2,7 +2,11 @@
   "compilerOptions": {
     "target": "ES2020",
     "module": "CommonJS",
+<<<<<<< HEAD
     "rootDir": "..",
+=======
+    "rootDir": "src",
+>>>>>>> origin/main
     "outDir": "dist",
     "strict": true,
     "esModuleInterop": true,
@@ -10,5 +14,9 @@
     "resolveJsonModule": true,
     "skipLibCheck": true
   },
+<<<<<<< HEAD
   "include": ["src", "../shared/src"]
+=======
+  "include": ["src"]
+>>>>>>> origin/main
 }

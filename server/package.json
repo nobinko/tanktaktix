@@ -2,11 +2,19 @@
   "name": "tanktaktix-server",
   "private": true,
   "type": "commonjs",
+<<<<<<< HEAD
   "main": "dist/server/src/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/server/src/index.js"
+=======
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js"
+>>>>>>> origin/main
   },
   "dependencies": {
     "ws": "^8.16.0"
