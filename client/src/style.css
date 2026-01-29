@@ -1,0 +1,105 @@
+:root {
+  font-family: "Inter", system-ui, -apple-system, sans-serif;
+  line-height: 1.5;
+  color: #e4e4e7;
+  background: #09090b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+#app {
+  padding: 48px 24px;
+}
+
+.layout {
+  max-width: 860px;
+  margin: 0 auto;
+  display: grid;
+  gap: 24px;
+}
+
+header {
+  display: grid;
+  gap: 8px;
+}
+
+h1 {
+  margin: 0;
+  font-size: 2.5rem;
+}
+
+.panel {
+  padding: 24px;
+  border-radius: 16px;
+  background: #18181b;
+  border: 1px solid #27272a;
+  display: grid;
+  gap: 16px;
+}
+
+.status {
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: #27272a;
+  width: fit-content;
+}
+
+.status[data-state="open"] {
+  background: #14532d;
+  color: #dcfce7;
+}
+
+.status[data-state="closed"] {
+  background: #7f1d1d;
+  color: #fee2e2;
+}
+
+.row {
+  display: flex;
+  gap: 12px;
+}
+
+input {
+  flex: 1;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #3f3f46;
+  background: #09090b;
+  color: inherit;
+}
+
+button {
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: none;
+  background: #3b82f6;
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #2563eb;
+}
+
+.log {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.log li {
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #0f172a;
+  border: 1px solid #1e293b;
+}
