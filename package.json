@@ -3,7 +3,8 @@
   "private": true,
   "workspaces": [
     "server",
-    "client"
+    "client",
+    "shared"
   ],
   "scripts": {
     "dev": "concurrently -k \"npm:dev -w client\" \"npm:dev -w server\"",
