@@ -8,10 +8,14 @@ import { WebSocket, WebSocketServer } from "ws";
 /**
  * server/src/index.ts
  *
- * 目的:
- * - クライアント側のメッセージ形式が揺れても「動く/撃つ/抜ける」が壊れないように互換対応する
- * - 受信: move(dir/target/x,y), shoot(dir/target/angle), leaveRoom/leave などを吸収
- * - 送信: room の payload に roomName/timeLeft など「別名フィールド」も同梱（UI が undefined にならない）
+ * ゴール:
+ * - ルーム/入室/自機表示/撃ち合いが壊れない互換を維持しつつ
+ * - hitscan(即時着弾)をやめて、弾＝移動体(projectile)としてサーバ権威で更新
+ * - bullets を room payload に載せ、クライアントで描画できる状態にする
+ *
+ * 重要:
+ * - monorepo で `npm start -w server` すると cwd が server/ になることがある
+ *   -> client/dist の参照がズレて "Cannot GET /" になりがちなので、__dirname/cwd の両方から解決する
  */
 
 type Vector2 = { x: number; y: number };
@@ -23,7 +27,6 @@ type PlayerRuntime = {
   id: string;
   name: string;
 
-  // 位置（互換のため x/y と position の両方を送る）
   x: number;
   y: number;
 
@@ -35,24 +38,32 @@ type PlayerRuntime = {
 
   roomId: string | null;
 
-  // 入力状態
-  aimDir: Vector2; // unit vector
-  pendingMove: Vector2 | null; // unit vector（WASD 方向） or null
-  pendingTarget: Vector2 | null; // クリック移動の目標
+  aimDir: Vector2; // unit
+  pendingMove: Vector2 | null; // unit
+  pendingTarget: Vector2 | null; // click move
 
-  // クールダウン
   lastMoveAt: number;
   lastShootAt: number;
 
-  // リスポーン
   respawnAt: number | null;
 
   socket: WebSocket;
 };
 
+type Bullet = {
+  id: string;
+  shooterId: string;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  radius: number;
+  expiresAt: number;
+};
+
 type Room = {
   id: string;
-  name: string; // 表示名（未設定なら id と同じにする）
+  name: string;
   mapId: string;
   passwordProtected: boolean;
   password?: string;
@@ -65,6 +76,7 @@ type Room = {
   ended: boolean;
 
   playerIds: Set<string>;
+  bullets: Bullet[];
 };
 
 const PORT = Number(process.env.PORT ?? 3000);
@@ -72,18 +84,23 @@ const PORT = Number(process.env.PORT ?? 3000);
 // --- gameplay tuning ---
 const TICK_MS = 50;
 
-const MAP_W = 800;
-const MAP_H = 600;
+const MAP_W = 900;
+const MAP_H = 520;
 
 const MOVE_SPEED = 6; // per tick
-const MOVE_COOLDOWN_MS = 0; // WASD は連続で良いので 0（必要なら 80 などに）
+const MOVE_COOLDOWN_MS = 0;
 
 const SHOOT_COOLDOWN_MS = 300;
 const RESPAWN_MS = 1500;
 
+const HIT_RADIUS = 18;
+
+// projectile bullets
+const BULLET_SPEED = 220; // px/sec（遅くしたいなら 120 とか）
+const BULLET_RADIUS = 4;
 const BULLET_RANGE = 600;
 const BULLET_DAMAGE = 20;
-const HIT_RADIUS = 18;
+const BULLET_TTL_MS = Math.ceil((BULLET_RANGE / BULLET_SPEED) * 1000);
 
 // --- utils ---
 function nowMs() {
@@ -92,10 +109,6 @@ function nowMs() {
 
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
-}
-
-function dist(a: Vector2, b: Vector2) {
-  return Math.hypot(a.x - b.x, a.y - b.y);
 }
 
 function len(v: Vector2) {
@@ -108,6 +121,20 @@ function norm(v: Vector2): Vector2 {
   return { x: v.x / l, y: v.y / l };
 }
 
+function distPointToSegment(a: Vector2, b: Vector2, p: Vector2) {
+  const abx = b.x - a.x;
+  const aby = b.y - a.y;
+  const apx = p.x - a.x;
+  const apy = p.y - a.y;
+  const ab2 = abx * abx + aby * aby;
+  if (ab2 < 1e-9) return Math.hypot(apx, apy);
+  let t = (apx * abx + apy * aby) / ab2;
+  t = Math.max(0, Math.min(1, t));
+  const cx = a.x + abx * t;
+  const cy = a.y + aby * t;
+  return Math.hypot(p.x - cx, p.y - cy);
+}
+
 function safeJsonParse(input: string): unknown {
   try {
     return JSON.parse(input);
@@ -116,25 +143,23 @@ function safeJsonParse(input: string): unknown {
   }
 }
 
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return !!v && typeof v === "object";
-}
-
-function isVector2(v: unknown): v is Vector2 {
-  if (!isRecord(v)) return false;
-  return typeof v.x === "number" && typeof v.y === "number";
+function isRecord(v: unknown): v is Record<string, any> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
 }
 
 function pickString(v: unknown, fallback = ""): string {
   return typeof v === "string" ? v : fallback;
 }
 
-function pickNumber(v: unknown, fallback: number): number {
+function pickNumber(v: unknown, fallback = 0): number {
   return typeof v === "number" && Number.isFinite(v) ? v : fallback;
 }
 
-function pickVector2(v: unknown): Vector2 | null {
-  return isVector2(v) ? v : null;
+function pickVector2(v: unknown, fallback: Vector2): Vector2 {
+  if (!isRecord(v)) return fallback;
+  const x = pickNumber(v.x, fallback.x);
+  const y = pickNumber(v.y, fallback.y);
+  return { x, y };
 }
 
 function newId() {
@@ -144,46 +169,22 @@ function newId() {
 
 function send(ws: WebSocket, msg: ServerMsg) {
   if (ws.readyState !== WebSocket.OPEN) return;
-  try {
-    ws.send(JSON.stringify(msg));
-  } catch {
-    // ignore
-  }
+  ws.send(JSON.stringify(msg));
 }
-
-// PUBLIC_DIR を「どこから起動しても」探せるようにする
-function resolvePublicDir(): string {
-  const candidates = [
-    path.resolve(process.cwd(), "client", "dist"),
-    path.resolve(process.cwd(), "..", "client", "dist"),
-    path.resolve(process.cwd(), "..", "..", "client", "dist"),
-  ];
-
-  for (const c of candidates) {
-    if (fs.existsSync(c) && fs.existsSync(path.join(c, "index.html"))) return c;
-  }
-  return candidates[0];
-}
-
-const PUBLIC_DIR = resolvePublicDir();
 
 // --- state ---
 const players = new Map<string, PlayerRuntime>();
 const rooms = new Map<string, Room>();
 
 function toPlayerPublic(p: PlayerRuntime) {
-  // クライアントが x/y でも position でも取れるように両方送る
   return {
     id: p.id,
     name: p.name,
     roomId: p.roomId,
-
-    // 互換フィールド
     x: p.x,
     y: p.y,
     position: { x: p.x, y: p.y },
 
-    // 移動ターゲット（描画側が target を参照する実装もある想定）
     target: p.pendingTarget ?? { x: p.x, y: p.y },
 
     hp: p.hp,
@@ -192,6 +193,17 @@ function toPlayerPublic(p: PlayerRuntime) {
     kills: p.kills,
     deaths: p.deaths,
     respawnAt: p.respawnAt,
+  };
+}
+
+function toBulletPublic(b: Bullet) {
+  return {
+    id: b.id,
+    shooterId: b.shooterId,
+    x: b.x,
+    y: b.y,
+    position: { x: b.x, y: b.y },
+    radius: b.radius,
   };
 }
 
@@ -212,9 +224,8 @@ function toRoomSummary(r: Room) {
     endsAt: r.endsAt,
     ended: r.ended,
 
-    // lobby 側は players.length を見てる想定
     players: playerIds,
-    playerCount: playerIds.length, // 互換
+    playerCount: playerIds.length,
   };
 }
 
@@ -234,6 +245,8 @@ function roomStatePayload(roomId: string) {
       timeLeft: 0,
       room: null,
       players: [],
+      bullets: [],
+      projectiles: [],
     };
   }
 
@@ -244,15 +257,18 @@ function roomStatePayload(roomId: string) {
     .filter((p): p is PlayerRuntime => !!p)
     .map(toPlayerPublic);
 
+  const bs = room.bullets.map(toBulletPublic);
+
   return {
     roomId: room.id,
     roomName: room.name,
-    mapId: room.mapId, // 互換（UI が mapId を直参照してる場合）
+    mapId: room.mapId,
     timeLeftSec,
-    timeLeft: timeLeftSec, // 互換
-
-    room: toRoomSummary(room), // 互換（payload.room.name 参照を吸収）
+    timeLeft: timeLeftSec,
+    room: toRoomSummary(room),
     players: ps,
+    bullets: bs,
+    projectiles: bs, // 互換
   };
 }
 
@@ -290,7 +306,6 @@ function detachFromRoom(p: PlayerRuntime) {
   p.pendingMove = null;
   p.pendingTarget = null;
 
-  // 残っているプレイヤーに更新を送る（空なら何もしない）
   sendRoomState(oldRoomId);
 }
 
@@ -315,14 +330,13 @@ function joinRoom(p: PlayerRuntime, roomId: string, password?: string) {
     return;
   }
 
-  // 前の部屋から抜ける
   detachFromRoom(p);
 
   p.roomId = roomId;
 
   // spawn
-  p.x = 100 + Math.random() * 200;
-  p.y = 100 + Math.random() * 200;
+  p.x = 150 + Math.random() * 200;
+  p.y = 150 + Math.random() * 200;
   p.hp = 100;
   p.ammo = 20;
   p.respawnAt = null;
@@ -332,9 +346,7 @@ function joinRoom(p: PlayerRuntime, roomId: string, password?: string) {
 
   room.playerIds.add(p.id);
 
-  // 部屋更新
   sendRoomState(roomId);
-  // ロビー更新
   broadcastLobby();
 }
 
@@ -366,6 +378,19 @@ function setAimDir(p: PlayerRuntime, dir: Vector2) {
   p.aimDir = d;
 }
 
+function applyBulletHit(shooter: PlayerRuntime, target: PlayerRuntime, now: number) {
+  target.hp = Math.max(0, target.hp - BULLET_DAMAGE);
+  if (target.hp === 0) {
+    shooter.kills += 1;
+    shooter.score += 1;
+
+    target.deaths += 1;
+    target.score -= 5;
+    target.respawnAt = now + RESPAWN_MS;
+    target.ammo = 0;
+  }
+}
+
 function tryShoot(p: PlayerRuntime, dir: Vector2) {
   if (!p.roomId) return;
 
@@ -384,50 +409,74 @@ function tryShoot(p: PlayerRuntime, dir: Vector2) {
   const d = norm(dir);
   if (len(d) === 0) return;
 
-  // raycast vs circles
-  let bestTarget: PlayerRuntime | null = null;
-  let bestProj = Infinity;
+  const spawnOffset = HIT_RADIUS + BULLET_RADIUS + 2;
+  const bullet: Bullet = {
+    id: newId(),
+    shooterId: p.id,
+    x: clamp(p.x + d.x * spawnOffset, 0, MAP_W),
+    y: clamp(p.y + d.y * spawnOffset, 0, MAP_H),
+    vx: d.x * BULLET_SPEED,
+    vy: d.y * BULLET_SPEED,
+    radius: BULLET_RADIUS,
+    expiresAt: now + BULLET_TTL_MS,
+  };
 
-  for (const pid of room.playerIds) {
-    if (pid === p.id) continue;
-    const t = players.get(pid);
-    if (!t) continue;
+  room.bullets.push(bullet);
 
-    if (t.respawnAt && t.respawnAt > now) continue;
-    if (t.hp <= 0) continue;
-
-    const to = { x: t.x - p.x, y: t.y - p.y };
-    const proj = to.x * d.x + to.y * d.y; // projection length
-    if (proj <= 0 || proj > BULLET_RANGE) continue;
-
-    const closest = { x: p.x + d.x * proj, y: p.y + d.y * proj };
-    const dRay = dist(closest, { x: t.x, y: t.y });
-
-    if (dRay <= HIT_RADIUS && proj < bestProj) {
-      bestProj = proj;
-      bestTarget = t;
-    }
-  }
-
-  if (bestTarget) {
-    bestTarget.hp = Math.max(0, bestTarget.hp - BULLET_DAMAGE);
-    if (bestTarget.hp === 0) {
-      p.kills += 1;
-      p.score += 1;
-
-      bestTarget.deaths += 1;
-      bestTarget.score -= 5;
-      bestTarget.respawnAt = now + RESPAWN_MS;
-      bestTarget.ammo = 0;
-    }
-  }
-
+  // すぐ見えるよう即送信
   sendRoomState(p.roomId);
 }
 
+function updateBullets(room: Room, dtSec: number, now: number) {
+  if (!room.bullets.length) return;
+
+  const next: Bullet[] = [];
+
+  for (const b of room.bullets) {
+    if (now >= b.expiresAt) continue;
+
+    const prev = { x: b.x, y: b.y };
+    const curr = { x: b.x + b.vx * dtSec, y: b.y + b.vy * dtSec };
+
+    // 範囲外は消す
+    if (curr.x < 0 || curr.x > MAP_W || curr.y < 0 || curr.y > MAP_H) continue;
+
+    let hit = false;
+    const shooter = players.get(b.shooterId) ?? null;
+
+    for (const pid of room.playerIds) {
+      if (pid === b.shooterId) continue;
+      const t = players.get(pid);
+      if (!t) continue;
+
+      if (t.respawnAt && t.respawnAt > now) continue;
+      if (t.hp <= 0) continue;
+
+      // sweep：線分-円距離（高速すり抜け対策）
+      const dSeg = distPointToSegment(prev, curr, { x: t.x, y: t.y });
+      if (dSeg <= HIT_RADIUS + b.radius) {
+        if (shooter) applyBulletHit(shooter, t, now);
+        hit = true;
+        break;
+      }
+    }
+
+    if (hit) continue;
+
+    b.x = curr.x;
+    b.y = curr.y;
+    next.push(b);
+  }
+
+  room.bullets = next;
+}
+
 // --- tick ---
+let lastTickAt = nowMs();
 function tick() {
   const now = nowMs();
+  const dtSec = Math.min(0.1, Math.max(0.001, (now - lastTickAt) / 1000));
+  lastTickAt = now;
 
   for (const room of rooms.values()) {
     if (room.ended) continue;
@@ -435,7 +484,6 @@ function tick() {
     if (room.endsAt > 0 && now >= room.endsAt) {
       room.ended = true;
 
-      // leaderboard
       const leaderboard = [...room.playerIds]
         .map((pid) => players.get(pid))
         .filter((p): p is PlayerRuntime => !!p)
@@ -447,7 +495,7 @@ function tick() {
       continue;
     }
 
-    // movement + respawn
+    // players update
     for (const pid of room.playerIds) {
       const p = players.get(pid);
       if (!p) continue;
@@ -457,13 +505,13 @@ function tick() {
         p.hp = 100;
         p.ammo = 20;
         p.respawnAt = null;
-        p.x = 100 + Math.random() * 200;
-        p.y = 100 + Math.random() * 200;
+        p.x = 150 + Math.random() * 200;
+        p.y = 150 + Math.random() * 200;
       }
 
       if (p.respawnAt && p.respawnAt > now) continue;
 
-      // continuous dir move (WASD)
+      // dir move
       if (p.pendingMove) {
         if (MOVE_COOLDOWN_MS === 0 || now - p.lastMoveAt >= MOVE_COOLDOWN_MS) {
           p.lastMoveAt = now;
@@ -472,7 +520,7 @@ function tick() {
         }
       }
 
-      // target move (click)
+      // click move
       if (p.pendingTarget) {
         const to = { x: p.pendingTarget.x - p.x, y: p.pendingTarget.y - p.y };
         const distance = len(to);
@@ -487,12 +535,36 @@ function tick() {
       }
     }
 
-    // broadcast room state every tick
+    // bullets update
+    updateBullets(room, dtSec, now);
+
+    // broadcast every tick
     sendRoomState(room.id);
   }
 }
 
 setInterval(() => tick(), TICK_MS);
+
+// --- static / ws path fix ---
+function resolvePublicDir(): string {
+  // 実行場所が root/server/dist どれでも拾えるように候補を増やす
+  const candidates = [
+    path.resolve(__dirname, "../../client/dist"), // server/dist から
+    path.resolve(__dirname, "../../../client/dist"),
+    path.resolve(process.cwd(), "client", "dist"), // root から
+    path.resolve(process.cwd(), "..", "client", "dist"), // server から
+    path.resolve(process.cwd(), "..", "..", "client", "dist"),
+  ];
+
+  for (const c of candidates) {
+    const indexPath = path.join(c, "index.html");
+    if (fs.existsSync(indexPath)) return c;
+  }
+  return candidates[0];
+}
+
+const PUBLIC_DIR = resolvePublicDir();
+const PUBLIC_INDEX = path.join(PUBLIC_DIR, "index.html");
 
 // --- http ---
 const app = express();
@@ -500,26 +572,38 @@ app.use(express.json());
 
 app.get("/health", (_req, res) => res.json({ status: "ok" }));
 
-// client build があるなら配信
-if (fs.existsSync(PUBLIC_DIR) && fs.existsSync(path.join(PUBLIC_DIR, "index.html"))) {
-  app.use(express.static(PUBLIC_DIR));
+// dist が無くても 404 ではなく原因が見えるようにする
+app.use(express.static(PUBLIC_DIR, { index: false }));
 
-  // Express 5 / path-to-regexp でも落ちにくいように wildcard ではなく middleware で吸収
-  app.use((req, res, next) => {
-    if (req.method !== "GET") return next();
+app.get("/", (_req, res) => {
+  if (fs.existsSync(PUBLIC_INDEX)) {
+    res.sendFile(PUBLIC_INDEX);
+    return;
+  }
+  res
+    .status(500)
+    .type("text/plain")
+    .send(`client build not found.\nExpected:\n  ${PUBLIC_INDEX}\n\nRun:\n  npm run build`);
+});
 
-    // 既存ファイルは static が返す。ここは SPA fallback 用。
-    const indexPath = path.join(PUBLIC_DIR, "index.html");
-    if (fs.existsSync(indexPath)) {
-      res.sendFile(indexPath);
-      return;
-    }
-    next();
-  });
-}
+// SPA fallback（拡張子付きは除外）
+app.use((req, res, next) => {
+  if (req.method !== "GET") return next();
+  if (!fs.existsSync(PUBLIC_INDEX)) return next();
+
+  // API/WS系は触らない
+  if (req.path === "/health" || req.path.startsWith("/ws")) return next();
+
+  // 画像や js/css などは静的に任せる
+  if (path.extname(req.path)) return next();
+
+  res.sendFile(PUBLIC_INDEX);
+});
 
 const server = http.createServer(app);
-const wss = new WebSocketServer({ server }); // path を縛らず互換重視
+
+// client 側が /ws に繋ぐので path を合わせる
+const wss = new WebSocketServer({ server, path: "/ws" });
 
 wss.on("connection", (socket) => {
   const playerId = newId();
@@ -553,35 +637,25 @@ wss.on("connection", (socket) => {
 
   players.set(playerId, p);
 
-  // welcome + lobby
   send(socket, { type: "welcome", payload: { id: playerId } });
   send(socket, { type: "lobby", payload: lobbyStatePayload() });
 
-  socket.on("message", (buf) => {
-    const raw = safeJsonParse(String(buf));
-    if (!raw || !isRecord(raw)) return;
+  socket.on("message", (raw) => {
+    const msg = safeJsonParse(raw.toString());
+    if (!isRecord(msg)) return;
 
-    const type = pickString(raw.type);
-    const payload = raw.payload;
+    const type = pickString(msg.type, "");
+    const payload = (msg as ClientMsg).payload;
 
     const player = players.get(playerId);
     if (!player) return;
 
-    // 互換: クライアントが違う名前で投げてくるのを吸収
-    const normalizedType =
-      type === "joinLobby" ? "requestLobby" :
-      type === "leave" ? "leaveRoom" :
-      type;
-
-    switch (normalizedType) {
+    switch (type) {
       case "login": {
-        if (isRecord(payload)) {
-          const name = pickString(payload.name ?? payload.playerName ?? payload.nickname, "").trim();
-          if (name) player.name = name.slice(0, 20);
-        }
+        const pld = isRecord(payload) ? payload : {};
+        const name = pickString(pld.name, "").trim();
+        if (name) player.name = name.slice(0, 16);
         send(socket, { type: "welcome", payload: { id: playerId } });
-        if (player.roomId) sendRoomState(player.roomId);
-        else send(socket, { type: "lobby", payload: lobbyStatePayload() });
         break;
       }
 
@@ -625,6 +699,7 @@ wss.on("connection", (socket) => {
           endsAt,
           ended: false,
           playerIds: new Set<string>(),
+          bullets: [],
         };
 
         rooms.set(roomId, room);
@@ -641,111 +716,79 @@ wss.on("connection", (socket) => {
         break;
       }
 
-      case "leaveRoom": {
+      case "leaveRoom":
+      case "leave": {
         joinLobby(player);
         break;
       }
 
-      case "stop":
-      case "stopMove":
-      case "moveStop": {
-        stopMove(player);
-        if (player.roomId) sendRoomState(player.roomId);
+      case "move": {
+        const pld = isRecord(payload) ? payload : payload ?? {};
+        // 互換: {dir}, {direction}, {target}, {x,y}
+        if (isRecord(pld) && (pld.dir || pld.direction)) {
+          const d = pickVector2(pld.dir ?? pld.direction, { x: 0, y: 0 });
+          setMoveDir(player, d);
+        } else if (
+          isRecord(pld) &&
+          (pld.target || (typeof pld.x === "number" && typeof pld.y === "number"))
+        ) {
+          const t = pld.target
+            ? pickVector2(pld.target, { x: player.x, y: player.y })
+            : { x: pickNumber(pld.x, player.x), y: pickNumber(pld.y, player.y) };
+          setMoveTarget(player, t);
+        } else {
+          stopMove(player);
+        }
         break;
       }
 
-      case "move": {
-        // 互換:
-        // - {dir:{x,y}} (WASD)
-        // - {direction:{x,y}}
-        // - {target:{x,y}} / {to:{x,y}} / {x,y}
-        const pld = isRecord(payload) ? payload : {};
-
-        const dir = pickVector2(pld.dir) ?? pickVector2(pld.direction);
-
-        const target =
-          pickVector2(pld.target) ??
-          pickVector2(pld.to) ??
-          (typeof pld.x === "number" && typeof pld.y === "number" ? { x: pld.x, y: pld.y } : null);
-
-        if (dir) {
-          setMoveDir(player, dir);
-          if (len(dir) > 0) setAimDir(player, dir);
-        }
-        if (target) {
-          setMoveTarget(player, target);
-          const aim = { x: target.x - player.x, y: target.y - player.y };
-          if (len(aim) > 0) setAimDir(player, aim);
-        }
-
-        if (player.roomId) sendRoomState(player.roomId);
+      case "stopMove": {
+        stopMove(player);
         break;
       }
 
       case "aim": {
-        // aim だけ投げる実装も吸収
         const pld = isRecord(payload) ? payload : {};
-        const dir =
-          pickVector2(pld.dir) ??
-          pickVector2(pld.direction) ??
-          (typeof pld.x === "number" && typeof pld.y === "number" ? { x: pld.x, y: pld.y } : null);
-
-        if (dir) setAimDir(player, dir);
+        const dir = pickVector2(pld.dir ?? pld.direction ?? pld, player.aimDir);
+        setAimDir(player, dir);
         break;
       }
 
       case "shoot": {
-        // 互換:
-        // - {dir:{x,y}} / {direction:{x,y}}
-        // - {angleDeg:number} / {angleRad:number}
-        // - {target:{x,y}} (クリック射撃)
-        const pld = isRecord(payload) ? payload : {};
-
-        const dir = pickVector2(pld.dir) ?? pickVector2(pld.direction);
-        const target = pickVector2(pld.target) ?? pickVector2(pld.to);
-
-        const angleDeg = pickNumber(pld.angleDeg, NaN);
-        const angleRad = pickNumber(pld.angleRad, NaN);
-
+        const pld = isRecord(payload) ? payload : payload ?? {};
+        // 互換: {direction}, {dir}, {target}, {angle}
         let shootDir: Vector2 | null = null;
 
-        if (dir) shootDir = dir;
-        else if (target) shootDir = { x: target.x - player.x, y: target.y - player.y };
-        else if (Number.isFinite(angleRad)) shootDir = { x: Math.cos(angleRad), y: Math.sin(angleRad) };
-        else if (Number.isFinite(angleDeg)) {
-          const rad = (angleDeg * Math.PI) / 180;
-          shootDir = { x: Math.cos(rad), y: Math.sin(rad) };
-        } else {
-          shootDir = player.aimDir; // 最後に向いてた方向
+        if (isRecord(pld) && (pld.dir || pld.direction)) {
+          shootDir = pickVector2(pld.dir ?? pld.direction, player.aimDir);
+        } else if (isRecord(pld) && pld.target) {
+          const t = pickVector2(pld.target, { x: player.x, y: player.y });
+          shootDir = { x: t.x - player.x, y: t.y - player.y };
+        } else if (isRecord(pld) && typeof pld.angle === "number") {
+          const ang = pickNumber(pld.angle, 0);
+          shootDir = { x: Math.cos(ang), y: Math.sin(ang) };
+        } else if (isRecord(pld)) {
+          shootDir = pickVector2(pld, player.aimDir);
         }
 
-        if (shootDir) {
-          setAimDir(player, shootDir);
-          tryShoot(player, shootDir);
-        }
+        if (shootDir) tryShoot(player, shootDir);
         break;
       }
 
       case "chat": {
         const pld = isRecord(payload) ? payload : {};
-        const text = pickString(pld.text ?? pld.message, "").trim().slice(0, 200);
-        if (!text) break;
+        const message = pickString(pld.message, "").trim();
+        if (!message) break;
 
-        const chatPayload = {
-          id: newId(),
-          at: nowMs(),
-          from: { id: player.id, name: player.name },
-          text,
-          message: text, // 互換
-        };
-
-        if (player.roomId) {
-          broadcastRoom(player.roomId, { type: "chat", payload: chatPayload });
-        } else {
-          for (const other of players.values()) {
-            if (other.roomId === null) send(other.socket, { type: "chat", payload: chatPayload });
-          }
-        }
+        if (!player.roomId) break;
+        broadcastRoom(player.roomId, {
+          type: "chat",
+          payload: {
+            from: player.name,
+            message: message.slice(0, 120),
+            at: nowMs(),
+          },
+        });
         break;
       }
 
@@ -756,14 +799,8 @@ wss.on("connection", (socket) => {
 
   socket.on("close", () => {
     const player = players.get(playerId);
-    if (!player) return;
-
-    const oldRoomId = player.roomId;
-    detachFromRoom(player);
-
+    if (player) detachFromRoom(player);
     players.delete(playerId);
-
-    if (oldRoomId) sendRoomState(oldRoomId);
     broadcastLobby();
   });
 });
