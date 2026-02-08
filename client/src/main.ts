@@ -39,9 +39,9 @@ app.innerHTML = `
           <h3>Create Room</h3>
           <div class="grid">
             <input id="room-id" placeholder="Room ID" />
-            <input id="map-id" placeholder="Map ID" value="alpha" />
-            <input id="max-players" type="number" min="2" max="8" value="4" />
-            <input id="time-limit" type="number" min="60" max="900" value="240" />
+            <input id="room-name" placeholder="Room name (optional)" />
+            <input id="max-players" placeholder="Max players" value="4" />
+            <input id="time-limit" placeholder="Time limit (sec)" value="240" />
             <input id="room-password" placeholder="Password (optional)" />
             <button id="create-room">Create</button>
           </div>
@@ -51,24 +51,30 @@ app.innerHTML = `
   </section>
   <section id="room-screen" class="screen">
     <div class="panel">
+      <div class="room-header">
+        <div>
+          <h2 id="room-title">Room</h2>
+          <p id="room-meta">Time left: --, Players: --</p>
+        </div>
+        <div class="room-actions">
+          <span id="cooldown">Ready</span>
+          <button id="leave-room">Leave Room</button>
+        </div>
+      </div>
+      <canvas id="map" width="900" height="520"></canvas>
       <div class="hud">
         <div>
-          <h3 id="room-title">Room</h3>
-          <div id="room-meta" class="notice"></div>
+          <h3>Scores</h3>
+          <ul id="score-list" class="score-list"></ul>
         </div>
         <div>
-          <div id="cooldown" class="badge"></div>
-        </div>
-        <div>
-          <button id="leave-room" class="secondary">Leave Room</button>
+          <h3>Chat</h3>
+          <div class="chat">
+            <input id="chat-input" placeholder="Press T to chat" />
+            <div id="chat-log" class="chat-log"></div>
+          </div>
         </div>
       </div>
-      <div class="canvas-wrap" style="height: 520px; margin-top: 16px;">
-        <canvas id="game-canvas" width="900" height="520"></canvas>
-        <div id="chat-log" class="chat-log"></div>
-        <input id="chat-input" class="chat-input" placeholder="Type message..." />
-      </div>
-      <div id="scoreboard" class="notice" style="margin-top: 12px;"></div>
     </div>
   </section>
 `;
@@ -76,17 +82,27 @@ app.innerHTML = `
 const loginScreen = document.querySelector("#login-screen") as HTMLElement;
 const lobbyScreen = document.querySelector("#lobby-screen") as HTMLElement;
 const roomScreen = document.querySelector("#room-screen") as HTMLElement;
+
 const roomList = document.querySelector("#room-list") as HTMLUListElement;
-const roomTitle = document.querySelector("#room-title") as HTMLHeadingElement;
-const roomMeta = document.querySelector("#room-meta") as HTMLDivElement;
-const cooldownEl = document.querySelector("#cooldown") as HTMLDivElement;
-const scoreboardEl = document.querySelector("#scoreboard") as HTMLDivElement;
-const chatLog = document.querySelector("#chat-log") as HTMLDivElement;
+const roomIdInput = document.querySelector("#room-id") as HTMLInputElement;
+const roomNameInput = document.querySelector("#room-name") as HTMLInputElement;
+const maxPlayersInput = document.querySelector("#max-players") as HTMLInputElement;
+const timeLimitInput = document.querySelector("#time-limit") as HTMLInputElement;
+const passwordInput = document.querySelector("#room-password") as HTMLInputElement;
+const createRoomBtn = document.querySelector("#create-room") as HTMLButtonElement;
+
+const roomTitle = document.querySelector("#room-title") as HTMLElement;
+const roomMeta = document.querySelector("#room-meta") as HTMLElement;
+const scoreList = document.querySelector("#score-list") as HTMLUListElement;
+const cooldownEl = document.querySelector("#cooldown") as HTMLElement;
+
 const chatInput = document.querySelector("#chat-input") as HTMLInputElement;
-const canvas = document.querySelector("#game-canvas") as HTMLCanvasElement;
+const chatLog = document.querySelector("#chat-log") as HTMLDivElement;
+
+const canvas = document.querySelector("#map") as HTMLCanvasElement;
 const ctx = canvas.getContext("2d");
 if (!ctx) {
-  throw new Error("Canvas not supported");
+  throw new Error("Missing canvas context");
 }
 
 const state = {
@@ -100,7 +116,8 @@ const state = {
   chat: [] as ChatMessage[],
   leaderboard: null as PlayerSummary[] | null,
   aiming: false,
-  aimPoint: null as Vector2 | null
+  aimPoint: null as Vector2 | null,
+  bullets: [] as any[]
 };
 
 let ws: WebSocket | null = null;
@@ -147,13 +164,16 @@ const handleServerMessage = (message: ServerToClientMessage) => {
       state.rooms = message.payload.rooms;
       renderRooms();
       break;
-    case "room":
-      state.roomId = message.payload.roomId;
-      state.players = message.payload.players;
-      state.timeLeftSec = message.payload.timeLeftSec;
+    case "room": {
+      const payloadAny = message.payload as any;
+      state.roomId = payloadAny.roomId;
+      state.players = payloadAny.players;
+      state.timeLeftSec = payloadAny.timeLeftSec;
+      state.bullets = payloadAny.bullets ?? payloadAny.projectiles ?? [];
       state.leaderboard = null;
       renderRoom();
       break;
+    }
     case "chat":
       state.chat.unshift(message.payload);
       state.chat = state.chat.slice(0, 6);
@@ -174,74 +194,75 @@ const handleServerMessage = (message: ServerToClientMessage) => {
 const renderRooms = () => {
   roomList.innerHTML = "";
   if (state.rooms.length === 0) {
-    roomList.innerHTML = "<li>No rooms yet. Create one!</li>";
+    roomList.innerHTML = `<li class="room empty">No rooms yet. Create one!</li>`;
     return;
   }
   state.rooms.forEach((room) => {
     const li = document.createElement("li");
+    li.className = "room";
     li.innerHTML = `
-      <div>
-        <strong>${room.id}</strong> · Map ${room.mapId}<br />
-        <span class="notice">${room.players.length}/${room.maxPlayers} players · ${room.timeLimitSec}s</span>
+      <div class="room-row">
+        <div>
+          <strong>${room.name ?? (room as any).roomName ?? room.id}</strong>
+          <div class="meta">${(room as any).players?.length ?? (room as any).playerCount ?? 0}/${room.maxPlayers} players • ${room.timeLimitSec}s</div>
+        </div>
+        <button class="join">Join</button>
       </div>
     `;
-    const joinBtn = document.createElement("button");
-    joinBtn.textContent = "Join";
+    const joinBtn = li.querySelector(".join") as HTMLButtonElement;
     joinBtn.addEventListener("click", () => {
-      const password = room.passwordProtected ? prompt("Password?") ?? undefined : undefined;
-      sendMessage({ type: "joinRoom", payload: { roomId: room.id, password } });
+      const pw = room.passwordProtected ? prompt("Password?") ?? "" : "";
+      sendMessage({ type: "joinRoom", payload: { roomId: room.id, password: pw } });
       setScreen("room");
     });
-    li.appendChild(joinBtn);
     roomList.appendChild(li);
   });
 };
 
 const renderRoom = () => {
-  setScreen("room");
   roomTitle.textContent = `Room ${state.roomId}`;
-  roomMeta.textContent = `Time left: ${state.timeLeftSec}s · Players: ${state.players.length}`;
-  renderLeaderboard();
+  roomMeta.textContent = `Time left: ${state.timeLeftSec}s, Players: ${state.players.length}`;
+  renderScores();
+  renderChat();
 };
 
-const renderLeaderboard = () => {
-  const list = state.leaderboard ?? state.players;
-  const summary = list
-    .slice()
-    .sort((a, b) => b.score - a.score)
-    .map((player) => `${player.name} (${player.score})`)
-    .join(" · ");
-  scoreboardEl.textContent = state.leaderboard ? `Final Scores: ${summary}` : `Scores: ${summary}`;
+const renderScores = () => {
+  scoreList.innerHTML = "";
+  const sorted = [...state.players].sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+  sorted.forEach((p) => {
+    const li = document.createElement("li");
+    li.textContent = `${p.name}: ${p.score ?? 0}`;
+    scoreList.appendChild(li);
+  });
 };
 
 const renderChat = () => {
   chatLog.innerHTML = "";
   state.chat.forEach((msg) => {
-    const bubble = document.createElement("div");
-    bubble.className = "chat-bubble";
-    bubble.textContent = `${msg.from}: ${msg.message}`;
-    chatLog.appendChild(bubble);
+    const div = document.createElement("div");
+    div.className = "chat-line";
+    div.textContent = `${(msg as any).from ?? "?"}: ${(msg as any).message ?? ""}`;
+    chatLog.appendChild(div);
   });
 };
 
-const getSelf = () => state.players.find((player) => player.id === state.selfId);
+const renderLeaderboard = () => {
+  // optional
+};
 
-const clampVector = (value: Vector2) => ({
-  x: Math.max(0, Math.min(mapSize.width, value.x)),
-  y: Math.max(0, Math.min(mapSize.height, value.y))
-});
+const getSelf = () => state.players.find((p) => p.id === state.selfId);
 
 const getCanvasPoint = (event: MouseEvent): Vector2 => {
   const rect = canvas.getBoundingClientRect();
   const x = ((event.clientX - rect.left) / rect.width) * mapSize.width;
   const y = ((event.clientY - rect.top) / rect.height) * mapSize.height;
-  return clampVector({ x, y });
+  return { x, y };
 };
 
-const isMouseOnTank = (point: Vector2, tank: Vector2) => {
-  const dx = point.x - tank.x;
-  const dy = point.y - tank.y;
-  return Math.hypot(dx, dy) <= 22;
+const isMouseOnTank = (point: Vector2, tankPos: Vector2) => {
+  const dx = point.x - tankPos.x;
+  const dy = point.y - tankPos.y;
+  return Math.hypot(dx, dy) <= 18;
 };
 
 const draw = () => {
@@ -266,8 +287,22 @@ const draw = () => {
     ctx.stroke();
   }
 
+  // bullets（サーバ権威の projectile）
+  const bullets = (state as any).bullets ?? [];
+  if (bullets.length > 0) {
+    ctx.fillStyle = "#fde047";
+    for (const b of bullets) {
+      const pos = b.position ?? { x: b.x, y: b.y };
+      const r = typeof b.radius === "number" ? b.radius : 3;
+      if (!pos || typeof pos.x !== "number" || typeof pos.y !== "number") continue;
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
   state.players.forEach((player) => {
-    const { x, y } = player.position;
+    const { x, y } = (player as any).position ?? { x: (player as any).x, y: (player as any).y };
     ctx.fillStyle = player.id === state.selfId ? "#4cc9f0" : "#f72585";
     ctx.beginPath();
     ctx.arc(x, y, 18, 0, Math.PI * 2);
@@ -277,9 +312,9 @@ const draw = () => {
     ctx.fillStyle = "#e8f1ff";
     ctx.fillText(player.name, x + 24, y + 4);
     ctx.fillStyle = "#22c55e";
-    ctx.fillRect(x - 20, y - 28, (player.hp / 100) * 40, 4);
+    ctx.fillRect(x - 20, y - 28, ((player as any).hp / 100) * 40, 4);
     ctx.fillStyle = "#f97316";
-    ctx.fillRect(x - 20, y - 22, (player.ammo / 20) * 40, 4);
+    ctx.fillRect(x - 20, y - 22, ((player as any).ammo / 20) * 40, 4);
   });
 
   if (state.aiming && state.aimPoint) {
@@ -287,7 +322,7 @@ const draw = () => {
     if (self) {
       ctx.strokeStyle = "rgba(76, 201, 240, 0.8)";
       ctx.beginPath();
-      ctx.moveTo(self.position.x, self.position.y);
+      ctx.moveTo((self as any).position.x, (self as any).position.y);
       ctx.lineTo(state.aimPoint.x, state.aimPoint.y);
       ctx.stroke();
     }
@@ -295,7 +330,7 @@ const draw = () => {
 
   const self = getSelf();
   if (self) {
-    const remaining = Math.max(0, Math.ceil((self.nextActionAt - Date.now()) / 1000));
+    const remaining = Math.max(0, Math.ceil((((self as any).nextActionAt ?? Date.now()) - Date.now()) / 1000));
     cooldownEl.textContent = remaining > 0 ? `Cooldown: ${remaining}s` : "Ready";
   }
 };
@@ -331,22 +366,24 @@ const setupLogin = () => {
 };
 
 const setupLobby = () => {
-  const createBtn = document.querySelector("#create-room") as HTMLButtonElement;
-  createBtn.addEventListener("click", () => {
-    const roomIdInput = document.querySelector("#room-id") as HTMLInputElement;
-    const mapIdInput = document.querySelector("#map-id") as HTMLInputElement;
-    const maxPlayersInput = document.querySelector("#max-players") as HTMLInputElement;
-    const timeLimitInput = document.querySelector("#time-limit") as HTMLInputElement;
-    const passwordInput = document.querySelector("#room-password") as HTMLInputElement;
+  createRoomBtn.addEventListener("click", () => {
+    const roomId = roomIdInput.value.trim();
+    const name = roomNameInput.value.trim();
+    const maxPlayers = Number(maxPlayersInput.value) || 4;
+    const timeLimitSec = Number(timeLimitInput.value) || 240;
+    const password = passwordInput.value.trim();
 
-    const payload = {
-      roomId: roomIdInput.value.trim() || `room-${Math.floor(Math.random() * 999)}`,
-      mapId: mapIdInput.value.trim() || "alpha",
-      maxPlayers: Number(maxPlayersInput.value) || 4,
-      timeLimitSec: Number(timeLimitInput.value) || 240,
-      password: passwordInput.value.trim() || undefined
-    };
-    sendMessage({ type: "createRoom", payload });
+    sendMessage({
+      type: "createRoom",
+      payload: {
+        roomId,
+        name,
+        maxPlayers,
+        timeLimitSec,
+        password,
+        mapId: "alpha",
+      },
+    });
     setScreen("room");
   });
 };
@@ -358,6 +395,7 @@ const setupRoom = () => {
     sendMessage({ type: "requestLobby" });
     state.roomId = "";
     state.players = [];
+    state.bullets = [];
     setScreen("lobby");
   });
 
@@ -370,7 +408,7 @@ const setupRoom = () => {
       return;
     }
     const point = getCanvasPoint(event);
-    if (isMouseOnTank(point, self.position)) {
+    if (isMouseOnTank(point, (self as any).position)) {
       state.aiming = true;
       state.aimPoint = point;
       return;
@@ -393,8 +431,8 @@ const setupRoom = () => {
     }
     const point = getCanvasPoint(event);
     if (state.aiming) {
-      const dx = point.x - self.position.x;
-      const dy = point.y - self.position.y;
+      const dx = point.x - (self as any).position.x;
+      const dy = point.y - (self as any).position.y;
       const length = Math.hypot(dx, dy);
       if (length > 0) {
         sendMessage({ type: "shoot", payload: { direction: { x: dx / length, y: dy / length } } });
