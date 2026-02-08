@@ -4,6 +4,12 @@ import express from "express";
 import http from "http";
 import * as path from "path";
 import { WebSocket, WebSocketServer } from "ws";
+import {
+  ServerToClientMessage,
+  WS_PROTOCOL_VERSION,
+  getProtocolVersion,
+  isClientMessage
+} from "@tanktaktix/shared";
 
 /**
  * server/src/index.ts
@@ -20,8 +26,7 @@ import { WebSocket, WebSocketServer } from "ws";
 
 type Vector2 = { x: number; y: number };
 
-type ClientMsg = { type: string; payload?: unknown };
-type ServerMsg = { type: string; payload?: unknown };
+type ServerMsg = Omit<ServerToClientMessage, "v"> | ServerToClientMessage;
 
 type PlayerRuntime = {
   id: string;
@@ -169,7 +174,11 @@ function newId() {
 
 function send(ws: WebSocket, msg: ServerMsg) {
   if (ws.readyState !== WebSocket.OPEN) return;
-  ws.send(JSON.stringify(msg));
+  ws.send(JSON.stringify({ ...msg, v: WS_PROTOCOL_VERSION }));
+}
+
+function sendError(ws: WebSocket, message: string) {
+  send(ws, { type: "error", payload: { message } });
 }
 
 // --- state ---
@@ -642,17 +651,30 @@ wss.on("connection", (socket) => {
 
   socket.on("message", (raw) => {
     const msg = safeJsonParse(raw.toString());
-    if (!isRecord(msg)) return;
+    if (!isRecord(msg)) {
+      sendError(socket, "Invalid message.");
+      return;
+    }
 
-    const type = pickString(msg.type, "");
-    const payload = (msg as ClientMsg).payload;
+    const version = getProtocolVersion(msg);
+    if (version !== WS_PROTOCOL_VERSION) {
+      sendError(socket, `Unsupported protocol version ${String(msg.v ?? "unknown")}.`);
+      return;
+    }
+
+    if (!isClientMessage(msg)) {
+      sendError(socket, "Invalid message payload.");
+      return;
+    }
+
+    const type = msg.type;
 
     const player = players.get(playerId);
     if (!player) return;
 
     switch (type) {
       case "login": {
-        const pld = isRecord(payload) ? payload : {};
+        const pld = (isRecord(msg.payload) ? msg.payload : {}) as Record<string, any>;
         const name = pickString(pld.name, "").trim();
         if (name) player.name = name.slice(0, 16);
         send(socket, { type: "welcome", payload: { id: playerId } });
@@ -665,7 +687,7 @@ wss.on("connection", (socket) => {
       }
 
       case "createRoom": {
-        const pld = isRecord(payload) ? payload : {};
+        const pld = (isRecord(msg.payload) ? msg.payload : {}) as Record<string, any>;
         const roomIdRaw = pickString(pld.roomId, "");
         const roomId = roomIdRaw.trim() ? roomIdRaw.trim() : newId();
 
@@ -709,7 +731,7 @@ wss.on("connection", (socket) => {
       }
 
       case "joinRoom": {
-        const pld = isRecord(payload) ? payload : {};
+        const pld = (isRecord(msg.payload) ? msg.payload : {}) as Record<string, any>;
         const roomId = pickString(pld.roomId, "").trim();
         const password = pickString(pld.password, "").trim() || undefined;
         if (roomId) joinRoom(player, roomId, password);
@@ -723,7 +745,7 @@ wss.on("connection", (socket) => {
       }
 
       case "move": {
-        const pld = isRecord(payload) ? payload : payload ?? {};
+        const pld = (isRecord(msg.payload) ? msg.payload : msg.payload ?? {}) as Record<string, any>;
         // 互換: {dir}, {direction}, {target}, {x,y}
         if (isRecord(pld) && (pld.dir || pld.direction)) {
           const d = pickVector2(pld.dir ?? pld.direction, { x: 0, y: 0 });
@@ -748,14 +770,14 @@ wss.on("connection", (socket) => {
       }
 
       case "aim": {
-        const pld = isRecord(payload) ? payload : {};
+        const pld = (isRecord(msg.payload) ? msg.payload : {}) as Record<string, any>;
         const dir = pickVector2(pld.dir ?? pld.direction ?? pld, player.aimDir);
         setAimDir(player, dir);
         break;
       }
 
       case "shoot": {
-        const pld = isRecord(payload) ? payload : payload ?? {};
+        const pld = (isRecord(msg.payload) ? msg.payload : msg.payload ?? {}) as Record<string, any>;
         // 互換: {direction}, {dir}, {target}, {angle}
         let shootDir: Vector2 | null = null;
 
@@ -776,7 +798,7 @@ wss.on("connection", (socket) => {
       }
 
       case "chat": {
-        const pld = isRecord(payload) ? payload : {};
+        const pld = (isRecord(msg.payload) ? msg.payload : {}) as Record<string, any>;
         const message = pickString(pld.message, "").trim();
         if (!message) break;
 
@@ -786,7 +808,7 @@ wss.on("connection", (socket) => {
           payload: {
             from: player.name,
             message: message.slice(0, 120),
-            at: nowMs(),
+            timestamp: nowMs(),
           },
         });
         break;

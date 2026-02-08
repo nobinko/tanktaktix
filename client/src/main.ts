@@ -2,10 +2,16 @@ import "./style.css";
 import type {
   ChatMessage,
   ClientToServerMessage,
+  LeaderboardEntry,
   PlayerSummary,
   RoomSummary,
   ServerToClientMessage,
   Vector2
+} from "@tanktaktix/shared";
+import {
+  WS_PROTOCOL_VERSION,
+  getProtocolVersion,
+  isServerMessage
 } from "@tanktaktix/shared";
 
 const app = document.querySelector<HTMLDivElement>("#app");
@@ -114,7 +120,7 @@ const state = {
   players: [] as PlayerSummary[],
   timeLeftSec: 0,
   chat: [] as ChatMessage[],
-  leaderboard: null as PlayerSummary[] | null,
+  leaderboard: null as LeaderboardEntry[] | null,
   aiming: false,
   aimPoint: null as Vector2 | null,
   bullets: [] as any[]
@@ -139,8 +145,30 @@ const connect = () => {
   const url = `${protocol}://${window.location.host}/ws`;
   ws = new WebSocket(url);
   ws.addEventListener("message", (event) => {
-    const message = JSON.parse(event.data) as ServerToClientMessage;
-    handleServerMessage(message);
+    let parsed: unknown = null;
+    try {
+      parsed = JSON.parse(event.data);
+    } catch (error) {
+      console.warn("Failed to parse server message.", error);
+      return;
+    }
+
+    const version = getProtocolVersion(parsed);
+    if (version !== WS_PROTOCOL_VERSION) {
+      console.warn("Ignoring message with unsupported protocol version.", parsed);
+      return;
+    }
+
+    if (!isServerMessage(parsed)) {
+      if (parsed && typeof parsed === "object" && "type" in parsed) {
+        console.warn("Ignoring unknown server message type.", (parsed as any).type);
+      } else {
+        console.warn("Ignoring invalid server message payload.", parsed);
+      }
+      return;
+    }
+
+    handleServerMessage(parsed as ServerToClientMessage);
   });
   ws.addEventListener("close", () => {
     ws = null;
@@ -148,11 +176,13 @@ const connect = () => {
   });
 };
 
-const sendMessage = (message: ClientToServerMessage) => {
+type ClientMessageInput = Omit<ClientToServerMessage, "v">;
+
+const sendMessage = (message: ClientMessageInput) => {
   if (!ws || ws.readyState !== WebSocket.OPEN) {
     return;
   }
-  ws.send(JSON.stringify(message));
+  ws.send(JSON.stringify({ ...message, v: WS_PROTOCOL_VERSION }));
 };
 
 const handleServerMessage = (message: ServerToClientMessage) => {
