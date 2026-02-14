@@ -117,7 +117,9 @@ const state = {
   leaderboard: null as PlayerSummary[] | null,
   aiming: false,
   aimPoint: null as Vector2 | null,
-  bullets: [] as any[]
+  bullets: [] as any[],
+  explosions: [] as any[], // Local VFX
+  mapData: null as any
 };
 
 let ws: WebSocket | null = null;
@@ -170,6 +172,12 @@ const handleServerMessage = (message: ServerToClientMessage) => {
       state.players = payloadAny.players;
       state.timeLeftSec = payloadAny.timeLeftSec;
       state.bullets = payloadAny.bullets ?? payloadAny.projectiles ?? [];
+
+      // Update Map Data if provided (or if missing and in room)
+      if (payloadAny.room?.mapData) {
+        state.mapData = payloadAny.room.mapData;
+      }
+
       state.leaderboard = null;
       renderRoom();
       break;
@@ -185,6 +193,13 @@ const handleServerMessage = (message: ServerToClientMessage) => {
       break;
     case "error":
       alert(message.payload.message);
+      break;
+    case "explosion":
+      // Add to local VFX list
+      state.explosions.push({
+        ...message.payload,
+        startedAt: Date.now()
+      });
       break;
     default:
       break;
@@ -287,6 +302,19 @@ const draw = () => {
     ctx.stroke();
   }
 
+  // Walls
+  if (state.mapData && state.mapData.walls) {
+    ctx.fillStyle = "#4a5568";
+    for (const w of state.mapData.walls) {
+      ctx.fillRect(w.x, w.y, w.width, w.height);
+
+      // Bevel/Border for visibility
+      ctx.strokeStyle = "#718096";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(w.x, w.y, w.width, w.height);
+    }
+  }
+
   // bullets（サーバ権威の projectile）
   const bullets = (state as any).bullets ?? [];
   if (bullets.length > 0) {
@@ -301,9 +329,39 @@ const draw = () => {
     }
   }
 
+  // Explosions VFX
+  state.explosions = state.explosions.filter(e => Date.now() - (e.startedAt || e.at) < 500); // 0.5s duration
+  for (const e of state.explosions) {
+    const start = e.startedAt || e.at || Date.now();
+    const progress = (Date.now() - start) / 500;
+    if (progress > 1) continue;
+
+    const r = e.radius || 40;
+
+    ctx.fillStyle = `rgba(255, 165, 0, ${1 - progress})`;
+    ctx.beginPath();
+    ctx.arc(e.x, e.y, r * (0.5 + progress * 0.5), 0, Math.PI * 2);
+    ctx.fill();
+
+    // Ring
+    ctx.strokeStyle = `rgba(255, 69, 0, ${1 - progress})`;
+    ctx.lineWidth = 4 * (1 - progress);
+    ctx.stroke();
+  }
+
   state.players.forEach((player) => {
     const { x, y } = (player as any).position ?? { x: (player as any).x, y: (player as any).y };
-    ctx.fillStyle = player.id === state.selfId ? "#4cc9f0" : "#f72585";
+    // Team Colors
+    let color = "#f72585"; // default enemy
+    if (player.id === state.selfId) {
+      color = "#4cc9f0"; // self
+    } else {
+      const pTeam = (player as any).team;
+      if (pTeam === "red") color = "#ef4444";
+      if (pTeam === "blue") color = "#3b82f6";
+    }
+
+    ctx.fillStyle = color;
     ctx.beginPath();
     ctx.arc(x, y, 18, 0, Math.PI * 2);
     ctx.fill();
@@ -330,8 +388,18 @@ const draw = () => {
 
   const self = getSelf();
   if (self) {
-    const remaining = Math.max(0, Math.ceil((((self as any).nextActionAt ?? Date.now()) - Date.now()) / 1000));
-    cooldownEl.textContent = remaining > 0 ? `Cooldown: ${remaining}s` : "Ready";
+    // nextActionAt sends the timestamp when cooldown ENDS
+    const nextActionAt = (self as any).nextActionAt ?? 0;
+    const remaining = Math.max(0, Math.ceil((nextActionAt - Date.now()) / 1000));
+    const isCooling = nextActionAt > Date.now();
+
+    if (isCooling) {
+      cooldownEl.textContent = "WAIT...";
+      cooldownEl.style.color = "#f97316";
+    } else {
+      cooldownEl.textContent = "READY";
+      cooldownEl.style.color = "#22c55e";
+    }
   }
 };
 
@@ -429,6 +497,14 @@ const setupRoom = () => {
       state.aimPoint = null;
       return;
     }
+    // Block Input if Cooldown
+    const nextActionAt = (self as any).nextActionAt ?? 0;
+    if (nextActionAt > Date.now()) {
+      state.aiming = false;
+      state.aimPoint = null;
+      return;
+    }
+
     const point = getCanvasPoint(event);
     if (state.aiming) {
       const dx = point.x - (self as any).position.x;

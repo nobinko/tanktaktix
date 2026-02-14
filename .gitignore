@@ -3,3 +3,7 @@ node_modules/
 client/dist/
 server/dist/
 shared/dist/
+
+node_modules
+dist
+.env

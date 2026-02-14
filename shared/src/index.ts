@@ -3,9 +3,27 @@ export type Vector2 = {
   y: number;
 };
 
+export type Team = "red" | "blue" | null;
+
+export type Wall = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+export type MapData = {
+  id: string;
+  width: number;
+  height: number;
+  walls: Wall[];
+  spawnPoints: { team: Team; x: number; y: number }[];
+};
+
 export type PlayerSummary = {
   id: string;
   name: string;
+  team: Team;
   roomId: string | null;
   position: Vector2;
   target: Vector2 | null;
@@ -19,7 +37,9 @@ export type PlayerSummary = {
 
 export type RoomSummary = {
   id: string;
+  name: string;
   mapId: string;
+  mapData?: MapData; // simple way to sync map for now
   maxPlayers: number;
   timeLimitSec: number;
   passwordProtected: boolean;
@@ -32,9 +52,19 @@ export type LobbyState = {
   rooms: RoomSummary[];
 };
 
+export type Explosion = {
+  id: string;
+  x: number;
+  y: number;
+  radius: number;
+  at: number;
+};
+
 export type RoomState = {
   roomId: string;
   players: PlayerSummary[];
+  bullets: any[]; // keeping as any for now or define Bullet
+  explosions: Explosion[];
   timeLeftSec: number;
 };
 
@@ -46,64 +76,69 @@ export type ChatMessage = {
 
 export type ClientToServerMessage =
   | {
-      type: "login";
-      payload: { name: string };
-    }
+    type: "login";
+    payload: { name: string };
+  }
   | {
-      type: "requestLobby";
-    }
+    type: "requestLobby";
+  }
   | {
-      type: "createRoom";
-      payload: {
-        roomId: string;
-        mapId: string;
-        maxPlayers: number;
-        timeLimitSec: number;
-        password?: string;
-      };
-    }
-  | {
-      type: "joinRoom";
-      payload: { roomId: string; password?: string };
-    }
-  | {
-      type: "leaveRoom";
-    }
-  | {
-      type: "chat";
-      payload: { message: string };
-    }
-  | {
-      type: "move";
-      payload: { target: Vector2 };
-    }
-  | {
-      type: "shoot";
-      payload: { direction: Vector2 };
+    type: "createRoom";
+    payload: {
+      roomId: string;
+      name: string;
+      mapId: string;
+      maxPlayers: number;
+      timeLimitSec: number;
+      password?: string;
     };
+  }
+  | {
+    type: "joinRoom";
+    payload: { roomId: string; password?: string };
+  }
+  | {
+    type: "leaveRoom";
+  }
+  | {
+    type: "chat";
+    payload: { message: string };
+  }
+  | {
+    type: "move";
+    payload: { target: Vector2 };
+  }
+  | {
+    type: "shoot";
+    payload: { direction: Vector2 };
+  };
 
 export type ServerToClientMessage =
   | {
-      type: "welcome";
-      payload: { id: string };
-    }
+    type: "welcome";
+    payload: { id: string };
+  }
   | {
-      type: "lobby";
-      payload: LobbyState;
-    }
+    type: "lobby";
+    payload: LobbyState;
+  }
   | {
-      type: "room";
-      payload: RoomState;
-    }
+    type: "room";
+    payload: RoomState;
+  }
   | {
-      type: "chat";
-      payload: ChatMessage;
-    }
+    type: "explosion"; // Immediate event
+    payload: Explosion;
+  }
   | {
-      type: "leaderboard";
-      payload: { players: PlayerSummary[] };
-    }
+    type: "chat";
+    payload: ChatMessage;
+  }
   | {
-      type: "error";
-      payload: { message: string };
-    };
+    type: "leaderboard";
+    payload: { players: PlayerSummary[] };
+  }
+  | {
+    type: "error";
+    payload: { message: string };
+  };
