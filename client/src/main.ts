@@ -260,13 +260,7 @@ const renderScores = () => {
 };
 
 const renderChat = () => {
-  chatLog.innerHTML = "";
-  state.chat.forEach((msg) => {
-    const div = document.createElement("div");
-    div.className = "chat-line";
-    div.textContent = `${(msg as any).from ?? "?"}: ${(msg as any).message ?? ""}`;
-    chatLog.appendChild(div);
-  });
+  // Chat is drawn on canvas via drawHUD
 };
 
 const renderLeaderboard = () => {
@@ -648,6 +642,9 @@ const drawHUD = (ctx: CanvasRenderingContext2D) => {
   // ── Minimap (bottom-right) ──
   drawMinimap(ctx);
 
+  // ── Chat (bottom-left) ──
+  drawChat(ctx);
+
   // Reset text alignment
   ctx.textAlign = "start";
 };
@@ -722,6 +719,32 @@ const drawMinimap = (ctx: CanvasRenderingContext2D) => {
   ctx.strokeRect(vpX, vpY, vpW, vpH);
 };
 
+const drawChat = (ctx: CanvasRenderingContext2D) => {
+  const messages = state.chat.slice(-8); // Show last 8 messages
+  const lineHeight = 16;
+  const bottomY = mapSize.height - 40; // Leave space for input
+  const startX = 10;
+
+  ctx.font = "12px 'Segoe UI', Arial, sans-serif";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "bottom";
+
+  messages.forEach((msg, i) => {
+    const y = bottomY - ((messages.length - 1 - i) * lineHeight);
+    // Background for readability
+    const text = `${msg.from}: ${msg.message}`;
+    const width = ctx.measureText(text).width;
+
+    ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+    ctx.fillRect(startX - 2, y - lineHeight + 2, width + 4, lineHeight);
+
+    ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+    ctx.fillText(text, startX, y);
+  });
+
+  ctx.textBaseline = "alphabetic";
+};
+
 const setupLogin = () => {
   const nameInput = document.querySelector("#name-input") as HTMLInputElement;
   const randomBtn = document.querySelector("#random-name") as HTMLButtonElement;
@@ -753,12 +776,18 @@ const setupLogin = () => {
 };
 
 const setupLobby = () => {
+  const createRoomBtn = document.querySelector("#create-room") as HTMLButtonElement;
   createRoomBtn.addEventListener("click", () => {
-    const roomId = roomIdInput.value.trim();
-    const name = roomNameInput.value.trim();
-    const maxPlayers = Number(maxPlayersInput.value) || 4;
-    const timeLimitSec = Number(timeLimitInput.value) || 240;
-    const password = passwordInput.value.trim();
+    const roomId = (document.querySelector("#room-id") as HTMLInputElement).value;
+    const name = (document.querySelector("#room-name") as HTMLInputElement).value;
+    const maxPlayers = parseInt((document.querySelector("#max-players") as HTMLInputElement).value) || 4;
+    const timeLimitSec = parseInt((document.querySelector("#time-limit") as HTMLInputElement).value) || 240;
+    const password = (document.querySelector("#room-password") as HTMLInputElement).value;
+
+    if (!roomId) {
+      alert("Room ID is required");
+      return;
+    }
 
     sendMessage({
       type: "createRoom",
@@ -776,6 +805,21 @@ const setupLobby = () => {
 };
 
 const setupRoom = () => {
+  // Hide DOM HUD elements (except chat-input) to use Canvas HUD
+  const roomHeader = document.querySelector(".room-header") as HTMLElement;
+  if (roomHeader) roomHeader.style.display = "none";
+
+  const scoreList = document.querySelector("#score-list") as HTMLElement;
+  if (scoreList) scoreList.style.display = "none";
+
+  // Hide Chat Log DOM (we draw it on canvas)
+  const domChatLog = document.querySelector("#chat-log") as HTMLElement;
+  if (domChatLog) domChatLog.style.display = "none";
+
+  // Hide H3 headers in HUD
+  const h3s = document.querySelectorAll(".hud h3");
+  h3s.forEach((h3) => (h3 as HTMLElement).style.display = "none");
+
   const leaveBtn = document.querySelector("#leave-room") as HTMLButtonElement;
   leaveBtn.addEventListener("click", () => {
     sendMessage({ type: "leaveRoom" });
@@ -786,6 +830,13 @@ const setupRoom = () => {
     setScreen("lobby");
   });
 
+  // Chat button in top bar (virtual click on canvas button check in mousedown?)
+  // For now we just use T key or need a DOM button?
+  // User HUD spec says "Chat/Exit buttons exist".
+  // We can't click canvas buttons easily without raycasting UI.
+  // For MVP, T key and Exit button (leaveBtn) are enough?
+  // Let's rely on T key for chat.
+
   canvas.addEventListener("mousedown", (event) => {
     if (state.phase !== "room") {
       return;
@@ -794,52 +845,91 @@ const setupRoom = () => {
     if (!self) {
       return;
     }
-    const point = getCanvasPoint(event);
-    if (isMouseOnTank(point, (self as any).position)) {
-      state.aiming = true;
-      state.aimPoint = point;
+
+    // Check UI clicks on Canvas?
+    // Not implemented yet. Focus on gameplay.
+
+    // Check click on minimap?
+    const rect = canvas.getBoundingClientRect();
+    const mx = event.clientX - rect.left;
+    const my = event.clientY - rect.top;
+
+    // Minimap click -> move command?
+    const mmW = 160, mmH = 92;
+    const mmX = mapSize.width - mmW - 8;
+    const mmY = mapSize.height - mmH - 8;
+
+    if (mx >= mmX && mx <= mmX + mmW && my >= mmY && my <= mmY + mmH) {
+      // Minimap click
+      const scaleX = mapSize.width / mmW;
+      const scaleY = mapSize.height / mmH;
+      const tx = (mx - mmX) * scaleX;
+      const ty = (my - mmY) * scaleY;
+      sendMessage({ type: "move", payload: { target: { x: tx, y: ty } } });
       return;
+    }
+
+    if (event.button === 0) { // Left click
+      // If AIMing, shoot
+      if (state.aiming) {
+        // Shoot happens on mouseup usually, or mousedown?
+        // Drag logic: mousedown -> start aim, mouseup -> fire.
+        // Wait, aim logic is: click (mark target) or drag?
+        // Previous logic:
+        // Click on self -> start aim, mouseup -> fire.
+        // Screen click -> move.
+        const point = getCanvasPoint(event);
+        if (isMouseOnTank(point, (self as any).position)) {
+          state.aiming = true;
+          state.aimPoint = point;
+          return;
+        }
+
+        // Move
+        sendMessage({ type: "move", payload: { target: point } });
+      } else {
+        const point = getCanvasPoint(event);
+        if (isMouseOnTank(point, (self as any).position)) {
+          state.aiming = true;
+          state.aimPoint = point;
+          return;
+        }
+        // Move
+        sendMessage({ type: "move", payload: { target: point } });
+      }
     }
   });
 
   canvas.addEventListener("mousemove", (event) => {
-    if (!state.aiming) {
-      return;
-    }
+    if (!state.aiming) return;
     state.aimPoint = getCanvasPoint(event);
   });
 
   canvas.addEventListener("mouseup", (event) => {
+    if (!state.aiming) return;
+    if (state.phase !== "room") return;
+
     const self = getSelf();
     if (!self) {
+      state.aiming = false;
+      return;
+    }
+
+    const point = getCanvasPoint(event);
+    const selfPos = (self as any).position;
+    // Check cancel (close to self)
+    if (isMouseOnTank(point, selfPos)) {
       state.aiming = false;
       state.aimPoint = null;
       return;
     }
-    const point = getCanvasPoint(event);
-    if (state.aiming) {
-      // Cancel if released on own tank
-      if (isMouseOnTank(point, (self as any).position)) {
-        state.aiming = false;
-        state.aimPoint = null;
-        return;
-      }
-      // Block AIM/Shoot if Cooldown
-      const nextActionAt = (self as any).nextActionAt ?? 0;
-      if (nextActionAt > Date.now()) {
-        state.aiming = false;
-        state.aimPoint = null;
-        return;
-      }
-      const dx = point.x - (self as any).position.x;
-      const dy = point.y - (self as any).position.y;
-      const length = Math.hypot(dx, dy);
-      if (length > 0) {
-        sendMessage({ type: "shoot", payload: { direction: { x: dx / length, y: dy / length } } });
-      }
-    } else {
-      // Move click always sent — server decides if it queues or ignores
-      sendMessage({ type: "move", payload: { target: point } });
+
+    // Shoot
+    const dx = point.x - selfPos.x;
+    const dy = point.y - selfPos.y;
+    const len = Math.hypot(dx, dy);
+    if (len > 0) {
+      sendMessage({ type: "shoot", payload: { direction: { x: dx / len, y: dy / len } } });
     }
     state.aiming = false;
     state.aimPoint = null;
