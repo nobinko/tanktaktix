@@ -260,6 +260,13 @@ const renderRoom = () => {
 };
 
 const renderScores = () => {
+  const scorePanel = scoreList.parentElement;
+  // Hide scoreboard in team mode
+  const isTeamMode = state.players.some((p) => (p as any).team != null);
+  if (scorePanel) {
+    scorePanel.style.display = isTeamMode ? "none" : "";
+  }
+
   scoreList.innerHTML = "";
   const sorted = [...state.players].sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
   sorted.forEach((p) => {
