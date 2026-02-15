@@ -375,6 +375,29 @@ const draw = () => {
     ctx.fillRect(x - 20, y - 22, ((player as any).ammo / 20) * 40, 4);
   });
 
+  // Draw move queue markers for self
+  const selfPlayer = getSelf();
+  if (selfPlayer) {
+    const queue = (selfPlayer as any).moveQueue as Vector2[] ?? [];
+    queue.forEach((pt, i) => {
+      const alpha = 0.3 + (i === 0 ? 0.4 : 0);
+      ctx.strokeStyle = `rgba(76, 201, 240, ${alpha})`;
+      ctx.lineWidth = 2;
+      // Cross marker
+      const sz = 8;
+      ctx.beginPath();
+      ctx.moveTo(pt.x - sz, pt.y);
+      ctx.lineTo(pt.x + sz, pt.y);
+      ctx.moveTo(pt.x, pt.y - sz);
+      ctx.lineTo(pt.x, pt.y + sz);
+      ctx.stroke();
+      // Queue number
+      ctx.fillStyle = `rgba(76, 201, 240, ${alpha})`;
+      ctx.font = "10px monospace";
+      ctx.fillText(`${i + 1}`, pt.x + sz + 2, pt.y - 2);
+    });
+  }
+
   if (state.aiming && state.aimPoint) {
     const self = getSelf();
     if (self) {
@@ -497,16 +520,15 @@ const setupRoom = () => {
       state.aimPoint = null;
       return;
     }
-    // Block Input if Cooldown
-    const nextActionAt = (self as any).nextActionAt ?? 0;
-    if (nextActionAt > Date.now()) {
-      state.aiming = false;
-      state.aimPoint = null;
-      return;
-    }
-
     const point = getCanvasPoint(event);
     if (state.aiming) {
+      // Block AIM/Shoot if Cooldown
+      const nextActionAt = (self as any).nextActionAt ?? 0;
+      if (nextActionAt > Date.now()) {
+        state.aiming = false;
+        state.aimPoint = null;
+        return;
+      }
       const dx = point.x - (self as any).position.x;
       const dy = point.y - (self as any).position.y;
       const length = Math.hypot(dx, dy);
@@ -514,6 +536,7 @@ const setupRoom = () => {
         sendMessage({ type: "shoot", payload: { direction: { x: dx / length, y: dy / length } } });
       }
     } else {
+      // Move click always sent — server decides if it queues or ignores
       sendMessage({ type: "move", payload: { target: point } });
     }
     state.aiming = false;
@@ -521,9 +544,21 @@ const setupRoom = () => {
   });
 
   window.addEventListener("keydown", (event) => {
-    if (event.key.toLowerCase() === "t" && state.phase === "room") {
+    if (state.phase !== "room") return;
+    const key = event.key.toLowerCase();
+
+    // Chat open
+    if (key === "t" && document.activeElement !== chatInput) {
       chatInput.classList.add("active");
       chatInput.focus();
+      event.preventDefault();
+      return;
+    }
+
+    // Z key — cancel last move reservation
+    if (key === "z" && document.activeElement !== chatInput) {
+      sendMessage({ type: "moveCancelOne" });
+      return;
     }
   });
 

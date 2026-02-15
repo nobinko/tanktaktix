@@ -38,8 +38,8 @@ type PlayerRuntime = {
   roomId: string | null;
 
   aimDir: Vector2; // unit
-  pendingMove: Vector2 | null; // unit
-  pendingTarget: Vector2 | null; // click move
+  pendingMove: Vector2 | null; // unit (legacy directional, kept for compat)
+  moveQueue: Vector2[]; // click-to-move queue (max MOVE_QUEUE_MAX)
 
   // Cooldown Logic
   // Tankmatch: 
@@ -101,6 +101,7 @@ const MAP_H = 520;
 
 const MOVE_SPEED = 6; // per tick
 const ACTION_COOLDOWN_MS = 500; // 0.5s cooldown after action
+const MOVE_QUEUE_MAX = 5; // max queued move targets
 
 const RESPAWN_MS = 1500;
 
@@ -243,7 +244,8 @@ function toPlayerPublic(p: PlayerRuntime) {
     x: p.x,
     y: p.y,
     position: { x: p.x, y: p.y },
-    target: p.pendingTarget ?? { x: p.x, y: p.y },
+    target: p.moveQueue.length > 0 ? p.moveQueue[0] : { x: p.x, y: p.y },
+    moveQueue: p.moveQueue,
     hp: p.hp,
     ammo: p.ammo,
     score: p.score,
@@ -356,7 +358,7 @@ function detachFromRoom(p: PlayerRuntime) {
   }
   p.roomId = null;
   p.pendingMove = null;
-  p.pendingTarget = null;
+  p.moveQueue = [];
   p.team = null;
   p.isMoving = false;
   p.cooldownUntil = 0;
@@ -402,7 +404,7 @@ function spawnPlayer(p: PlayerRuntime, room: Room) {
   p.ammo = 20;
   p.respawnAt = null;
   p.pendingMove = null;
-  p.pendingTarget = null;
+  p.moveQueue = [];
   p.isMoving = false;
   p.cooldownUntil = 0;
 }
@@ -450,17 +452,18 @@ function setMoveDir(p: PlayerRuntime, dir: Vector2) {
 
 function stopMove(p: PlayerRuntime) {
   p.pendingMove = null;
-  p.pendingTarget = null;
+  p.moveQueue = [];
   // Note: if stop, triggers cooldown -> handled in tick
 }
 
 function setMoveTarget(p: PlayerRuntime, target: Vector2) {
-  if (nowMs() < p.cooldownUntil) return;
-
-  p.pendingTarget = {
+  // 仕様: 移動中/カウント中のクリックでも移動予約を受け付ける
+  const clamped = {
     x: clamp(target.x, 0, MAP_W),
     y: clamp(target.y, 0, MAP_H),
   };
+  if (p.moveQueue.length >= MOVE_QUEUE_MAX) return; // 上限
+  p.moveQueue.push(clamped);
   p.isMoving = true;
 }
 
@@ -698,25 +701,24 @@ function tick() {
       let dy = 0;
 
       if (p.cooldownUntil > now) {
-        // In Cooldown: FREEZE
+        // In Cooldown: FREEZE movement (but moveQueue keeps accepting via setMoveTarget)
         p.isMoving = false;
-        p.pendingMove = null; // Clear pending input during CD?
-        // Or buffer it? Tankmatch usually strict turn based -> Clear
-        // p.pendingTarget?
+        p.pendingMove = null;
       } else {
         // Ready to move
         if (p.pendingMove) {
           dx = p.pendingMove.x * MOVE_SPEED;
           dy = p.pendingMove.y * MOVE_SPEED;
           wantsToMove = true;
-        } else if (p.pendingTarget) {
-          const to = { x: p.pendingTarget.x - p.x, y: p.pendingTarget.y - p.y };
+        } else if (p.moveQueue.length > 0) {
+          const currentTarget = p.moveQueue[0];
+          const to = { x: currentTarget.x - p.x, y: currentTarget.y - p.y };
           const distance = len(to);
           if (distance <= MOVE_SPEED) {
-            // Arrived
-            p.x = p.pendingTarget.x;
-            p.y = p.pendingTarget.y;
-            p.pendingTarget = null;
+            // Arrived at current target
+            p.x = currentTarget.x;
+            p.y = currentTarget.y;
+            p.moveQueue.shift(); // consume this target
             p.isMoving = false;
 
             // ARRIVAL -> Cooldown Start
@@ -728,10 +730,8 @@ function tick() {
             wantsToMove = true;
           }
         } else {
-          // Not moving
+          // Not moving, queue empty
           if (p.isMoving) {
-            // Was moving, now stopped (Key released?)
-            // Trigger cooldown?
             p.isMoving = false;
             p.cooldownUntil = now + ACTION_COOLDOWN_MS;
           }
@@ -749,7 +749,7 @@ function tick() {
         } else {
           // Hit wall
           p.pendingMove = null; // Stop
-          p.pendingTarget = null;
+          p.moveQueue = [];
           p.isMoving = false;
           p.cooldownUntil = now + ACTION_COOLDOWN_MS; // Bonk -> Cooldown
         }
@@ -815,7 +815,7 @@ wss.on("connection", (socket) => {
     hp: 100, ammo: 20, score: 0, kills: 0, deaths: 0,
     roomId: null,
     aimDir: { x: 1, y: 0 },
-    pendingMove: null, pendingTarget: null,
+    pendingMove: null, moveQueue: [],
     isMoving: false, cooldownUntil: 0,
     respawnAt: null,
     socket,
@@ -902,6 +902,10 @@ wss.on("connection", (socket) => {
       }
       case "stopMove": {
         stopMove(player);
+        break;
+      }
+      case "moveCancelOne": {
+        if (player.moveQueue.length > 0) player.moveQueue.pop();
         break;
       }
       case "aim": {

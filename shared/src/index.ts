@@ -27,6 +27,7 @@ export type PlayerSummary = {
   roomId: string | null;
   position: Vector2;
   target: Vector2 | null;
+  moveQueue: Vector2[];
   hp: number;
   ammo: number;
   score: number;
@@ -111,6 +112,9 @@ export type ClientToServerMessage =
   | {
     type: "shoot";
     payload: { direction: Vector2 };
+  }
+  | {
+    type: "moveCancelOne";
   };
 
 export type ServerToClientMessage =
