@@ -560,17 +560,166 @@ const draw = () => {
   // End camera transform
   ctx.restore();
 
-  const self2 = getSelf();
-  if (self2) {
-    const lockStep = (self2 as any).actionLockStep ?? 0;
-    if (lockStep > 0) {
-      cooldownEl.textContent = `LOCK ${Math.min(5, lockStep)}`;
-      cooldownEl.style.color = "#f97316";
-    } else {
-      cooldownEl.textContent = "READY";
-      cooldownEl.style.color = "#22c55e";
+  // ─── HUD (screen-space, drawn after camera restore) ───
+  drawHUD(ctx);
+};
+
+/** Draw the in-game HUD directly on the canvas (screen-space). */
+const drawHUD = (ctx: CanvasRenderingContext2D) => {
+  const W = mapSize.width;
+  const self = getSelf();
+
+  // ── Top bar ──
+  const barH = 28;
+  ctx.fillStyle = "rgba(200, 200, 200, 0.85)";
+  ctx.fillRect(0, 0, W, barH);
+  ctx.strokeStyle = "rgba(160, 160, 160, 0.6)";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, barH);
+  ctx.lineTo(W, barH);
+  ctx.stroke();
+
+  ctx.font = "bold 13px 'Segoe UI', Arial, sans-serif";
+
+  // HP
+  const hp = self ? (self as any).hp ?? 0 : 0;
+  const hpColor = hp > 60 ? "#16a34a" : hp > 20 ? "#d97706" : "#dc2626";
+  ctx.fillStyle = "#333";
+  ctx.textAlign = "left";
+  ctx.fillText("❤️", 12, 19);
+  ctx.fillStyle = hpColor;
+  ctx.fillText(`${hp}%`, 32, 19);
+
+  // Ammo
+  const ammo = self ? (self as any).ammo ?? 0 : 0;
+  ctx.fillStyle = "#333";
+  ctx.fillText("🔫", 88, 19);
+  ctx.fillStyle = ammo > 5 ? "#333" : "#dc2626";
+  ctx.fillText(`${ammo}`, 108, 19);
+
+  // Timer (center)
+  const mins = Math.floor(state.timeLeftSec / 60).toString().padStart(2, "0");
+  const secs = (state.timeLeftSec % 60).toString().padStart(2, "0");
+  ctx.fillStyle = "#111";
+  ctx.textAlign = "center";
+  ctx.font = "bold 14px 'Segoe UI', Arial, sans-serif";
+  ctx.fillText(`${mins}:${secs}`, W / 2, 19);
+
+  // Team scores or individual score
+  const isTeamMode = state.players.some((p) => (p as any).team != null);
+  ctx.font = "bold 12px 'Segoe UI', Arial, sans-serif";
+  if (isTeamMode) {
+    const redTotal = state.players
+      .filter((p) => (p as any).team === "red")
+      .reduce((s, p) => s + (p.score ?? 0), 0);
+    const blueTotal = state.players
+      .filter((p) => (p as any).team === "blue")
+      .reduce((s, p) => s + (p.score ?? 0), 0);
+    ctx.textAlign = "right";
+    ctx.fillStyle = "#dc2626";
+    ctx.fillText(`Red:${redTotal}`, W / 2 + 120, 19);
+    ctx.fillStyle = "#2563eb";
+    ctx.fillText(`Blue:${blueTotal}`, W / 2 + 200, 19);
+  } else {
+    // Individual score
+    const myScore = self ? (self as any).score ?? 0 : 0;
+    ctx.textAlign = "right";
+    ctx.fillStyle = "#333";
+    ctx.fillText(`Score:${myScore}`, W / 2 + 140, 19);
+  }
+
+  // Status (READY / LOCK)
+  const lockStep = self ? ((self as any).actionLockStep ?? 0) : 0;
+  ctx.textAlign = "right";
+  if (lockStep > 0) {
+    ctx.fillStyle = "#f97316";
+    ctx.fillText(`LOCK ${Math.min(5, lockStep)}`, W - 12, 19);
+    // Also update the DOM element for backward compat
+    cooldownEl.textContent = `LOCK ${Math.min(5, lockStep)}`;
+    cooldownEl.style.color = "#f97316";
+  } else {
+    ctx.fillStyle = "#16a34a";
+    ctx.fillText("READY", W - 12, 19);
+    cooldownEl.textContent = "READY";
+    cooldownEl.style.color = "#22c55e";
+  }
+
+  // ── Minimap (bottom-right) ──
+  drawMinimap(ctx);
+
+  // Reset text alignment
+  ctx.textAlign = "start";
+};
+
+/** Draw a minimap in the bottom-right corner. */
+const drawMinimap = (ctx: CanvasRenderingContext2D) => {
+  const mmW = 160;
+  const mmH = 92;
+  const mmX = mapSize.width - mmW - 8;
+  const mmY = mapSize.height - mmH - 8;
+  const scaleX = mmW / mapSize.width;
+  const scaleY = mmH / mapSize.height;
+
+  // Background
+  ctx.fillStyle = "rgba(10, 20, 40, 0.75)";
+  ctx.fillRect(mmX, mmY, mmW, mmH);
+  ctx.strokeStyle = "rgba(120, 150, 255, 0.4)";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(mmX, mmY, mmW, mmH);
+
+  // Walls
+  if (state.mapData && state.mapData.walls) {
+    ctx.fillStyle = "rgba(100, 120, 140, 0.6)";
+    for (const w of state.mapData.walls) {
+      ctx.fillRect(
+        mmX + w.x * scaleX,
+        mmY + w.y * scaleY,
+        Math.max(1, w.width * scaleX),
+        Math.max(1, w.height * scaleY)
+      );
     }
   }
+
+  // Bullets
+  const bullets = (state as any).bullets ?? [];
+  ctx.fillStyle = "#fde047";
+  for (const b of bullets) {
+    const bx = b.x ?? (b.position?.x ?? 0);
+    const by = b.y ?? (b.position?.y ?? 0);
+    ctx.fillRect(mmX + bx * scaleX - 1, mmY + by * scaleY - 1, 2, 2);
+  }
+
+  // Players
+  const self = getSelf();
+  for (const p of state.players) {
+    const px = (p as any).position?.x ?? (p as any).x ?? 0;
+    const py = (p as any).position?.y ?? (p as any).y ?? 0;
+    const isSelf = p.id === state.selfId;
+    const team = (p as any).team;
+
+    // Color by team
+    if (team === "red") ctx.fillStyle = isSelf ? "#ff6b6b" : "#dc2626";
+    else if (team === "blue") ctx.fillStyle = isSelf ? "#60a5fa" : "#2563eb";
+    else ctx.fillStyle = isSelf ? "#4cc9f0" : "#9ca3af";
+
+    const dotSize = isSelf ? 4 : 2;
+    ctx.fillRect(
+      mmX + px * scaleX - dotSize / 2,
+      mmY + py * scaleY - dotSize / 2,
+      dotSize,
+      dotSize
+    );
+  }
+
+  // Camera viewport indicator
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
+  ctx.lineWidth = 1;
+  const vpX = mmX + state.camera.x * scaleX;
+  const vpY = mmY + state.camera.y * scaleY;
+  const vpW = mapSize.width * scaleX / state.camera.zoom;
+  const vpH = mapSize.height * scaleY / state.camera.zoom;
+  ctx.strokeRect(vpX, vpY, vpW, vpH);
 };
 
 const setupLogin = () => {
