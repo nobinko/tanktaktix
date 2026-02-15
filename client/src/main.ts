@@ -419,51 +419,33 @@ const draw = () => {
     const hullAngle = (player as any).hullAngle ?? 0;
     const turretAngle = (player as any).turretAngle ?? 0;
 
-    // === Hull ===
+    // === Hull (TankMatch style: simple box) ===
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(hullAngle);
 
-    // Treads (dark, slightly wider than body)
-    ctx.fillStyle = "#2a2a2a";
-    ctx.fillRect(-13, -14, 26, 5);  // top tread
-    ctx.fillRect(-13, 9, 26, 5);    // bottom tread
-    // Tread detail lines
-    ctx.strokeStyle = "rgba(255,255,255,0.15)";
-    ctx.lineWidth = 0.5;
-    for (let tx = -11; tx <= 11; tx += 4) {
-      ctx.beginPath(); ctx.moveTo(tx, -14); ctx.lineTo(tx, -9); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(tx, 9); ctx.lineTo(tx, 14); ctx.stroke();
-    }
+    // Body outline (dark border)
+    ctx.fillStyle = "#1a1a2e";
+    ctx.fillRect(-13, -10, 26, 20);
 
-    // Main body
+    // Body fill (team color)
     ctx.fillStyle = color;
-    ctx.fillRect(-12, -9, 24, 18);
+    ctx.fillRect(-11, -8, 22, 16);
 
-    // Front wedge (indicates direction)
+    // Front direction indicator (small triangle)
+    ctx.fillStyle = "#fff";
+    ctx.globalAlpha = 0.7;
     ctx.beginPath();
-    ctx.moveTo(12, -8);
-    ctx.lineTo(18, 0);
-    ctx.lineTo(12, 8);
+    ctx.moveTo(11, -3);
+    ctx.lineTo(15, 0);
+    ctx.lineTo(11, 3);
     ctx.closePath();
     ctx.fill();
-
-    // Rear flag (team indicator)
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.moveTo(-12, -4);
-    ctx.lineTo(-17, -7);
-    ctx.lineTo(-17, -1);
-    ctx.closePath();
-    ctx.fill();
-    // Flag outline
-    ctx.strokeStyle = "rgba(255,255,255,0.5)";
-    ctx.lineWidth = 0.8;
-    ctx.stroke();
+    ctx.globalAlpha = 1.0;
 
     ctx.restore();
 
-    // === Turret ===
+    // === Turret (TankMatch style: white circle + thin barrel) ===
     ctx.save();
     ctx.translate(x, y);
     if (state.aiming && player.id === state.selfId && state.aimPoint) {
@@ -472,21 +454,14 @@ const draw = () => {
     } else {
       ctx.rotate(turretAngle);
     }
-    // Turret base
-    ctx.fillStyle = color;
+    // Turret base (white filled circle)
+    ctx.fillStyle = "#ffffff";
     ctx.beginPath();
-    ctx.arc(0, 0, 6, 0, Math.PI * 2);
+    ctx.arc(0, 0, 5, 0, Math.PI * 2);
     ctx.fill();
-    // White ring (TankMatch style)
-    ctx.strokeStyle = "#ffffff";
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-    // Barrel
+    // Barrel (thin dark line)
     ctx.fillStyle = "#1a1a2e";
-    ctx.fillRect(6, -2, 16, 4);
-    // Barrel tip
-    ctx.fillStyle = "#333";
-    ctx.fillRect(20, -2.5, 3, 5);
+    ctx.fillRect(5, -1.5, 14, 3);
     ctx.restore();
 
     // Counter-rotate text/bars so they stay upright
