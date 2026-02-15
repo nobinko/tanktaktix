@@ -289,6 +289,7 @@ const renderRooms = () => {
     joinBtn.addEventListener("click", () => {
       const pw = room.passwordProtected ? prompt("Password?") ?? "" : "";
       sendMessage({ type: "joinRoom", payload: { roomId: room.id, password: pw } });
+      setupRoom(); // Initialize room listeners
       setScreen("room");
     });
     roomList.appendChild(li);
@@ -869,6 +870,7 @@ const setupLobby = () => {
         password: pw || undefined,
       },
     });
+    setupRoom(); // Initialize room listeners
     setScreen("room");
   });
 };
@@ -1109,5 +1111,5 @@ const setupRoom = () => {
 
 setupLogin();
 setupLobby();
-setupRoom();
+// setupRoom(); // Removed: call on join/create instead
 requestAnimationFrame(draw);
