@@ -512,40 +512,55 @@ const draw = () => {
     if (self) {
       const sx = (self as any).position.x;
       const sy = (self as any).position.y;
-      const ax = state.aimPoint.x;
-      const ay = state.aimPoint.y;
-      const dist = Math.hypot(ax - sx, ay - sy);
+      const dragX = state.aimPoint.x - sx;
+      const dragY = state.aimPoint.y - sy;
+      const dragDist = Math.hypot(dragX, dragY);
 
-      // Dotted aim line
+      const CANCEL_DIST = 18; // Tank radius
+
+      // Slingshot: Shoot direction is OPPOSITE to drag
+      // Guide Line
       ctx.save();
-      ctx.setLineDash([6, 4]);
-      ctx.strokeStyle = dist <= 18 ? "rgba(255, 100, 100, 0.6)" : "rgba(76, 201, 240, 0.8)";
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(sx, sy);
-      ctx.lineTo(ax, ay);
-      ctx.stroke();
-      ctx.setLineDash([]);
 
-      // Crosshair circle at aim point
-      if (dist > 18) {
-        ctx.strokeStyle = "rgba(76, 201, 240, 0.6)";
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.arc(ax, ay, 10, 0, Math.PI * 2);
-        ctx.stroke();
-        // Cross inside
-        ctx.beginPath();
-        ctx.moveTo(ax - 6, ay); ctx.lineTo(ax + 6, ay);
-        ctx.moveTo(ax, ay - 6); ctx.lineTo(ax, ay + 6);
-        ctx.stroke();
-      } else {
+      if (dragDist <= CANCEL_DIST) {
         // Cancel indicator
         ctx.fillStyle = "rgba(255, 100, 100, 0.7)";
         ctx.font = "bold 12px monospace";
         ctx.textAlign = "center";
         ctx.fillText("CANCEL", sx, sy - 28);
         ctx.textAlign = "start";
+      } else {
+        // Draw Slingshot Guide
+        const aimX = -dragX;
+        const aimY = -dragY;
+        const aimLen = Math.hypot(aimX, aimY);
+        const ndx = aimX / aimLen;
+        const ndy = aimY / aimLen;
+
+        const MAX_GUIDE_LEN = 108; // 3 * Tank Size (36)
+        const guideLen = Math.min(dragDist, MAX_GUIDE_LEN);
+
+        const gx = sx + ndx * guideLen;
+        const gy = sy + ndy * guideLen;
+
+        ctx.setLineDash([6, 4]);
+        ctx.strokeStyle = "rgba(76, 201, 240, 0.8)";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(sx, sy);
+        ctx.lineTo(gx, gy);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Arrow head at end of guide
+        ctx.fillStyle = "rgba(76, 201, 240, 0.8)";
+        ctx.beginPath();
+        ctx.arc(gx, gy, 4, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Show "Crosshair" at max range? Or just the arrow?
+        // User requested "Show launch guide in the direction of fire".
+        // The arrow head is good enough.
       }
       ctx.restore();
     }
@@ -925,11 +940,20 @@ const setupRoom = () => {
     }
 
     // Shoot
-    const dx = point.x - selfPos.x;
-    const dy = point.y - selfPos.y;
-    const len = Math.hypot(dx, dy);
+    // Shoot (Slingshot: Opposite to drag vector)
+    const dragX = point.x - selfPos.x;
+    const dragY = point.y - selfPos.y;
+    // Shoot direction
+    const shootX = -dragX;
+    const shootY = -dragY;
+    const len = Math.hypot(shootX, shootY);
+
+    // Only shoot if pulled far enough (CANCEL check is done above but good to double check or just trigger)
+    // The cancel check above `isMouseOnTank(point, selfPos)` handles the "return to self" logic.
+    // If we are here, we are outside tank radius (mostly).
+
     if (len > 0) {
-      sendMessage({ type: "shoot", payload: { direction: { x: dx / len, y: dy / len } } });
+      sendMessage({ type: "shoot", payload: { direction: { x: shootX / len, y: shootY / len } } });
     }
     state.aiming = false;
     state.aimPoint = null;
