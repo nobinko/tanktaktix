@@ -420,8 +420,17 @@ const draw = () => {
     ctx.beginPath();
     ctx.arc(x, y, 18, 0, Math.PI * 2);
     ctx.fill();
+
+    // Turret: rotate toward aim direction if aiming, else default
+    ctx.save();
+    ctx.translate(x, y);
+    if (state.aiming && player.id === state.selfId && state.aimPoint) {
+      const aimAngle = Math.atan2(state.aimPoint.y - y, state.aimPoint.x - x);
+      ctx.rotate(aimAngle);
+    }
     ctx.fillStyle = "#0b0f1f";
-    ctx.fillRect(x - 8, y - 4, 16, 8);
+    ctx.fillRect(-4, -4, 22, 8); // turret barrel
+    ctx.restore();
 
     // Counter-rotate text/bars so they stay upright
     ctx.save();
@@ -475,11 +484,44 @@ const draw = () => {
   if (state.aiming && state.aimPoint) {
     const self = getSelf();
     if (self) {
-      ctx.strokeStyle = "rgba(76, 201, 240, 0.8)";
+      const sx = (self as any).position.x;
+      const sy = (self as any).position.y;
+      const ax = state.aimPoint.x;
+      const ay = state.aimPoint.y;
+      const dist = Math.hypot(ax - sx, ay - sy);
+
+      // Dotted aim line
+      ctx.save();
+      ctx.setLineDash([6, 4]);
+      ctx.strokeStyle = dist <= 18 ? "rgba(255, 100, 100, 0.6)" : "rgba(76, 201, 240, 0.8)";
+      ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.moveTo((self as any).position.x, (self as any).position.y);
-      ctx.lineTo(state.aimPoint.x, state.aimPoint.y);
+      ctx.moveTo(sx, sy);
+      ctx.lineTo(ax, ay);
       ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Crosshair circle at aim point
+      if (dist > 18) {
+        ctx.strokeStyle = "rgba(76, 201, 240, 0.6)";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(ax, ay, 10, 0, Math.PI * 2);
+        ctx.stroke();
+        // Cross inside
+        ctx.beginPath();
+        ctx.moveTo(ax - 6, ay); ctx.lineTo(ax + 6, ay);
+        ctx.moveTo(ax, ay - 6); ctx.lineTo(ax, ay + 6);
+        ctx.stroke();
+      } else {
+        // Cancel indicator
+        ctx.fillStyle = "rgba(255, 100, 100, 0.7)";
+        ctx.font = "bold 12px monospace";
+        ctx.textAlign = "center";
+        ctx.fillText("CANCEL", sx, sy - 28);
+        ctx.textAlign = "start";
+      }
+      ctx.restore();
     }
   }
 
@@ -595,6 +637,12 @@ const setupRoom = () => {
     }
     const point = getCanvasPoint(event);
     if (state.aiming) {
+      // Cancel if released on own tank
+      if (isMouseOnTank(point, (self as any).position)) {
+        state.aiming = false;
+        state.aimPoint = null;
+        return;
+      }
       // Block AIM/Shoot if Cooldown
       const nextActionAt = (self as any).nextActionAt ?? 0;
       if (nextActionAt > Date.now()) {
