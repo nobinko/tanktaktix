@@ -50,29 +50,37 @@ app.innerHTML = `
     </div>
   </section>
   <section id="room-screen" class="screen">
-    <div class="panel">
-      <div class="room-header">
-        <div>
-          <h2 id="room-title">Room</h2>
-          <p id="room-meta">Time left: --, Players: --</p>
-        </div>
-        <div class="room-actions">
-          <span id="cooldown">Ready</span>
-          <button id="leave-room">Leave Room</button>
-        </div>
-      </div>
+    <div class="game-container">
       <canvas id="map" width="900" height="520"></canvas>
-      <div class="hud">
-        <div>
-          <h3>Scores</h3>
-          <ul id="score-list" class="score-list"></ul>
+
+      <!-- Top-left: Room info & timer -->
+      <div class="hud-panel hud-top-left">
+        <div id="room-title" class="hud-title">Room</div>
+        <div id="room-meta" class="hud-meta">00:00 | 0P</div>
+      </div>
+
+      <!-- Top-right: Scoreboard -->
+      <div class="hud-panel hud-top-right">
+        <div class="hud-label">SCORE</div>
+        <ul id="score-list" class="hud-score-list"></ul>
+      </div>
+
+      <!-- Bottom-left: Chat -->
+      <div class="hud-bottom-left">
+        <div id="chat-log" class="hud-chat-log"></div>
+        <input id="chat-input" class="hud-chat-input" placeholder="T: chat" />
+      </div>
+
+      <!-- Bottom-right: Status + controls -->
+      <div class="hud-panel hud-bottom-right">
+        <div id="cooldown" class="hud-status">READY</div>
+        <div class="hud-controls">
+          <button id="leave-room" class="hud-btn">✕ Leave</button>
         </div>
-        <div>
-          <h3>Chat</h3>
-          <div class="chat">
-            <input id="chat-input" placeholder="Press T to chat" />
-            <div id="chat-log" class="chat-log"></div>
-          </div>
+        <div class="hud-keys">
+          <span>Z:undo</span>
+          <span>Q/E:rotate</span>
+          <span>Space:reset</span>
         </div>
       </div>
     </div>
@@ -244,7 +252,9 @@ const renderRooms = () => {
 
 const renderRoom = () => {
   roomTitle.textContent = `Room ${state.roomId}`;
-  roomMeta.textContent = `Time left: ${state.timeLeftSec}s, Players: ${state.players.length}`;
+  const mins = Math.floor(state.timeLeftSec / 60).toString().padStart(2, '0');
+  const secs = (state.timeLeftSec % 60).toString().padStart(2, '0');
+  roomMeta.textContent = `${mins}:${secs} | ${state.players.length}P`;
   renderScores();
   renderChat();
 };
@@ -254,7 +264,14 @@ const renderScores = () => {
   const sorted = [...state.players].sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
   sorted.forEach((p) => {
     const li = document.createElement("li");
-    li.textContent = `${p.name}: ${p.score ?? 0}`;
+    const nameSpan = document.createElement("span");
+    nameSpan.className = "score-name";
+    nameSpan.textContent = p.name;
+    const valSpan = document.createElement("span");
+    valSpan.className = "score-val";
+    valSpan.textContent = `${p.score ?? 0}`;
+    li.appendChild(nameSpan);
+    li.appendChild(valSpan);
     scoreList.appendChild(li);
   });
 };

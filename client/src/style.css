@@ -88,12 +88,13 @@ button.secondary {
   align-items: center;
 }
 
-.canvas-wrap {
+/* === Game Container: fullscreen canvas with overlay HUD === */
+.game-container {
   position: relative;
-  background: #060b1a;
-  border-radius: 16px;
+  width: 100%;
+  height: 100vh;
   overflow: hidden;
-  border: 1px solid rgba(120, 150, 255, 0.2);
+  background: #060b1a;
 }
 
 canvas {
@@ -102,40 +103,158 @@ canvas {
   height: 100%;
 }
 
-.hud {
+/* === HUD Panels (TankMatch style) === */
+.hud-panel {
+  position: absolute;
+  background: rgba(5, 10, 25, 0.75);
+  border: 1px solid rgba(120, 150, 255, 0.25);
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-size: 12px;
+  pointer-events: auto;
+  backdrop-filter: blur(4px);
+}
+
+.hud-top-left {
+  top: 8px;
+  left: 8px;
+}
+
+.hud-top-right {
+  top: 8px;
+  right: 8px;
+  min-width: 120px;
+}
+
+.hud-bottom-left {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  max-width: 280px;
+  pointer-events: auto;
+}
+
+.hud-bottom-right {
+  bottom: 8px;
+  right: 8px;
+  text-align: right;
+}
+
+.hud-title {
+  font-weight: 700;
+  font-size: 14px;
+  color: #e8f1ff;
+}
+
+.hud-meta {
+  color: #a5b4d8;
+  font-size: 11px;
+  margin-top: 2px;
+}
+
+.hud-label {
+  font-weight: 700;
+  font-size: 10px;
+  color: #a5b4d8;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 4px;
+}
+
+.hud-score-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.hud-score-list li {
+  padding: 1px 0;
+  font-size: 11px;
+  color: #e8f1ff;
   display: flex;
   justify-content: space-between;
-  gap: 16px;
-  margin-top: 16px;
+  gap: 12px;
 }
 
-.chat-log {
-  position: absolute;
-  left: 16px;
-  bottom: 16px;
-  max-width: 320px;
-  display: grid;
-  gap: 6px;
-  font-size: 12px;
+.hud-score-list li .score-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 80px;
 }
 
-.chat-bubble {
-  background: rgba(15, 25, 48, 0.9);
-  padding: 6px 8px;
-  border-radius: 8px;
-  border: 1px solid rgba(120, 150, 255, 0.2);
+.hud-score-list li .score-val {
+  font-weight: 700;
+  color: #4cc9f0;
 }
 
-.chat-input {
-  position: absolute;
-  left: 16px;
-  bottom: 16px;
-  width: 320px;
+/* Chat */
+.hud-chat-log {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-bottom: 4px;
+  max-height: 120px;
+  overflow-y: auto;
+  font-size: 11px;
+}
+
+.hud-chat-log .chat-bubble {
+  background: rgba(10, 18, 38, 0.85);
+  padding: 3px 6px;
+  border-radius: 4px;
+  border: 1px solid rgba(120, 150, 255, 0.15);
+  color: #d0d8f0;
+}
+
+.hud-chat-input {
+  width: 100%;
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid rgba(120, 150, 255, 0.25);
+  background: rgba(10, 18, 38, 0.85);
+  color: #e8f1ff;
+  font-size: 11px;
   display: none;
+  box-sizing: border-box;
 }
 
-.chat-input.active {
+.hud-chat-input.active {
   display: block;
+}
+
+/* Status */
+.hud-status {
+  font-weight: 700;
+  font-size: 16px;
+  color: #22c55e;
+  margin-bottom: 4px;
+}
+
+.hud-controls {
+  margin-top: 4px;
+}
+
+.hud-btn {
+  padding: 4px 10px;
+  font-size: 10px;
+  border-radius: 4px;
+  background: rgba(30, 40, 70, 0.8);
+  border: 1px solid rgba(120, 150, 255, 0.3);
+  color: #e8f1ff;
+  cursor: pointer;
+}
+
+.hud-btn:hover {
+  background: rgba(60, 80, 140, 0.8);
+}
+
+.hud-keys {
+  margin-top: 6px;
+  font-size: 9px;
+  color: #6b7a9e;
+  display: flex;
+  gap: 8px;
 }
 
 .notice {
