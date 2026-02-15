@@ -16,6 +16,14 @@ import type { MapData, Team, Wall, Explosion } from "@tanktaktix/shared"; // Ass
  * - Explosions (AoE Damage, Friendly Fire rules)
  */
 
+// Global Error Handlers to prevent crash without logs
+process.on("uncaughtException", (err) => {
+  console.error("Uncaught Exception:", err);
+});
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("Unhandled Rejection at:", promise, "reason:", reason);
+});
+
 type Vector2 = { x: number; y: number };
 
 type ClientMsg = { type: string; payload?: unknown };
@@ -806,34 +814,37 @@ function tick() {
     // Client handles "event" based explosion. State persistence is only needed for 1 tick.
     room.explosions = [];
 
-    if (room.ended) continue;
+    // if (room.ended) continue; // Removed to allow post-game updates (chat, physics)
 
     if (room.endsAt > 0 && now >= room.endsAt) {
-      room.ended = true;
+      if (!room.ended) {
+        room.ended = true;
 
-      const results = [...room.playerIds]
-        .map(pid => players.get(pid))
-        .filter((p): p is PlayerRuntime => !!p)
-        .map(p => toPlayerPublic(p));
+        const results = [...room.playerIds]
+          .map(pid => players.get(pid))
+          .filter((p): p is PlayerRuntime => !!p)
+          .map(p => toPlayerPublic(p));
 
-      // Calculate winner
-      let redScore = 0;
-      let blueScore = 0;
-      results.forEach(p => {
-        if (p.team === "red") redScore += p.score;
-        if (p.team === "blue") blueScore += p.score;
-      });
-      let winners: "red" | "blue" | "draw" = "draw";
-      if (redScore > blueScore) winners = "red";
-      if (blueScore > redScore) winners = "blue";
+        // Calculate winner
+        let redScore = 0;
+        let blueScore = 0;
+        results.forEach(p => {
+          if (p.team === "red") redScore += p.score;
+          if (p.team === "blue") blueScore += p.score;
+        });
+        let winners: "red" | "blue" | "draw" = "draw";
+        if (redScore > blueScore) winners = "red";
+        if (blueScore > redScore) winners = "blue";
 
-      broadcastRoom(room.id, {
-        type: "gameEnd",
-        payload: { winners, results }
-      });
+        broadcastRoom(room.id, {
+          type: "gameEnd",
+          payload: { winners, results }
+        });
+      }
 
-      sendRoomState(room.id);
-      continue;
+      // Continue to update game state even after end
+      // sendRoomState(room.id) will be called at end of loop if we don't continue
+      // continue; 
     }
 
     // Cleanup empty ended rooms
