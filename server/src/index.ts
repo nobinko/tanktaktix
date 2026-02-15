@@ -783,12 +783,33 @@ function tick() {
         const nextX = clamp(p.x + dx, 0, room.mapData.width);
         const nextY = clamp(p.y + dy, 0, room.mapData.height);
 
-        if (!checkWallCollision(nextX, nextY, TANK_SIZE, room.mapData.walls)) {
+        // Check wall collision
+        const hitWall = checkWallCollision(nextX, nextY, TANK_SIZE, room.mapData.walls);
+
+        // Check player-to-player collision
+        let hitPlayer = false;
+        if (!hitWall) {
+          for (const otherId of room.playerIds) {
+            if (otherId === p.id) continue;
+            const other = players.get(otherId);
+            if (!other) continue;
+            if (other.hp <= 0) continue;
+            if (other.respawnAt) continue;
+            const pdx = nextX - other.x;
+            const pdy = nextY - other.y;
+            if (Math.hypot(pdx, pdy) < TANK_SIZE * 2) {
+              hitPlayer = true;
+              break;
+            }
+          }
+        }
+
+        if (!hitWall && !hitPlayer) {
           p.x = nextX;
           p.y = nextY;
           p.isMoving = true;
         } else {
-          // Hit wall — consume only this target, trigger cooldown
+          // Hit wall or player — consume target, trigger cooldown
           p.pendingMove = null;
           if (p.moveQueue.length > 0) p.moveQueue.shift();
           p.isMoving = false;
