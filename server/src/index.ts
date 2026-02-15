@@ -100,7 +100,12 @@ const MAP_W = 900;
 const MAP_H = 520;
 
 const MOVE_SPEED = 6; // per tick
-const ACTION_COOLDOWN_MS = 500; // 0.5s cooldown after action
+
+// Action lock (5→0 countdown) — spec: 6 steps, 200ms each = 1200ms total
+const ACTION_LOCK_STEPS = 6;
+const ACTION_LOCK_STEP_MS = 200;
+const ACTION_COOLDOWN_MS = ACTION_LOCK_STEPS * ACTION_LOCK_STEP_MS;
+
 const MOVE_QUEUE_MAX = 5; // max queued move targets
 
 const RESPAWN_MS = 1500;
@@ -252,8 +257,9 @@ function toPlayerPublic(p: PlayerRuntime) {
     kills: p.kills,
     deaths: p.deaths,
     respawnAt: p.respawnAt,
-    // Client interpretation: if nextActionAt > current time, show cooldown
+    // Action lock: compute current step (5→0) from remaining cooldown ms
     nextActionAt: p.cooldownUntil,
+    actionLockStep: Math.max(0, Math.ceil((p.cooldownUntil - nowMs()) / ACTION_LOCK_STEP_MS) - 1),
   };
 }
 

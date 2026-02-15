@@ -33,6 +33,7 @@ export type PlayerSummary = {
   score: number;
   deaths: number;
   nextActionAt: number;
+  actionLockStep: number; // 5→0 countdown display (0 = ready)
   respawnAt: number | null;
 };
 

@@ -373,6 +373,17 @@ const draw = () => {
     ctx.fillRect(x - 20, y - 28, ((player as any).hp / 100) * 40, 4);
     ctx.fillStyle = "#f97316";
     ctx.fillRect(x - 20, y - 22, ((player as any).ammo / 20) * 40, 4);
+
+    // Action lock countdown (5→0) above tank
+    const lockStep = (player as any).actionLockStep ?? 0;
+    if (lockStep > 0) {
+      const display = Math.min(5, lockStep); // clamp to 5 max display
+      ctx.font = "bold 16px monospace";
+      ctx.fillStyle = "#f97316";
+      ctx.textAlign = "center";
+      ctx.fillText(`${display}`, x, y - 34);
+      ctx.textAlign = "start"; // reset
+    }
   });
 
   // Draw move queue markers for self
@@ -409,15 +420,11 @@ const draw = () => {
     }
   }
 
-  const self = getSelf();
-  if (self) {
-    // nextActionAt sends the timestamp when cooldown ENDS
-    const nextActionAt = (self as any).nextActionAt ?? 0;
-    const remaining = Math.max(0, Math.ceil((nextActionAt - Date.now()) / 1000));
-    const isCooling = nextActionAt > Date.now();
-
-    if (isCooling) {
-      cooldownEl.textContent = "WAIT...";
+  const self2 = getSelf();
+  if (self2) {
+    const lockStep = (self2 as any).actionLockStep ?? 0;
+    if (lockStep > 0) {
+      cooldownEl.textContent = `LOCK ${Math.min(5, lockStep)}`;
       cooldownEl.style.color = "#f97316";
     } else {
       cooldownEl.textContent = "READY";
