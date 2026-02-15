@@ -416,20 +416,40 @@ const draw = () => {
       if (pTeam === "blue") color = "#3b82f6";
     }
 
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.arc(x, y, 18, 0, Math.PI * 2);
-    ctx.fill();
+    const hullAngle = (player as any).hullAngle ?? 0;
+    const turretAngle = (player as any).turretAngle ?? 0;
 
-    // Turret: rotate toward aim direction if aiming, else default
+    // Hull: rotated rectangle
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(hullAngle);
+    ctx.fillStyle = color;
+    // Main body
+    ctx.fillRect(-14, -10, 28, 20);
+    // Treads (darker)
+    ctx.fillStyle = "rgba(0,0,0,0.3)";
+    ctx.fillRect(-14, -12, 28, 3);  // top tread
+    ctx.fillRect(-14, 9, 28, 3);    // bottom tread
+    ctx.restore();
+
+    // Turret: rotated barrel on top of hull
     ctx.save();
     ctx.translate(x, y);
     if (state.aiming && player.id === state.selfId && state.aimPoint) {
+      // During AIM drag, turret follows cursor
       const aimAngle = Math.atan2(state.aimPoint.y - y, state.aimPoint.x - x);
       ctx.rotate(aimAngle);
+    } else {
+      ctx.rotate(turretAngle);
     }
+    // Turret base (circle)
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(0, 0, 6, 0, Math.PI * 2);
+    ctx.fill();
+    // Barrel
     ctx.fillStyle = "#0b0f1f";
-    ctx.fillRect(-4, -4, 22, 8); // turret barrel
+    ctx.fillRect(4, -2.5, 18, 5);
     ctx.restore();
 
     // Counter-rotate text/bars so they stay upright

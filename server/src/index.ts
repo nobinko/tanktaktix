@@ -41,14 +41,9 @@ type PlayerRuntime = {
   pendingMove: Vector2 | null; // unit (legacy directional, kept for compat)
   moveQueue: Vector2[]; // click-to-move queue (max MOVE_QUEUE_MAX)
 
-  // Cooldown Logic
-  // Tankmatch: 
-  // - "Cooldown: after any action, a short cooldown applies"
-  // - Interpretation: 
-  //   - Moving blocks Shooting.
-  //   - Shooting blocks Moving.
-  //   - Completion of Move -> Start Cooldown.
-  //   - Completion of Shoot -> Start Cooldown.
+  hullAngle: number;    // current hull facing (radians)
+  turretAngle: number;  // current turret facing (radians)
+  isRotating: boolean;  // true during pivot-turn phase
 
   isMoving: boolean;
   cooldownUntil: number; // Block all actions until this time
@@ -108,6 +103,10 @@ const ACTION_COOLDOWN_MS = ACTION_LOCK_STEPS * ACTION_LOCK_STEP_MS;
 
 const MOVE_QUEUE_MAX = 5; // max queued move targets
 
+// Rotation speeds (radians per tick)
+const HULL_ROTATION_SPEED = Math.PI / 15;    // ~12 deg/tick → ~180° in 0.75s
+const TURRET_ROTATION_SPEED = Math.PI / 10;  // ~18 deg/tick → faster than hull
+
 const RESPAWN_MS = 1500;
 
 const TANK_SIZE = 18;
@@ -162,6 +161,13 @@ function norm(v: Vector2): Vector2 {
   const l = len(v);
   if (!l) return { x: 0, y: 0 };
   return { x: v.x / l, y: v.y / l };
+}
+
+/** Normalize angle to [-π, π] */
+function normalizeAngle(a: number): number {
+  while (a > Math.PI) a -= 2 * Math.PI;
+  while (a < -Math.PI) a += 2 * Math.PI;
+  return a;
 }
 
 function checkWallCollision(x: number, y: number, r: number, walls: Wall[]): boolean {
@@ -260,6 +266,8 @@ function toPlayerPublic(p: PlayerRuntime) {
     // Action lock: compute current step (5→0) from remaining cooldown ms
     nextActionAt: p.cooldownUntil,
     actionLockStep: Math.max(0, Math.ceil((p.cooldownUntil - nowMs()) / ACTION_LOCK_STEP_MS) - 1),
+    hullAngle: p.hullAngle,
+    turretAngle: p.turretAngle,
   };
 }
 
@@ -412,7 +420,10 @@ function spawnPlayer(p: PlayerRuntime, room: Room) {
   p.pendingMove = null;
   p.moveQueue = [];
   p.isMoving = false;
+  p.isRotating = false;
   p.cooldownUntil = 0;
+  p.hullAngle = 0;
+  p.turretAngle = 0;
 }
 
 function joinRoom(p: PlayerRuntime, roomId: string, password?: string) {
@@ -580,6 +591,10 @@ function tryShoot(p: PlayerRuntime, dir: Vector2) {
   };
 
   room.bullets.push(bullet);
+
+  // Lock turret to shot direction
+  p.turretAngle = Math.atan2(d.y, d.x);
+
   sendRoomState(p.roomId);
 }
 
@@ -701,44 +716,64 @@ function tick() {
       }
       if (p.respawnAt && p.respawnAt > now) continue;
 
-      // Movement Logic
+      // Movement Logic (with pivot-turn phase)
       let wantsToMove = false;
       let dx = 0;
       let dy = 0;
 
       if (p.cooldownUntil > now) {
-        // In Cooldown: FREEZE movement (but moveQueue keeps accepting via setMoveTarget)
+        // In Cooldown: FREEZE movement (but moveQueue keeps accepting)
         p.isMoving = false;
+        p.isRotating = false;
         p.pendingMove = null;
       } else {
-        // Ready to move
         if (p.pendingMove) {
           dx = p.pendingMove.x * MOVE_SPEED;
           dy = p.pendingMove.y * MOVE_SPEED;
           wantsToMove = true;
+          p.hullAngle = Math.atan2(dy, dx);
         } else if (p.moveQueue.length > 0) {
           const currentTarget = p.moveQueue[0];
           const to = { x: currentTarget.x - p.x, y: currentTarget.y - p.y };
           const distance = len(to);
+
           if (distance <= MOVE_SPEED) {
             // Arrived at current target
             p.x = currentTarget.x;
             p.y = currentTarget.y;
-            p.moveQueue.shift(); // consume this target
+            p.moveQueue.shift();
             p.isMoving = false;
-
-            // ARRIVAL -> Cooldown Start
+            p.isRotating = false;
             p.cooldownUntil = now + ACTION_COOLDOWN_MS;
           } else {
-            const d = norm(to);
-            dx = d.x * MOVE_SPEED;
-            dy = d.y * MOVE_SPEED;
-            wantsToMove = true;
+            const targetAngle = Math.atan2(to.y, to.x);
+            const angleDiff = normalizeAngle(targetAngle - p.hullAngle);
+
+            if (Math.abs(angleDiff) > 0.05) {
+              // PIVOT-TURN: rotate hull toward target
+              p.isRotating = true;
+              p.isMoving = false;
+              const step = Math.sign(angleDiff) * Math.min(Math.abs(angleDiff), HULL_ROTATION_SPEED);
+              p.hullAngle = normalizeAngle(p.hullAngle + step);
+              // Also rotate turret toward hull (forward)
+              const turretDiff = normalizeAngle(p.hullAngle - p.turretAngle);
+              const tStep = Math.sign(turretDiff) * Math.min(Math.abs(turretDiff), TURRET_ROTATION_SPEED);
+              p.turretAngle = normalizeAngle(p.turretAngle + tStep);
+            } else {
+              // Facing target — move
+              p.hullAngle = targetAngle;
+              p.turretAngle = targetAngle; // turret aligned to front
+              p.isRotating = false;
+              const d = norm(to);
+              dx = d.x * MOVE_SPEED;
+              dy = d.y * MOVE_SPEED;
+              wantsToMove = true;
+            }
           }
         } else {
-          // Not moving, queue empty
-          if (p.isMoving) {
+          if (p.isMoving || p.isRotating) {
             p.isMoving = false;
+            p.isRotating = false;
             p.cooldownUntil = now + ACTION_COOLDOWN_MS;
           }
         }
@@ -757,7 +792,8 @@ function tick() {
           p.pendingMove = null;
           if (p.moveQueue.length > 0) p.moveQueue.shift();
           p.isMoving = false;
-          p.cooldownUntil = now + ACTION_COOLDOWN_MS; // Bonk -> Cooldown
+          p.isRotating = false;
+          p.cooldownUntil = now + ACTION_COOLDOWN_MS;
         }
       }
     }
@@ -822,6 +858,7 @@ wss.on("connection", (socket) => {
     roomId: null,
     aimDir: { x: 1, y: 0 },
     pendingMove: null, moveQueue: [],
+    hullAngle: 0, turretAngle: 0, isRotating: false,
     isMoving: false, cooldownUntil: 0,
     respawnAt: null,
     socket,

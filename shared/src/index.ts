@@ -34,6 +34,8 @@ export type PlayerSummary = {
   deaths: number;
   nextActionAt: number;
   actionLockStep: number; // 5→0 countdown display (0 = ready)
+  hullAngle: number;      // hull facing direction (radians)
+  turretAngle: number;    // turret facing direction (radians)
   respawnAt: number | null;
 };
 
