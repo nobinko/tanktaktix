@@ -401,35 +401,7 @@ function roomStatePayload(roomId: string) {
   }
 
   const timeLeftSec = Math.max(0, Math.ceil((room.endsAt - nowMs()) / 1000));
-  if (timeLeftSec <= 0 && !room.ended) { // Check if game just ended
-    room.ended = true; // Mark room as ended
-    const results = [...room.playerIds]
-      .map(pid => players.get(pid))
-      .filter((p): p is PlayerRuntime => !!p)
-      .map(p => toPlayerPublic(p)); // Use toPlayerPublic for summary
-
-    // Calculate winner
-    let redScore = 0;
-    let blueScore = 0;
-    results.forEach(p => {
-      if (p.team === "red") redScore += p.score;
-      if (p.team === "blue") blueScore += p.score;
-    });
-    let winners: "red" | "blue" | "draw" = "draw";
-    if (redScore > blueScore) winners = "red";
-    if (blueScore > redScore) winners = "blue";
-
-    broadcastRoom(room.id, {
-      type: "gameEnd",
-      payload: { winners, results }
-    });
-
-    // Reset game? Or just keep it at 0?
-    // If we reset immediately, client might validly show result.
-    // Let's keep it at 0, client handles "gameEnd" screen.
-    // Maybe reset after 10 seconds?
-    // room.timeLeftSec = 0; // This is already handled by timeLeftSec calculation
-  }
+  // Removed duplicate gameEnd logic from here. Handled in tick().
 
 
   const ps = [...room.playerIds].map(pid => players.get(pid)).filter((p): p is PlayerRuntime => !!p).map(toPlayerPublic);
@@ -477,9 +449,13 @@ function detachFromRoom(p: PlayerRuntime) {
   if (old) {
     old.playerIds.delete(p.id);
     if (old.playerIds.size === 0) {
-      // Persistent Room: Do not delete even if empty
-      // rooms.delete(old.id);
-      console.log(`Room ${old.id} is empty but kept persistent.`);
+      // Persistent Room: Keep valid until time ends
+      if (nowMs() < old.endsAt) {
+        console.log(`Room ${old.id} is empty but kept because time remains.`);
+      } else {
+        rooms.delete(old.id);
+        console.log(`Room ${old.id} deleted (empty & time up).`);
+      }
     }
   }
   p.roomId = null;
@@ -834,14 +810,35 @@ function tick() {
 
     if (room.endsAt > 0 && now >= room.endsAt) {
       room.ended = true;
-      const leaderboard = [...room.playerIds]
-        .map((pid) => players.get(pid))
-        .filter((p): p is PlayerRuntime => !!p)
-        .map((p) => ({ id: p.id, name: p.name, score: p.score, kills: p.kills, deaths: p.deaths, team: p.team }))
-        .sort((a, b) => b.score - a.score);
 
-      broadcastRoom(room.id, { type: "leaderboard", payload: { players: leaderboard } });
+      const results = [...room.playerIds]
+        .map(pid => players.get(pid))
+        .filter((p): p is PlayerRuntime => !!p)
+        .map(p => toPlayerPublic(p));
+
+      // Calculate winner
+      let redScore = 0;
+      let blueScore = 0;
+      results.forEach(p => {
+        if (p.team === "red") redScore += p.score;
+        if (p.team === "blue") blueScore += p.score;
+      });
+      let winners: "red" | "blue" | "draw" = "draw";
+      if (redScore > blueScore) winners = "red";
+      if (blueScore > redScore) winners = "blue";
+
+      broadcastRoom(room.id, {
+        type: "gameEnd",
+        payload: { winners, results }
+      });
+
       sendRoomState(room.id);
+      continue;
+    }
+
+    // Cleanup empty ended rooms
+    if (room.ended && room.playerIds.size === 0) {
+      rooms.delete(room.id);
       continue;
     }
 

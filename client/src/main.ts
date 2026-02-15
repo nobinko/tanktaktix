@@ -853,16 +853,16 @@ const setupLobby = () => {
     const time = parseInt(timeLimitInput.value) || 240;
     const pw = passwordInput.value.trim();
 
-    if (!id) {
-      alert("Room ID is required");
-      return;
+    let finalId = id;
+    if (!finalId) {
+      finalId = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
     }
 
     sendMessage({
       type: "createRoom",
       payload: {
-        roomId: id,
-        name: name || `Room ${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`, // Auto-fill
+        roomId: finalId,
+        name: name || `Room ${finalId}`, // Auto-fill name using ID
         mapId: "alpha", // Fix to alpha for now
         maxPlayers: maxP,
         timeLimitSec: time,
