@@ -747,9 +747,9 @@ function tick() {
           p.y = nextY;
           p.isMoving = true;
         } else {
-          // Hit wall
-          p.pendingMove = null; // Stop
-          p.moveQueue = [];
+          // Hit wall — consume only this target, trigger cooldown
+          p.pendingMove = null;
+          if (p.moveQueue.length > 0) p.moveQueue.shift();
           p.isMoving = false;
           p.cooldownUntil = now + ACTION_COOLDOWN_MS; // Bonk -> Cooldown
         }
