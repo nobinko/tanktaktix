@@ -419,37 +419,74 @@ const draw = () => {
     const hullAngle = (player as any).hullAngle ?? 0;
     const turretAngle = (player as any).turretAngle ?? 0;
 
-    // Hull: rotated rectangle
+    // === Hull ===
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(hullAngle);
-    ctx.fillStyle = color;
+
+    // Treads (dark, slightly wider than body)
+    ctx.fillStyle = "#2a2a2a";
+    ctx.fillRect(-13, -14, 26, 5);  // top tread
+    ctx.fillRect(-13, 9, 26, 5);    // bottom tread
+    // Tread detail lines
+    ctx.strokeStyle = "rgba(255,255,255,0.15)";
+    ctx.lineWidth = 0.5;
+    for (let tx = -11; tx <= 11; tx += 4) {
+      ctx.beginPath(); ctx.moveTo(tx, -14); ctx.lineTo(tx, -9); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(tx, 9); ctx.lineTo(tx, 14); ctx.stroke();
+    }
+
     // Main body
-    ctx.fillRect(-14, -10, 28, 20);
-    // Treads (darker)
-    ctx.fillStyle = "rgba(0,0,0,0.3)";
-    ctx.fillRect(-14, -12, 28, 3);  // top tread
-    ctx.fillRect(-14, 9, 28, 3);    // bottom tread
+    ctx.fillStyle = color;
+    ctx.fillRect(-12, -9, 24, 18);
+
+    // Front wedge (indicates direction)
+    ctx.beginPath();
+    ctx.moveTo(12, -8);
+    ctx.lineTo(18, 0);
+    ctx.lineTo(12, 8);
+    ctx.closePath();
+    ctx.fill();
+
+    // Rear flag (team indicator)
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(-12, -4);
+    ctx.lineTo(-17, -7);
+    ctx.lineTo(-17, -1);
+    ctx.closePath();
+    ctx.fill();
+    // Flag outline
+    ctx.strokeStyle = "rgba(255,255,255,0.5)";
+    ctx.lineWidth = 0.8;
+    ctx.stroke();
+
     ctx.restore();
 
-    // Turret: rotated barrel on top of hull
+    // === Turret ===
     ctx.save();
     ctx.translate(x, y);
     if (state.aiming && player.id === state.selfId && state.aimPoint) {
-      // During AIM drag, turret follows cursor
       const aimAngle = Math.atan2(state.aimPoint.y - y, state.aimPoint.x - x);
       ctx.rotate(aimAngle);
     } else {
       ctx.rotate(turretAngle);
     }
-    // Turret base (circle)
+    // Turret base
     ctx.fillStyle = color;
     ctx.beginPath();
     ctx.arc(0, 0, 6, 0, Math.PI * 2);
     ctx.fill();
+    // White ring (TankMatch style)
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
     // Barrel
-    ctx.fillStyle = "#0b0f1f";
-    ctx.fillRect(4, -2.5, 18, 5);
+    ctx.fillStyle = "#1a1a2e";
+    ctx.fillRect(6, -2, 16, 4);
+    // Barrel tip
+    ctx.fillStyle = "#333";
+    ctx.fillRect(20, -2.5, 3, 5);
     ctx.restore();
 
     // Counter-rotate text/bars so they stay upright

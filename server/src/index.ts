@@ -755,8 +755,8 @@ function tick() {
               p.isMoving = false;
               const step = Math.sign(angleDiff) * Math.min(Math.abs(angleDiff), HULL_ROTATION_SPEED);
               p.hullAngle = normalizeAngle(p.hullAngle + step);
-              // Also rotate turret toward hull (forward)
-              const turretDiff = normalizeAngle(p.hullAngle - p.turretAngle);
+              // Turret also rotates toward final target angle (not current hull)
+              const turretDiff = normalizeAngle(targetAngle - p.turretAngle);
               const tStep = Math.sign(turretDiff) * Math.min(Math.abs(turretDiff), TURRET_ROTATION_SPEED);
               p.turretAngle = normalizeAngle(p.turretAngle + tStep);
             } else {
