@@ -307,11 +307,18 @@ const draw = () => {
   ctx.fillStyle = "#0b132b";
   ctx.fillRect(0, 0, mapSize.width, mapSize.height);
 
-  // Camera movement (arrow keys, no auto-follow)
-  if (keysDown.has("arrowleft")) state.camera.x -= CAMERA_SPEED / state.camera.zoom;
-  if (keysDown.has("arrowright")) state.camera.x += CAMERA_SPEED / state.camera.zoom;
-  if (keysDown.has("arrowup")) state.camera.y -= CAMERA_SPEED / state.camera.zoom;
-  if (keysDown.has("arrowdown")) state.camera.y += CAMERA_SPEED / state.camera.zoom;
+  // Camera movement (arrow keys, rotated to match view)
+  const camCos = Math.cos(state.camera.rotation);
+  const camSin = Math.sin(state.camera.rotation);
+  const spd = CAMERA_SPEED / state.camera.zoom;
+  let camDx = 0, camDy = 0;
+  if (keysDown.has("arrowleft")) { camDx -= spd; }
+  if (keysDown.has("arrowright")) { camDx += spd; }
+  if (keysDown.has("arrowup")) { camDy -= spd; }
+  if (keysDown.has("arrowdown")) { camDy += spd; }
+  // Rotate movement direction by camera rotation
+  state.camera.x += camDx * camCos + camDy * camSin;
+  state.camera.y += -camDx * camSin + camDy * camCos;
 
   // Zoom keys (+/-)
   if (keysDown.has("=") || keysDown.has("+")) {
@@ -415,23 +422,31 @@ const draw = () => {
     ctx.fill();
     ctx.fillStyle = "#0b0f1f";
     ctx.fillRect(x - 8, y - 4, 16, 8);
+
+    // Counter-rotate text/bars so they stay upright
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(-state.camera.rotation);
+
     ctx.fillStyle = "#e8f1ff";
-    ctx.fillText(player.name, x + 24, y + 4);
+    ctx.fillText(player.name, 24, 4);
     ctx.fillStyle = "#22c55e";
-    ctx.fillRect(x - 20, y - 28, ((player as any).hp / 100) * 40, 4);
+    ctx.fillRect(-20, -28, ((player as any).hp / 100) * 40, 4);
     ctx.fillStyle = "#f97316";
-    ctx.fillRect(x - 20, y - 22, ((player as any).ammo / 20) * 40, 4);
+    ctx.fillRect(-20, -22, ((player as any).ammo / 20) * 40, 4);
 
     // Action lock countdown (5→0) above tank — self only
     const lockStep = (player as any).actionLockStep ?? 0;
     if (lockStep > 0 && player.id === state.selfId) {
-      const display = Math.min(5, lockStep); // clamp to 5 max display
+      const display = Math.min(5, lockStep);
       ctx.font = "bold 16px monospace";
       ctx.fillStyle = "#f97316";
       ctx.textAlign = "center";
-      ctx.fillText(`${display}`, x, y - 34);
-      ctx.textAlign = "start"; // reset
+      ctx.fillText(`${display}`, 0, -34);
+      ctx.textAlign = "start";
     }
+
+    ctx.restore();
   });
 
   // Draw move queue markers for self
