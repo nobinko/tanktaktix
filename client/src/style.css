@@ -24,11 +24,6 @@ body {
   display: block;
 }
 
-#room-screen.active {
-  display: block;
-  padding: 0;
-}
-
 .panel {
   background: rgba(10, 18, 38, 0.9);
   border: 1px solid rgba(120, 150, 255, 0.3);
@@ -93,105 +88,12 @@ button.secondary {
   align-items: center;
 }
 
-/* === Game Wrapper === */
-.game-wrapper {
-  width: 900px;
-  max-width: 100%;
-  margin: 0 auto;
-}
-
-/* === TankMatch Top Bar === */
-.tm-topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  background: #e0e0e0;
-  border: 1px solid #b0b0b0;
-  padding: 4px 10px;
-  font-family: "Segoe UI", Arial, sans-serif;
-  font-size: 13px;
-  color: #222;
-  gap: 12px;
-}
-
-.tm-topbar-left {
-  display: flex;
-  gap: 12px;
-  font-weight: 700;
-}
-
-.tm-hp {
-  color: #333;
-}
-
-.tm-ammo {
-  color: #333;
-}
-
-.tm-topbar-center {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.tm-timer {
-  font-weight: 700;
-  font-size: 15px;
-  color: #222;
-}
-
-.tm-topbar-scores {
-  display: flex;
-  gap: 16px;
-  font-weight: 700;
-  font-size: 14px;
-}
-
-.tm-red {
-  color: #d32f2f;
-}
-
-.tm-blue {
-  color: #1565c0;
-}
-
-.tm-topbar-right {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.tm-status {
-  font-weight: 700;
-  font-size: 11px;
-  color: #2e7d32;
-  margin-right: 4px;
-}
-
-.tm-btn {
-  padding: 2px 10px;
-  font-size: 12px;
-  border-radius: 3px;
-  background: #d0d0d0;
-  border: 1px solid #999;
-  color: #222;
-  cursor: pointer;
-  font-weight: 600;
-}
-
-.tm-btn:hover {
-  background: #bbb;
-}
-
-/* === Game Container === */
-.game-container {
+.canvas-wrap {
   position: relative;
-  width: 100%;
-  height: 520px;
   background: #060b1a;
+  border-radius: 16px;
   overflow: hidden;
-  border: 1px solid #b0b0b0;
-  border-top: none;
+  border: 1px solid rgba(120, 150, 255, 0.2);
 }
 
 canvas {
@@ -200,45 +102,39 @@ canvas {
   height: 100%;
 }
 
-/* === Chat (inside canvas, bottom-left) === */
-.tm-chat-area {
-  position: absolute;
-  bottom: 8px;
-  left: 8px;
-  max-width: 280px;
-  pointer-events: auto;
-}
-
-.tm-chat-log {
+.hud {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin-bottom: 4px;
-  max-height: 100px;
-  overflow-y: auto;
-  font-size: 11px;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 16px;
 }
 
-.tm-chat-log .chat-line {
-  background: rgba(0, 0, 0, 0.5);
-  padding: 2px 6px;
-  border-radius: 3px;
-  color: #e8f1ff;
+.chat-log {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  max-width: 320px;
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
 }
 
-.tm-chat-input {
-  width: 100%;
-  padding: 3px 6px;
-  border-radius: 3px;
-  border: 1px solid rgba(200, 200, 200, 0.4);
-  background: rgba(0, 0, 0, 0.6);
-  color: #e8f1ff;
-  font-size: 11px;
+.chat-bubble {
+  background: rgba(15, 25, 48, 0.9);
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(120, 150, 255, 0.2);
+}
+
+.chat-input {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  width: 320px;
   display: none;
-  box-sizing: border-box;
 }
 
-.tm-chat-input.active {
+.chat-input.active {
   display: block;
 }
 
