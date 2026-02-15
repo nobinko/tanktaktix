@@ -374,9 +374,9 @@ const draw = () => {
     ctx.fillStyle = "#f97316";
     ctx.fillRect(x - 20, y - 22, ((player as any).ammo / 20) * 40, 4);
 
-    // Action lock countdown (5→0) above tank
+    // Action lock countdown (5→0) above tank — self only
     const lockStep = (player as any).actionLockStep ?? 0;
-    if (lockStep > 0) {
+    if (lockStep > 0 && player.id === state.selfId) {
       const display = Math.min(5, lockStep); // clamp to 5 max display
       ctx.font = "bold 16px monospace";
       ctx.fillStyle = "#f97316";
