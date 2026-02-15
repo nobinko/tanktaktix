@@ -119,10 +119,14 @@ const state = {
   aimPoint: null as Vector2 | null,
   bullets: [] as any[],
   explosions: [] as any[], // Local VFX
-  mapData: null as any
+  mapData: null as any,
+  camera: { x: 0, y: 0 }, // camera offset (top-left corner of viewport in world coords)
 };
 
 let ws: WebSocket | null = null;
+
+const keysDown = new Set<string>(); // track held keys for camera
+const CAMERA_SPEED = 8;
 
 const mapSize = { width: 900, height: 520 };
 
@@ -269,8 +273,8 @@ const getSelf = () => state.players.find((p) => p.id === state.selfId);
 
 const getCanvasPoint = (event: MouseEvent): Vector2 => {
   const rect = canvas.getBoundingClientRect();
-  const x = ((event.clientX - rect.left) / rect.width) * mapSize.width;
-  const y = ((event.clientY - rect.top) / rect.height) * mapSize.height;
+  const x = ((event.clientX - rect.left) / rect.width) * mapSize.width + state.camera.x;
+  const y = ((event.clientY - rect.top) / rect.height) * mapSize.height + state.camera.y;
   return { x, y };
 };
 
@@ -288,6 +292,17 @@ const draw = () => {
   ctx.clearRect(0, 0, mapSize.width, mapSize.height);
   ctx.fillStyle = "#0b132b";
   ctx.fillRect(0, 0, mapSize.width, mapSize.height);
+
+  // Camera movement (arrow keys, no auto-follow)
+  if (keysDown.has("arrowleft")) state.camera.x -= CAMERA_SPEED;
+  if (keysDown.has("arrowright")) state.camera.x += CAMERA_SPEED;
+  if (keysDown.has("arrowup")) state.camera.y -= CAMERA_SPEED;
+  if (keysDown.has("arrowdown")) state.camera.y += CAMERA_SPEED;
+
+  // Apply camera transform for world rendering
+  ctx.save();
+  ctx.translate(-state.camera.x, -state.camera.y);
+
   ctx.strokeStyle = "rgba(255,255,255,0.05)";
   for (let x = 0; x < mapSize.width; x += 60) {
     ctx.beginPath();
@@ -420,6 +435,9 @@ const draw = () => {
     }
   }
 
+  // End camera transform
+  ctx.restore();
+
   const self2 = getSelf();
   if (self2) {
     const lockStep = (self2 as any).actionLockStep ?? 0;
@@ -551,6 +569,7 @@ const setupRoom = () => {
   });
 
   window.addEventListener("keydown", (event) => {
+    keysDown.add(event.key.toLowerCase());
     if (state.phase !== "room") return;
     const key = event.key.toLowerCase();
 
@@ -567,6 +586,10 @@ const setupRoom = () => {
       sendMessage({ type: "moveCancelOne" });
       return;
     }
+  });
+
+  window.addEventListener("keyup", (event) => {
+    keysDown.delete(event.key.toLowerCase());
   });
 
   chatInput.addEventListener("keydown", (event) => {
