@@ -97,15 +97,105 @@ button.secondary {
   align-items: center;
 }
 
-/* === Game Container: fixed aspect ratio, centered === */
-.game-container {
-  position: relative;
+/* === Game Wrapper === */
+.game-wrapper {
   width: 900px;
   max-width: 100%;
-  aspect-ratio: 900 / 520;
   margin: 0 auto;
+}
+
+/* === TankMatch Top Bar === */
+.tm-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #e0e0e0;
+  border: 1px solid #b0b0b0;
+  padding: 4px 10px;
+  font-family: "Segoe UI", Arial, sans-serif;
+  font-size: 13px;
+  color: #222;
+  gap: 12px;
+}
+
+.tm-topbar-left {
+  display: flex;
+  gap: 12px;
+  font-weight: 700;
+}
+
+.tm-hp {
+  color: #333;
+}
+
+.tm-ammo {
+  color: #333;
+}
+
+.tm-topbar-center {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tm-timer {
+  font-weight: 700;
+  font-size: 15px;
+  color: #222;
+}
+
+.tm-topbar-scores {
+  display: flex;
+  gap: 16px;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.tm-red {
+  color: #d32f2f;
+}
+
+.tm-blue {
+  color: #1565c0;
+}
+
+.tm-topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tm-status {
+  font-weight: 700;
+  font-size: 11px;
+  color: #2e7d32;
+  margin-right: 4px;
+}
+
+.tm-btn {
+  padding: 2px 10px;
+  font-size: 12px;
+  border-radius: 3px;
+  background: #d0d0d0;
+  border: 1px solid #999;
+  color: #222;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.tm-btn:hover {
+  background: #bbb;
+}
+
+/* === Game Container === */
+.game-container {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 900 / 520;
   background: #060b1a;
   overflow: hidden;
+  border: 1px solid #b0b0b0;
+  border-top: none;
 }
 
 canvas {
@@ -114,30 +204,8 @@ canvas {
   height: 100%;
 }
 
-/* === HUD Panels (TankMatch style) === */
-.hud-panel {
-  position: absolute;
-  background: rgba(5, 10, 25, 0.75);
-  border: 1px solid rgba(120, 150, 255, 0.25);
-  border-radius: 4px;
-  padding: 6px 10px;
-  font-size: 12px;
-  pointer-events: auto;
-  backdrop-filter: blur(4px);
-}
-
-.hud-top-left {
-  top: 8px;
-  left: 8px;
-}
-
-.hud-top-right {
-  top: 8px;
-  right: 8px;
-  min-width: 120px;
-}
-
-.hud-bottom-left {
+/* === Chat (inside canvas, bottom-left) === */
+.tm-chat-area {
   position: absolute;
   bottom: 8px;
   left: 8px;
@@ -145,127 +213,37 @@ canvas {
   pointer-events: auto;
 }
 
-.hud-bottom-right {
-  bottom: 8px;
-  right: 8px;
-  text-align: right;
-}
-
-.hud-title {
-  font-weight: 700;
-  font-size: 14px;
-  color: #e8f1ff;
-}
-
-.hud-meta {
-  color: #a5b4d8;
-  font-size: 11px;
-  margin-top: 2px;
-}
-
-.hud-label {
-  font-weight: 700;
-  font-size: 10px;
-  color: #a5b4d8;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  margin-bottom: 4px;
-}
-
-.hud-score-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-.hud-score-list li {
-  padding: 1px 0;
-  font-size: 11px;
-  color: #e8f1ff;
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.hud-score-list li .score-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 80px;
-}
-
-.hud-score-list li .score-val {
-  font-weight: 700;
-  color: #4cc9f0;
-}
-
-/* Chat */
-.hud-chat-log {
+.tm-chat-log {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 2px;
   margin-bottom: 4px;
-  max-height: 120px;
+  max-height: 100px;
   overflow-y: auto;
   font-size: 11px;
 }
 
-.hud-chat-log .chat-bubble {
-  background: rgba(10, 18, 38, 0.85);
-  padding: 3px 6px;
-  border-radius: 4px;
-  border: 1px solid rgba(120, 150, 255, 0.15);
-  color: #d0d8f0;
+.tm-chat-log .chat-line {
+  background: rgba(0, 0, 0, 0.5);
+  padding: 2px 6px;
+  border-radius: 3px;
+  color: #e8f1ff;
 }
 
-.hud-chat-input {
+.tm-chat-input {
   width: 100%;
-  padding: 4px 8px;
-  border-radius: 4px;
-  border: 1px solid rgba(120, 150, 255, 0.25);
-  background: rgba(10, 18, 38, 0.85);
+  padding: 3px 6px;
+  border-radius: 3px;
+  border: 1px solid rgba(200, 200, 200, 0.4);
+  background: rgba(0, 0, 0, 0.6);
   color: #e8f1ff;
   font-size: 11px;
   display: none;
   box-sizing: border-box;
 }
 
-.hud-chat-input.active {
+.tm-chat-input.active {
   display: block;
-}
-
-/* Status */
-.hud-status {
-  font-weight: 700;
-  font-size: 16px;
-  color: #22c55e;
-  margin-bottom: 4px;
-}
-
-.hud-controls {
-  margin-top: 4px;
-}
-
-.hud-btn {
-  padding: 4px 10px;
-  font-size: 10px;
-  border-radius: 4px;
-  background: rgba(30, 40, 70, 0.8);
-  border: 1px solid rgba(120, 150, 255, 0.3);
-  color: #e8f1ff;
-  cursor: pointer;
-}
-
-.hud-btn:hover {
-  background: rgba(60, 80, 140, 0.8);
-}
-
-.hud-keys {
-  margin-top: 6px;
-  font-size: 9px;
-  color: #6b7a9e;
-  display: flex;
-  gap: 8px;
 }
 
 .notice {

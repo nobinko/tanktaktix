@@ -50,39 +50,41 @@ app.innerHTML = `
     </div>
   </section>
   <section id="room-screen" class="screen">
-    <div class="game-container">
-      <canvas id="map" width="900" height="520"></canvas>
-
-      <!-- Top-left: Room info & timer -->
-      <div class="hud-panel hud-top-left">
-        <div id="room-title" class="hud-title">Room</div>
-        <div id="room-meta" class="hud-meta">00:00 | 0P</div>
-      </div>
-
-      <!-- Top-right: Scoreboard -->
-      <div class="hud-panel hud-top-right">
-        <div class="hud-label">SCORE</div>
-        <ul id="score-list" class="hud-score-list"></ul>
-      </div>
-
-      <!-- Bottom-left: Chat -->
-      <div class="hud-bottom-left">
-        <div id="chat-log" class="hud-chat-log"></div>
-        <input id="chat-input" class="hud-chat-input" placeholder="T: chat" />
-      </div>
-
-      <!-- Bottom-right: Status + controls -->
-      <div class="hud-panel hud-bottom-right">
-        <div id="cooldown" class="hud-status">READY</div>
-        <div class="hud-controls">
-          <button id="leave-room" class="hud-btn">✕ Leave</button>
+    <div class="game-wrapper">
+      <!-- TankMatch-style top bar -->
+      <div class="tm-topbar">
+        <div class="tm-topbar-left">
+          <span class="tm-hp">❤️:<span id="self-hp">100</span>%</span>
+          <span class="tm-ammo">🔫:<span id="self-ammo">20</span></span>
         </div>
-        <div class="hud-keys">
-          <span>Z:undo</span>
-          <span>Q/E:rotate</span>
-          <span>Space:reset</span>
+        <div class="tm-topbar-center">
+          <span id="room-meta" class="tm-timer">00:00</span>
+        </div>
+        <div class="tm-topbar-scores" id="team-scores">
+          <span class="tm-red">Red:<span id="red-score">0</span></span>
+          <span class="tm-blue">Blue:<span id="blue-score">0</span></span>
+        </div>
+        <div class="tm-topbar-right">
+          <span id="cooldown" class="tm-status">READY</span>
+          <button id="chat-btn" class="tm-btn">Chat</button>
+          <button id="leave-room" class="tm-btn">Exit</button>
         </div>
       </div>
+
+      <!-- Game canvas (clean, no overlays) -->
+      <div class="game-container">
+        <canvas id="map" width="900" height="520"></canvas>
+
+        <!-- Chat overlay (inside canvas, bottom-left) -->
+        <div class="tm-chat-area">
+          <div id="chat-log" class="tm-chat-log"></div>
+          <input id="chat-input" class="tm-chat-input" placeholder="Press T to chat" />
+        </div>
+      </div>
+
+      <!-- Hidden scoreboard for FFA (individual mode) -->
+      <ul id="score-list" class="hud-score-list" style="display:none"></ul>
+      <div id="room-title" style="display:none">Room</div>
     </div>
   </section>
 `;
@@ -103,6 +105,14 @@ const roomTitle = document.querySelector("#room-title") as HTMLElement;
 const roomMeta = document.querySelector("#room-meta") as HTMLElement;
 const scoreList = document.querySelector("#score-list") as HTMLUListElement;
 const cooldownEl = document.querySelector("#cooldown") as HTMLElement;
+
+// TankMatch top bar elements
+const selfHpEl = document.querySelector("#self-hp") as HTMLElement;
+const selfAmmoEl = document.querySelector("#self-ammo") as HTMLElement;
+const teamScoresEl = document.querySelector("#team-scores") as HTMLElement;
+const redScoreEl = document.querySelector("#red-score") as HTMLElement;
+const blueScoreEl = document.querySelector("#blue-score") as HTMLElement;
+const chatBtn = document.querySelector("#chat-btn") as HTMLButtonElement;
 
 const chatInput = document.querySelector("#chat-input") as HTMLInputElement;
 const chatLog = document.querySelector("#chat-log") as HTMLDivElement;
@@ -254,7 +264,27 @@ const renderRoom = () => {
   roomTitle.textContent = `Room ${state.roomId}`;
   const mins = Math.floor(state.timeLeftSec / 60).toString().padStart(2, '0');
   const secs = (state.timeLeftSec % 60).toString().padStart(2, '0');
-  roomMeta.textContent = `${mins}:${secs} | ${state.players.length}P`;
+  roomMeta.textContent = `${mins}:${secs}`;
+
+  // Update self HP/ammo in top bar
+  const self = getSelf();
+  if (self) {
+    selfHpEl.textContent = `${(self as any).hp ?? 0}`;
+    selfAmmoEl.textContent = `${(self as any).ammo ?? 0}`;
+  }
+
+  // Team scores
+  const isTeamMode = state.players.some((p) => (p as any).team != null);
+  if (isTeamMode) {
+    teamScoresEl.style.display = "";
+    const redTotal = state.players.filter((p) => (p as any).team === "red").reduce((s, p) => s + (p.score ?? 0), 0);
+    const blueTotal = state.players.filter((p) => (p as any).team === "blue").reduce((s, p) => s + (p.score ?? 0), 0);
+    redScoreEl.textContent = `${redTotal}`;
+    blueScoreEl.textContent = `${blueTotal}`;
+  } else {
+    teamScoresEl.style.display = "none";
+  }
+
   renderScores();
   renderChat();
 };
@@ -659,6 +689,12 @@ const setupRoom = () => {
     state.players = [];
     state.bullets = [];
     setScreen("lobby");
+  });
+
+  // Chat button in top bar
+  chatBtn.addEventListener("click", () => {
+    chatInput.classList.add("active");
+    chatInput.focus();
   });
 
   canvas.addEventListener("mousedown", (event) => {
