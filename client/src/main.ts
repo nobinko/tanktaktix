@@ -873,7 +873,16 @@ const setupLobby = () => {
   });
 };
 
+// Controller for room event listeners
+let roomAbortController: AbortController | null = null;
+
 const setupRoom = () => {
+  // Clear previous listeners if any
+  if (roomAbortController) {
+    roomAbortController.abort();
+  }
+  roomAbortController = new AbortController();
+  const { signal } = roomAbortController;
   // Hide DOM HUD elements (except chat-input) to use Canvas HUD
   const roomHeader = document.querySelector(".room-header") as HTMLElement;
   if (roomHeader) roomHeader.style.display = "none";
@@ -897,13 +906,17 @@ const setupRoom = () => {
     state.players = [];
     state.bullets = [];
     resultOverlay.classList.add("hidden"); // Hide result overlay
+    if (roomAbortController) {
+      roomAbortController.abort();
+      roomAbortController = null;
+    }
     setScreen("lobby");
   };
 
   const leaveBtn = document.querySelector("#leave-room") as HTMLButtonElement;
-  leaveBtn.addEventListener("click", handleLeave);
-  gameLeaveBtn.addEventListener("click", handleLeave);
-  closeResultBtn.addEventListener("click", handleLeave);
+  leaveBtn.addEventListener("click", handleLeave, { signal });
+  gameLeaveBtn.addEventListener("click", handleLeave, { signal });
+  closeResultBtn.addEventListener("click", handleLeave, { signal });
 
   copyResultBtn.addEventListener("click", () => {
     // Copy result to clipboard
@@ -917,7 +930,7 @@ const setupRoom = () => {
       copyResultBtn.textContent = "Copied!";
       setTimeout(() => copyResultBtn.textContent = original, 2000);
     });
-  });
+  }, { signal });
 
   // Chat button in top bar (virtual click on canvas button check in mousedown?)
   // For now we just use T key or need a DOM button?
@@ -987,13 +1000,13 @@ const setupRoom = () => {
         sendMessage({ type: "move", payload: { target: point } });
       }
     }
-  });
+  }, { signal });
 
   window.addEventListener("mousemove", (event) => {
     if (!state.aiming) return;
     // Map external mouse to canvas coordinates
     state.aimPoint = getCanvasPoint(event);
-  });
+  }, { signal });
 
   window.addEventListener("mouseup", (event) => {
     if (!state.aiming) return;
@@ -1029,10 +1042,10 @@ const setupRoom = () => {
 
     if (len > 0) {
       sendMessage({ type: "shoot", payload: { direction: { x: shootX / len, y: shootY / len } } });
+      state.aiming = false;
+      state.aimPoint = null;
     }
-    state.aiming = false;
-    state.aimPoint = null;
-  });
+  }, { signal });
 
   window.addEventListener("keydown", (event) => {
     keysDown.add(event.key.toLowerCase());
@@ -1062,11 +1075,11 @@ const setupRoom = () => {
       event.preventDefault();
       return;
     }
-  });
+  }, { signal });
 
   window.addEventListener("keyup", (event) => {
     keysDown.delete(event.key.toLowerCase());
-  });
+  }, { signal });
 
   // Mouse wheel zoom
   canvas.addEventListener("wheel", (event) => {
@@ -1076,7 +1089,7 @@ const setupRoom = () => {
     } else {
       state.camera.zoom = Math.max(ZOOM_MIN, state.camera.zoom - ZOOM_STEP);
     }
-  }, { passive: false });
+  }, { passive: false, signal });
 
   chatInput.addEventListener("keydown", (event) => {
     if (event.key === "Enter") {
