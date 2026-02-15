@@ -443,7 +443,8 @@ const draw = () => {
     ctx.save();
     ctx.translate(x, y);
     if (state.aiming && player.id === state.selfId && state.aimPoint) {
-      const aimAngle = Math.atan2(state.aimPoint.y - y, state.aimPoint.x - x);
+      // Aim Angle: Opposite to drag direction (Tank - Mouse)
+      const aimAngle = Math.atan2(y - state.aimPoint.y, x - state.aimPoint.x);
       ctx.rotate(aimAngle);
     } else {
       ctx.rotate(turretAngle);
@@ -530,15 +531,15 @@ const draw = () => {
         ctx.fillText("CANCEL", sx, sy - 28);
         ctx.textAlign = "start";
       } else {
-        // Draw Slingshot Guide
+        // Draw Slingshot Guide (Fixed Length)
         const aimX = -dragX;
         const aimY = -dragY;
         const aimLen = Math.hypot(aimX, aimY);
         const ndx = aimX / aimLen;
         const ndy = aimY / aimLen;
 
-        const MAX_GUIDE_LEN = 108; // 3 * Tank Size (36)
-        const guideLen = Math.min(dragDist, MAX_GUIDE_LEN);
+        const FIXED_GUIDE_LEN = 54; // Fixed length ~ 3x radius (18*3=54) or user said "half of too long (108)" -> 54.
+        const guideLen = FIXED_GUIDE_LEN;
 
         const gx = sx + ndx * guideLen;
         const gy = sy + ndy * guideLen;
@@ -915,12 +916,13 @@ const setupRoom = () => {
     }
   });
 
-  canvas.addEventListener("mousemove", (event) => {
+  window.addEventListener("mousemove", (event) => {
     if (!state.aiming) return;
+    // Map external mouse to canvas coordinates
     state.aimPoint = getCanvasPoint(event);
   });
 
-  canvas.addEventListener("mouseup", (event) => {
+  window.addEventListener("mouseup", (event) => {
     if (!state.aiming) return;
     if (state.phase !== "room") return;
 

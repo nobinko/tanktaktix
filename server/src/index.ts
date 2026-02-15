@@ -205,6 +205,75 @@ function distPointToSegment(
   return Math.hypot(p.x - (v.x + t * (w.x - v.x)), p.y - (v.y + t * (w.y - v.y)));
 }
 
+/**
+ * Check if a ray (p1->p2) intersects a localized AABB (minX, minY, maxX, maxY)
+ * using Liang-Barsky algorithm.
+ */
+function clipLineToRect(p1: { x: number; y: number }, p2: { x: number; y: number }, minX: number, minY: number, maxX: number, maxY: number): boolean {
+  let t0 = 0, t1 = 1;
+  const dx = p2.x - p1.x;
+  const dy = p2.y - p1.y;
+
+  const p = [-dx, dx, -dy, dy];
+  const q = [p1.x - minX, maxX - p1.x, p1.y - minY, maxY - p1.y];
+
+  for (let i = 0; i < 4; i++) {
+    if (p[i] === 0) {
+      if (q[i] < 0) return false;
+    } else {
+      const t = q[i] / p[i];
+      if (p[i] < 0) {
+        if (t > t1) return false;
+        if (t > t0) t0 = t;
+      } else {
+        if (t < t0) return false;
+        if (t < t1) t1 = t;
+      }
+    }
+  }
+  return t0 <= t1;
+}
+
+/**
+ * Check collision between Ray (prev->curr) and Rotated Rectangle (Tank).
+ * rectSize: { w, h }
+ */
+function checkRayRotatedRect(
+  rayStart: { x: number; y: number },
+  rayEnd: { x: number; y: number },
+  rectCenter: { x: number; y: number },
+  rectSize: { w: number; h: number },
+  angle: number,
+  margin: number
+): boolean {
+  // 1. Transform ray to local rect coordinates
+  // Rotate ray points by -angle around rectCenter
+  // Shift to origin
+  const cos = Math.cos(-angle);
+  const sin = Math.sin(-angle);
+
+  const tx1 = rayStart.x - rectCenter.x;
+  const ty1 = rayStart.y - rectCenter.y;
+  const localStart = {
+    x: tx1 * cos - ty1 * sin,
+    y: tx1 * sin + ty1 * cos
+  };
+
+  const tx2 = rayEnd.x - rectCenter.x;
+  const ty2 = rayEnd.y - rectCenter.y;
+  const localEnd = {
+    x: tx2 * cos - ty2 * sin,
+    y: tx2 * sin + ty2 * cos
+  };
+
+  // 2. AABB check against expanded rect
+  // Tank visual size: 26x20. Expand by bullet radius (margin).
+  const halfW = rectSize.w / 2 + margin;
+  const halfH = rectSize.h / 2 + margin;
+
+  return clipLineToRect(localStart, localEnd, -halfW, -halfH, halfW, halfH);
+}
+
 function safeJsonParse(input: string): unknown {
   try {
     return JSON.parse(input);
@@ -653,9 +722,16 @@ function updateBullets(room: Room, dtSec: number, now: number) {
       // FIX: Arguments were swapped!
       // Old: distPointToSegment(prev, curr, target) -> Distance form Prev, to Line(Curr, Target) -> NONSENSE
       // New: distPointToSegment(target, prev, curr) -> Distance from Target, to Line(Prev, Curr) -> CORRECT
-      const dSeg = distPointToSegment({ x: t.x, y: t.y }, prev, curr);
+      // Hitbox: Rotated Rectangle (26x20)
+      const hit = checkRayRotatedRect(
+        prev, curr,
+        { x: t.x, y: t.y },
+        { w: 26, h: 20 },
+        t.hullAngle,
+        b.radius
+      );
 
-      if (dSeg <= HIT_RADIUS + b.radius) {
+      if (hit) {
         triggerExplosion(room, curr.x, curr.y, b.shooterId);
         exploded = true;
         break;
