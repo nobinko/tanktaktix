@@ -120,13 +120,17 @@ const state = {
   bullets: [] as any[],
   explosions: [] as any[], // Local VFX
   mapData: null as any,
-  camera: { x: 0, y: 0 }, // camera offset (top-left corner of viewport in world coords)
+  camera: { x: 0, y: 0, zoom: 1, rotation: 0 },
 };
 
 let ws: WebSocket | null = null;
 
-const keysDown = new Set<string>(); // track held keys for camera
+const keysDown = new Set<string>();
 const CAMERA_SPEED = 8;
+const ZOOM_STEP = 0.1;
+const ZOOM_MIN = 0.3;
+const ZOOM_MAX = 3.0;
+const ROTATION_STEP = Math.PI / 36; // 5 degrees
 
 const mapSize = { width: 900, height: 520 };
 
@@ -273,9 +277,19 @@ const getSelf = () => state.players.find((p) => p.id === state.selfId);
 
 const getCanvasPoint = (event: MouseEvent): Vector2 => {
   const rect = canvas.getBoundingClientRect();
-  const x = ((event.clientX - rect.left) / rect.width) * mapSize.width + state.camera.x;
-  const y = ((event.clientY - rect.top) / rect.height) * mapSize.height + state.camera.y;
-  return { x, y };
+  // Screen coords relative to canvas center
+  let sx = ((event.clientX - rect.left) / rect.width) * mapSize.width - mapSize.width / 2;
+  let sy = ((event.clientY - rect.top) / rect.height) * mapSize.height - mapSize.height / 2;
+  // Inverse zoom
+  sx /= state.camera.zoom;
+  sy /= state.camera.zoom;
+  // Inverse rotation
+  const cos = Math.cos(-state.camera.rotation);
+  const sin = Math.sin(-state.camera.rotation);
+  const rx = sx * cos - sy * sin;
+  const ry = sx * sin + sy * cos;
+  // Add camera offset + viewport center
+  return { x: rx + state.camera.x + mapSize.width / 2, y: ry + state.camera.y + mapSize.height / 2 };
 };
 
 const isMouseOnTank = (point: Vector2, tankPos: Vector2) => {
@@ -294,14 +308,33 @@ const draw = () => {
   ctx.fillRect(0, 0, mapSize.width, mapSize.height);
 
   // Camera movement (arrow keys, no auto-follow)
-  if (keysDown.has("arrowleft")) state.camera.x -= CAMERA_SPEED;
-  if (keysDown.has("arrowright")) state.camera.x += CAMERA_SPEED;
-  if (keysDown.has("arrowup")) state.camera.y -= CAMERA_SPEED;
-  if (keysDown.has("arrowdown")) state.camera.y += CAMERA_SPEED;
+  if (keysDown.has("arrowleft")) state.camera.x -= CAMERA_SPEED / state.camera.zoom;
+  if (keysDown.has("arrowright")) state.camera.x += CAMERA_SPEED / state.camera.zoom;
+  if (keysDown.has("arrowup")) state.camera.y -= CAMERA_SPEED / state.camera.zoom;
+  if (keysDown.has("arrowdown")) state.camera.y += CAMERA_SPEED / state.camera.zoom;
 
-  // Apply camera transform for world rendering
+  // Zoom keys (+/-)
+  if (keysDown.has("=") || keysDown.has("+")) {
+    state.camera.zoom = Math.min(ZOOM_MAX, state.camera.zoom + ZOOM_STEP * 0.3);
+  }
+  if (keysDown.has("-")) {
+    state.camera.zoom = Math.max(ZOOM_MIN, state.camera.zoom - ZOOM_STEP * 0.3);
+  }
+
+  // Rotation keys (Q/E)
+  if (keysDown.has("q") && document.activeElement !== chatInput) {
+    state.camera.rotation -= ROTATION_STEP * 0.3;
+  }
+  if (keysDown.has("e") && document.activeElement !== chatInput) {
+    state.camera.rotation += ROTATION_STEP * 0.3;
+  }
+
+  // Apply camera transform: translate center, rotate, zoom, offset
   ctx.save();
-  ctx.translate(-state.camera.x, -state.camera.y);
+  ctx.translate(mapSize.width / 2, mapSize.height / 2);
+  ctx.rotate(state.camera.rotation);
+  ctx.scale(state.camera.zoom, state.camera.zoom);
+  ctx.translate(-state.camera.x - mapSize.width / 2, -state.camera.y - mapSize.height / 2);
 
   ctx.strokeStyle = "rgba(255,255,255,0.05)";
   for (let x = 0; x < mapSize.width; x += 60) {
@@ -586,11 +619,31 @@ const setupRoom = () => {
       sendMessage({ type: "moveCancelOne" });
       return;
     }
+
+    // Space — reset camera
+    if (key === " " && document.activeElement !== chatInput) {
+      state.camera.x = 0;
+      state.camera.y = 0;
+      state.camera.zoom = 1;
+      state.camera.rotation = 0;
+      event.preventDefault();
+      return;
+    }
   });
 
   window.addEventListener("keyup", (event) => {
     keysDown.delete(event.key.toLowerCase());
   });
+
+  // Mouse wheel zoom
+  canvas.addEventListener("wheel", (event) => {
+    event.preventDefault();
+    if (event.deltaY < 0) {
+      state.camera.zoom = Math.min(ZOOM_MAX, state.camera.zoom + ZOOM_STEP);
+    } else {
+      state.camera.zoom = Math.max(ZOOM_MIN, state.camera.zoom - ZOOM_STEP);
+    }
+  }, { passive: false });
 
   chatInput.addEventListener("keydown", (event) => {
     if (event.key === "Enter") {
