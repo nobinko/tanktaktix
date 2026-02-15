@@ -32,6 +32,9 @@ export type PlayerSummary = {
   ammo: number;
   score: number;
   deaths: number;
+  kills: number;
+  hits: number;
+  fired: number;
   nextActionAt: number;
   actionLockStep: number; // 5→0 countdown display (0 = ready)
   hullAngle: number;      // hull facing direction (radians)
@@ -148,4 +151,11 @@ export type ServerToClientMessage =
   | {
     type: "error";
     payload: { message: string };
+  }
+  | {
+    type: "gameEnd";
+    payload: {
+      winners: Team | "draw";
+      results: PlayerSummary[];
+    };
   };

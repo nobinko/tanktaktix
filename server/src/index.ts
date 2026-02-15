@@ -31,9 +31,7 @@ type PlayerRuntime = {
 
   hp: number;
   ammo: number;
-  score: number;
-  kills: number;
-  deaths: number;
+  // score/kills/deaths moved to Stats section below
 
   roomId: string | null;
 
@@ -46,6 +44,13 @@ type PlayerRuntime = {
   isRotating: boolean;  // true during pivot-turn phase
 
   isMoving: boolean;
+  // Stats
+  score: number;
+  kills: number;
+  deaths: number;
+  hits: number;
+  fired: number;
+
   cooldownUntil: number; // Block all actions until this time
 
   respawnAt: number | null;
@@ -329,14 +334,17 @@ function toPlayerPublic(p: PlayerRuntime) {
     hp: p.hp,
     ammo: p.ammo,
     score: p.score,
-    kills: p.kills,
-    deaths: p.deaths,
     respawnAt: p.respawnAt,
     // Action lock: compute current step (5→0) from remaining cooldown ms
     nextActionAt: p.cooldownUntil,
     actionLockStep: Math.max(0, Math.ceil((p.cooldownUntil - nowMs()) / ACTION_LOCK_STEP_MS) - 1),
     hullAngle: p.hullAngle,
     turretAngle: p.turretAngle,
+    // Stats
+    kills: p.kills,
+    deaths: p.deaths,
+    hits: p.hits,
+    fired: p.fired,
   };
 }
 
@@ -393,6 +401,37 @@ function roomStatePayload(roomId: string) {
   }
 
   const timeLeftSec = Math.max(0, Math.ceil((room.endsAt - nowMs()) / 1000));
+  if (timeLeftSec <= 0 && !room.ended) { // Check if game just ended
+    room.ended = true; // Mark room as ended
+    const results = [...room.playerIds]
+      .map(pid => players.get(pid))
+      .filter((p): p is PlayerRuntime => !!p)
+      .map(p => toPlayerPublic(p)); // Use toPlayerPublic for summary
+
+    // Calculate winner
+    let redScore = 0;
+    let blueScore = 0;
+    results.forEach(p => {
+      if (p.team === "red") redScore += p.score;
+      if (p.team === "blue") blueScore += p.score;
+    });
+    let winners: "red" | "blue" | "draw" = "draw";
+    if (redScore > blueScore) winners = "red";
+    if (blueScore > redScore) winners = "blue";
+
+    broadcastRoom(room.id, {
+      type: "gameEnd",
+      payload: { winners, results }
+    });
+
+    // Reset game? Or just keep it at 0?
+    // If we reset immediately, client might validly show result.
+    // Let's keep it at 0, client handles "gameEnd" screen.
+    // Maybe reset after 10 seconds?
+    // room.timeLeftSec = 0; // This is already handled by timeLeftSec calculation
+  }
+
+
   const ps = [...room.playerIds].map(pid => players.get(pid)).filter((p): p is PlayerRuntime => !!p).map(toPlayerPublic);
   const bs = room.bullets.map(toBulletPublic);
   const es = room.explosions; // Sync current frame explosions
@@ -437,7 +476,11 @@ function detachFromRoom(p: PlayerRuntime) {
   const old = rooms.get(oldRoomId);
   if (old) {
     old.playerIds.delete(p.id);
-    if (old.playerIds.size === 0) rooms.delete(old.id);
+    if (old.playerIds.size === 0) {
+      // Persistent Room: Do not delete even if empty
+      // rooms.delete(old.id);
+      console.log(`Room ${old.id} is empty but kept persistent.`);
+    }
   }
   p.roomId = null;
   p.pendingMove = null;
@@ -493,6 +536,11 @@ function spawnPlayer(p: PlayerRuntime, room: Room) {
   p.cooldownUntil = 0;
   p.hullAngle = 0;
   p.turretAngle = 0;
+  p.score = 0; // Reset score on spawn
+  p.kills = 0; // Reset kills on spawn
+  p.deaths = 0; // Reset deaths on spawn
+  p.hits = 0; // Reset hits on spawn
+  p.fired = 0; // Reset fired on spawn
 }
 
 function joinRoom(p: PlayerRuntime, roomId: string, password?: string) {
@@ -632,6 +680,7 @@ function tryShoot(p: PlayerRuntime, dir: Vector2) {
   if (p.ammo <= 0) return;
 
   p.ammo -= 1;
+  p.fired += 1; // Increment fired count
 
   // Trigger Cooldown immediately
   p.cooldownUntil = now + ACTION_COOLDOWN_MS;
@@ -732,6 +781,26 @@ function updateBullets(room: Room, dtSec: number, now: number) {
       );
 
       if (hit) {
+        // Stats: Hit
+        const shooter = players.get(b.shooterId);
+        if (shooter) {
+          shooter.hits++;
+          // Check Kill
+          const target = players.get(t.id);
+          if (target && target.hp > 0) {
+            target.hp -= 25; // 4 hits to kill
+            if (target.hp <= 0) {
+              target.hp = 0;
+              target.deaths++;
+              target.respawnAt = nowMs() + 3000;
+              shooter.kills++;
+              shooter.score += 100;
+            } else {
+              shooter.score += 10;
+            }
+          }
+        }
+
         triggerExplosion(room, curr.x, curr.y, b.shooterId);
         exploded = true;
         break;
@@ -945,7 +1014,10 @@ wss.on("connection", (socket) => {
     name: `Player-${playerId.slice(0, 4)}`,
     team: null,
     x: 150, y: 150,
-    hp: 100, ammo: 20, score: 0, kills: 0, deaths: 0,
+    hp: 100, ammo: 20,
+    // Stats
+    score: 0, kills: 0, deaths: 0, hits: 0, fired: 0,
+
     roomId: null,
     aimDir: { x: 1, y: 0 },
     pendingMove: null, moveQueue: [],

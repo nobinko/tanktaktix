@@ -50,7 +50,26 @@ app.innerHTML = `
     </div>
   </section>
   <section id="room-screen" class="screen">
-    <div class="panel">
+    <div class="panel relative-panel">
+      <!-- Result Overlay -->
+      <div id="result-overlay" class="result-overlay hidden">
+        <h2>Game Result</h2>
+        <h3 id="result-winner">Winner: ---</h3>
+        <div class="table-container">
+          <table id="result-table">
+            <thead><tr><th>Name</th><th>Score</th><th>K / D</th><th>Acc %</th></tr></thead>
+            <tbody id="result-body"></tbody>
+          </table>
+        </div>
+        <div class="actions">
+           <button id="copy-result">Copy Result</button>
+           <button id="close-result">Leave Room</button>
+        </div>
+      </div>
+
+      <!-- In-Game Leave Button -->
+      <button id="game-leave-btn" class="overlay-btn top-right">Leave</button>
+
       <div class="room-header">
         <div>
           <h2 id="room-title">Room</h2>
@@ -98,6 +117,13 @@ const cooldownEl = document.querySelector("#cooldown") as HTMLElement;
 
 const chatInput = document.querySelector("#chat-input") as HTMLInputElement;
 const chatLog = document.querySelector("#chat-log") as HTMLDivElement;
+
+const resultOverlay = document.querySelector("#result-overlay") as HTMLElement;
+const resultWinner = document.querySelector("#result-winner") as HTMLElement;
+const resultBody = document.querySelector("#result-body") as HTMLElement;
+const copyResultBtn = document.querySelector("#copy-result") as HTMLButtonElement;
+const closeResultBtn = document.querySelector("#close-result") as HTMLButtonElement;
+const gameLeaveBtn = document.querySelector("#game-leave-btn") as HTMLButtonElement;
 
 const canvas = document.querySelector("#map") as HTMLCanvasElement;
 const ctx = canvas.getContext("2d");
@@ -192,8 +218,35 @@ const handleServerMessage = (message: ServerToClientMessage) => {
     }
     case "chat":
       state.chat.unshift(message.payload);
-      state.chat = state.chat.slice(0, 6);
-      renderChat();
+      // Remove old messages
+      if (state.chat.length > 50) state.chat.pop();
+      // renderChat is Canvas-based now, called in loop
+      break;
+
+    case "gameEnd":
+      // Show Result
+      resultOverlay.classList.remove("hidden");
+      const { winners, results } = message.payload;
+
+      const winnerText = (!winners || winners === "draw") ? "Draw Game!" : `${winners.toUpperCase()} Team Wins!`;
+      resultWinner.textContent = winnerText;
+      resultWinner.style.color = winners === "red" ? "#ff6b6b" : (winners === "blue" ? "#60a5fa" : "#ccc");
+
+      // Sort by score desc
+      results.sort((a, b) => b.score - a.score);
+
+      resultBody.innerHTML = "";
+      results.forEach(p => {
+        const tr = document.createElement("tr");
+        const hitRate = p.fired > 0 ? Math.floor((p.hits / p.fired) * 100) : 0;
+        tr.innerHTML = `
+          <td>${p.name}</td>
+          <td>${p.score}</td>
+          <td>${p.kills} / ${p.deaths}</td>
+          <td>${hitRate}%</td>
+        `;
+        resultBody.appendChild(tr);
+      });
       break;
     case "leaderboard":
       state.leaderboard = message.payload.players;
@@ -794,13 +847,13 @@ const setupLogin = () => {
 const setupLobby = () => {
   const createRoomBtn = document.querySelector("#create-room") as HTMLButtonElement;
   createRoomBtn.addEventListener("click", () => {
-    const roomId = (document.querySelector("#room-id") as HTMLInputElement).value;
-    const name = (document.querySelector("#room-name") as HTMLInputElement).value;
-    const maxPlayers = parseInt((document.querySelector("#max-players") as HTMLInputElement).value) || 4;
-    const timeLimitSec = parseInt((document.querySelector("#time-limit") as HTMLInputElement).value) || 240;
-    const password = (document.querySelector("#room-password") as HTMLInputElement).value;
+    const id = roomIdInput.value.trim();
+    const name = roomNameInput.value.trim();
+    const maxP = parseInt(maxPlayersInput.value) || 4;
+    const time = parseInt(timeLimitInput.value) || 240;
+    const pw = passwordInput.value.trim();
 
-    if (!roomId) {
+    if (!id) {
       alert("Room ID is required");
       return;
     }
@@ -808,12 +861,12 @@ const setupLobby = () => {
     sendMessage({
       type: "createRoom",
       payload: {
-        roomId,
-        name,
-        maxPlayers,
-        timeLimitSec,
-        password,
-        mapId: "alpha",
+        roomId: id,
+        name: name || `Room ${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`, // Auto-fill
+        mapId: "alpha", // Fix to alpha for now
+        maxPlayers: maxP,
+        timeLimitSec: time,
+        password: pw || undefined,
       },
     });
     setScreen("room");
@@ -836,14 +889,34 @@ const setupRoom = () => {
   const h3s = document.querySelectorAll(".hud h3");
   h3s.forEach((h3) => (h3 as HTMLElement).style.display = "none");
 
-  const leaveBtn = document.querySelector("#leave-room") as HTMLButtonElement;
-  leaveBtn.addEventListener("click", () => {
+  // Leave Room Logic
+  const handleLeave = () => {
     sendMessage({ type: "leaveRoom" });
     sendMessage({ type: "requestLobby" });
     state.roomId = "";
     state.players = [];
     state.bullets = [];
+    resultOverlay.classList.add("hidden"); // Hide result overlay
     setScreen("lobby");
+  };
+
+  const leaveBtn = document.querySelector("#leave-room") as HTMLButtonElement;
+  leaveBtn.addEventListener("click", handleLeave);
+  gameLeaveBtn.addEventListener("click", handleLeave);
+  closeResultBtn.addEventListener("click", handleLeave);
+
+  copyResultBtn.addEventListener("click", () => {
+    // Copy result to clipboard
+    const text = Array.from(resultBody.querySelectorAll("tr")).map(tr => {
+      const cols = Array.from(tr.querySelectorAll("td")).map(td => td.textContent).join("\t");
+      return cols;
+    }).join("\n");
+    const header = `Winner: ${resultWinner.textContent}\nName\tScore\tK/D\tAcc%\n`;
+    navigator.clipboard.writeText(header + text).then(() => {
+      const original = copyResultBtn.textContent;
+      copyResultBtn.textContent = "Copied!";
+      setTimeout(() => copyResultBtn.textContent = original, 2000);
+    });
   });
 
   // Chat button in top bar (virtual click on canvas button check in mousedown?)

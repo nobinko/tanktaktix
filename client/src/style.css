@@ -146,5 +146,85 @@ canvas {
 .badge {
   padding: 2px 8px;
   border-radius: 999px;
-  background: rgba(76, 201, 240, 0.2);
-}
+
+  /* Result Overlay */
+  .relative-panel {
+    position: relative;
+  }
+
+  .result-overlay {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(10, 18, 38, 0.95);
+    border: 1px solid #4cc9f0;
+    border-radius: 12px;
+    padding: 24px;
+    width: 80%;
+    max-width: 600px;
+    box-shadow: 0 0 40px rgba(76, 201, 240, 0.2);
+    z-index: 100;
+    text-align: center;
+  }
+
+  .result-overlay.hidden {
+    display: none;
+  }
+
+  .table-container {
+    margin: 20px 0;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  #result-table {
+    width: 100%;
+    border-collapse: collapse;
+    color: #e8f1ff;
+    font-size: 14px;
+  }
+
+  #result-table th,
+  #result-table td {
+    padding: 10px;
+    text-align: center;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  #result-table th {
+    background: rgba(76, 201, 240, 0.2);
+    font-weight: 600;
+  }
+
+  .actions {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    margin-top: 20px;
+  }
+
+  /* In-Game Leave Button */
+  .overlay-btn {
+    position: absolute;
+    padding: 6px 12px;
+    font-size: 13px;
+    z-index: 50;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(10, 10, 10, 0.6);
+    color: #ccc;
+    border-radius: 4px;
+    transition: all 0.2s;
+  }
+
+  .overlay-btn:hover {
+    background: #dc2626;
+    color: #fff;
+    border-color: #dc2626;
+  }
+
+  .overlay-btn.top-right {
+    top: 10px;
+    right: 10px;
+  }
