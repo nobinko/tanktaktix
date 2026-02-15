@@ -650,12 +650,6 @@ function updateBullets(room: Room, dtSec: number, now: number) {
 
       if (t.hp <= 0) continue;
 
-      // Dynamic Safety Zone: Ignore collision if target is within 40px of bullet Start Position
-      const distFromStart = Math.hypot(t.x - b.startX, t.y - b.startY);
-      if (distFromStart < 40) {
-        continue;
-      }
-
       // FIX: Arguments were swapped!
       // Old: distPointToSegment(prev, curr, target) -> Distance form Prev, to Line(Curr, Target) -> NONSENSE
       // New: distPointToSegment(target, prev, curr) -> Distance from Target, to Line(Prev, Curr) -> CORRECT
