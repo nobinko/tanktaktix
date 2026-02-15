@@ -27,11 +27,15 @@ export type PlayerSummary = {
   roomId: string | null;
   position: Vector2;
   target: Vector2 | null;
+  moveQueue: Vector2[];
   hp: number;
   ammo: number;
   score: number;
   deaths: number;
   nextActionAt: number;
+  actionLockStep: number; // 5→0 countdown display (0 = ready)
+  hullAngle: number;      // hull facing direction (radians)
+  turretAngle: number;    // turret facing direction (radians)
   respawnAt: number | null;
 };
 
@@ -111,6 +115,9 @@ export type ClientToServerMessage =
   | {
     type: "shoot";
     payload: { direction: Vector2 };
+  }
+  | {
+    type: "moveCancelOne";
   };
 
 export type ServerToClientMessage =

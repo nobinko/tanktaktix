@@ -38,17 +38,12 @@ type PlayerRuntime = {
   roomId: string | null;
 
   aimDir: Vector2; // unit
-  pendingMove: Vector2 | null; // unit
-  pendingTarget: Vector2 | null; // click move
+  pendingMove: Vector2 | null; // unit (legacy directional, kept for compat)
+  moveQueue: Vector2[]; // click-to-move queue (max MOVE_QUEUE_MAX)
 
-  // Cooldown Logic
-  // Tankmatch: 
-  // - "Cooldown: after any action, a short cooldown applies"
-  // - Interpretation: 
-  //   - Moving blocks Shooting.
-  //   - Shooting blocks Moving.
-  //   - Completion of Move -> Start Cooldown.
-  //   - Completion of Shoot -> Start Cooldown.
+  hullAngle: number;    // current hull facing (radians)
+  turretAngle: number;  // current turret facing (radians)
+  isRotating: boolean;  // true during pivot-turn phase
 
   isMoving: boolean;
   cooldownUntil: number; // Block all actions until this time
@@ -100,7 +95,17 @@ const MAP_W = 900;
 const MAP_H = 520;
 
 const MOVE_SPEED = 6; // per tick
-const ACTION_COOLDOWN_MS = 500; // 0.5s cooldown after action
+
+// Action lock (5→0 countdown) — spec: 6 steps, 200ms each = 1200ms total
+const ACTION_LOCK_STEPS = 6;
+const ACTION_LOCK_STEP_MS = 200;
+const ACTION_COOLDOWN_MS = ACTION_LOCK_STEPS * ACTION_LOCK_STEP_MS;
+
+const MOVE_QUEUE_MAX = 5; // max queued move targets
+
+// Rotation speeds (radians per tick)
+const HULL_ROTATION_SPEED = Math.PI / 15;    // ~12 deg/tick → ~180° in 0.75s
+const TURRET_ROTATION_SPEED = Math.PI / 10;  // ~18 deg/tick → faster than hull
 
 const RESPAWN_MS = 1500;
 
@@ -156,6 +161,13 @@ function norm(v: Vector2): Vector2 {
   const l = len(v);
   if (!l) return { x: 0, y: 0 };
   return { x: v.x / l, y: v.y / l };
+}
+
+/** Normalize angle to [-π, π] */
+function normalizeAngle(a: number): number {
+  while (a > Math.PI) a -= 2 * Math.PI;
+  while (a < -Math.PI) a += 2 * Math.PI;
+  return a;
 }
 
 function checkWallCollision(x: number, y: number, r: number, walls: Wall[]): boolean {
@@ -243,15 +255,19 @@ function toPlayerPublic(p: PlayerRuntime) {
     x: p.x,
     y: p.y,
     position: { x: p.x, y: p.y },
-    target: p.pendingTarget ?? { x: p.x, y: p.y },
+    target: p.moveQueue.length > 0 ? p.moveQueue[0] : { x: p.x, y: p.y },
+    moveQueue: p.moveQueue,
     hp: p.hp,
     ammo: p.ammo,
     score: p.score,
     kills: p.kills,
     deaths: p.deaths,
     respawnAt: p.respawnAt,
-    // Client interpretation: if nextActionAt > current time, show cooldown
+    // Action lock: compute current step (5→0) from remaining cooldown ms
     nextActionAt: p.cooldownUntil,
+    actionLockStep: Math.max(0, Math.ceil((p.cooldownUntil - nowMs()) / ACTION_LOCK_STEP_MS) - 1),
+    hullAngle: p.hullAngle,
+    turretAngle: p.turretAngle,
   };
 }
 
@@ -356,7 +372,7 @@ function detachFromRoom(p: PlayerRuntime) {
   }
   p.roomId = null;
   p.pendingMove = null;
-  p.pendingTarget = null;
+  p.moveQueue = [];
   p.team = null;
   p.isMoving = false;
   p.cooldownUntil = 0;
@@ -402,9 +418,12 @@ function spawnPlayer(p: PlayerRuntime, room: Room) {
   p.ammo = 20;
   p.respawnAt = null;
   p.pendingMove = null;
-  p.pendingTarget = null;
+  p.moveQueue = [];
   p.isMoving = false;
+  p.isRotating = false;
   p.cooldownUntil = 0;
+  p.hullAngle = 0;
+  p.turretAngle = 0;
 }
 
 function joinRoom(p: PlayerRuntime, roomId: string, password?: string) {
@@ -450,17 +469,18 @@ function setMoveDir(p: PlayerRuntime, dir: Vector2) {
 
 function stopMove(p: PlayerRuntime) {
   p.pendingMove = null;
-  p.pendingTarget = null;
+  p.moveQueue = [];
   // Note: if stop, triggers cooldown -> handled in tick
 }
 
 function setMoveTarget(p: PlayerRuntime, target: Vector2) {
-  if (nowMs() < p.cooldownUntil) return;
-
-  p.pendingTarget = {
+  // 仕様: 移動中/カウント中のクリックでも移動予約を受け付ける
+  const clamped = {
     x: clamp(target.x, 0, MAP_W),
     y: clamp(target.y, 0, MAP_H),
   };
+  if (p.moveQueue.length >= MOVE_QUEUE_MAX) return; // 上限
+  p.moveQueue.push(clamped);
   p.isMoving = true;
 }
 
@@ -571,6 +591,10 @@ function tryShoot(p: PlayerRuntime, dir: Vector2) {
   };
 
   room.bullets.push(bullet);
+
+  // Lock turret to shot direction
+  p.turretAngle = Math.atan2(d.y, d.x);
+
   sendRoomState(p.roomId);
 }
 
@@ -625,12 +649,6 @@ function updateBullets(room: Room, dtSec: number, now: number) {
       // Let's do: Impact -> Explode. Same damage logic applies (0 to teammate).
 
       if (t.hp <= 0) continue;
-
-      // Dynamic Safety Zone: Ignore collision if target is within 40px of bullet Start Position
-      const distFromStart = Math.hypot(t.x - b.startX, t.y - b.startY);
-      if (distFromStart < 40) {
-        continue;
-      }
 
       // FIX: Arguments were swapped!
       // Old: distPointToSegment(prev, curr, target) -> Distance form Prev, to Line(Curr, Target) -> NONSENSE
@@ -692,47 +710,64 @@ function tick() {
       }
       if (p.respawnAt && p.respawnAt > now) continue;
 
-      // Movement Logic
+      // Movement Logic (with pivot-turn phase)
       let wantsToMove = false;
       let dx = 0;
       let dy = 0;
 
       if (p.cooldownUntil > now) {
-        // In Cooldown: FREEZE
+        // In Cooldown: FREEZE movement (but moveQueue keeps accepting)
         p.isMoving = false;
-        p.pendingMove = null; // Clear pending input during CD?
-        // Or buffer it? Tankmatch usually strict turn based -> Clear
-        // p.pendingTarget?
+        p.isRotating = false;
+        p.pendingMove = null;
       } else {
-        // Ready to move
         if (p.pendingMove) {
           dx = p.pendingMove.x * MOVE_SPEED;
           dy = p.pendingMove.y * MOVE_SPEED;
           wantsToMove = true;
-        } else if (p.pendingTarget) {
-          const to = { x: p.pendingTarget.x - p.x, y: p.pendingTarget.y - p.y };
+          p.hullAngle = Math.atan2(dy, dx);
+        } else if (p.moveQueue.length > 0) {
+          const currentTarget = p.moveQueue[0];
+          const to = { x: currentTarget.x - p.x, y: currentTarget.y - p.y };
           const distance = len(to);
-          if (distance <= MOVE_SPEED) {
-            // Arrived
-            p.x = p.pendingTarget.x;
-            p.y = p.pendingTarget.y;
-            p.pendingTarget = null;
-            p.isMoving = false;
 
-            // ARRIVAL -> Cooldown Start
+          if (distance <= MOVE_SPEED) {
+            // Arrived at current target
+            p.x = currentTarget.x;
+            p.y = currentTarget.y;
+            p.moveQueue.shift();
+            p.isMoving = false;
+            p.isRotating = false;
             p.cooldownUntil = now + ACTION_COOLDOWN_MS;
           } else {
-            const d = norm(to);
-            dx = d.x * MOVE_SPEED;
-            dy = d.y * MOVE_SPEED;
-            wantsToMove = true;
+            const targetAngle = Math.atan2(to.y, to.x);
+            const angleDiff = normalizeAngle(targetAngle - p.hullAngle);
+
+            if (Math.abs(angleDiff) > 0.05) {
+              // PIVOT-TURN: rotate hull toward target
+              p.isRotating = true;
+              p.isMoving = false;
+              const step = Math.sign(angleDiff) * Math.min(Math.abs(angleDiff), HULL_ROTATION_SPEED);
+              p.hullAngle = normalizeAngle(p.hullAngle + step);
+              // Turret also rotates toward final target angle (not current hull)
+              const turretDiff = normalizeAngle(targetAngle - p.turretAngle);
+              const tStep = Math.sign(turretDiff) * Math.min(Math.abs(turretDiff), TURRET_ROTATION_SPEED);
+              p.turretAngle = normalizeAngle(p.turretAngle + tStep);
+            } else {
+              // Facing target — move
+              p.hullAngle = targetAngle;
+              p.turretAngle = targetAngle; // turret aligned to front
+              p.isRotating = false;
+              const d = norm(to);
+              dx = d.x * MOVE_SPEED;
+              dy = d.y * MOVE_SPEED;
+              wantsToMove = true;
+            }
           }
         } else {
-          // Not moving
-          if (p.isMoving) {
-            // Was moving, now stopped (Key released?)
-            // Trigger cooldown?
+          if (p.isMoving || p.isRotating) {
             p.isMoving = false;
+            p.isRotating = false;
             p.cooldownUntil = now + ACTION_COOLDOWN_MS;
           }
         }
@@ -742,16 +777,38 @@ function tick() {
         const nextX = clamp(p.x + dx, 0, room.mapData.width);
         const nextY = clamp(p.y + dy, 0, room.mapData.height);
 
-        if (!checkWallCollision(nextX, nextY, TANK_SIZE, room.mapData.walls)) {
+        // Check wall collision
+        const hitWall = checkWallCollision(nextX, nextY, TANK_SIZE, room.mapData.walls);
+
+        // Check player-to-player collision
+        let hitPlayer = false;
+        if (!hitWall) {
+          for (const otherId of room.playerIds) {
+            if (otherId === p.id) continue;
+            const other = players.get(otherId);
+            if (!other) continue;
+            if (other.hp <= 0) continue;
+            if (other.respawnAt) continue;
+            const pdx = nextX - other.x;
+            const pdy = nextY - other.y;
+            if (Math.hypot(pdx, pdy) < TANK_SIZE * 2) {
+              hitPlayer = true;
+              break;
+            }
+          }
+        }
+
+        if (!hitWall && !hitPlayer) {
           p.x = nextX;
           p.y = nextY;
           p.isMoving = true;
         } else {
-          // Hit wall
-          p.pendingMove = null; // Stop
-          p.pendingTarget = null;
+          // Hit wall or player — consume target, trigger cooldown
+          p.pendingMove = null;
+          if (p.moveQueue.length > 0) p.moveQueue.shift();
           p.isMoving = false;
-          p.cooldownUntil = now + ACTION_COOLDOWN_MS; // Bonk -> Cooldown
+          p.isRotating = false;
+          p.cooldownUntil = now + ACTION_COOLDOWN_MS;
         }
       }
     }
@@ -815,7 +872,8 @@ wss.on("connection", (socket) => {
     hp: 100, ammo: 20, score: 0, kills: 0, deaths: 0,
     roomId: null,
     aimDir: { x: 1, y: 0 },
-    pendingMove: null, pendingTarget: null,
+    pendingMove: null, moveQueue: [],
+    hullAngle: 0, turretAngle: 0, isRotating: false,
     isMoving: false, cooldownUntil: 0,
     respawnAt: null,
     socket,
@@ -902,6 +960,10 @@ wss.on("connection", (socket) => {
       }
       case "stopMove": {
         stopMove(player);
+        break;
+      }
+      case "moveCancelOne": {
+        if (player.moveQueue.length > 0) player.moveQueue.pop();
         break;
       }
       case "aim": {

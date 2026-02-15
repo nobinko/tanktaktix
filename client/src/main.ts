@@ -119,10 +119,18 @@ const state = {
   aimPoint: null as Vector2 | null,
   bullets: [] as any[],
   explosions: [] as any[], // Local VFX
-  mapData: null as any
+  mapData: null as any,
+  camera: { x: 0, y: 0, zoom: 1, rotation: 0 },
 };
 
 let ws: WebSocket | null = null;
+
+const keysDown = new Set<string>();
+const CAMERA_SPEED = 8;
+const ZOOM_STEP = 0.1;
+const ZOOM_MIN = 0.3;
+const ZOOM_MAX = 3.0;
+const ROTATION_STEP = Math.PI / 36; // 5 degrees
 
 const mapSize = { width: 900, height: 520 };
 
@@ -269,9 +277,19 @@ const getSelf = () => state.players.find((p) => p.id === state.selfId);
 
 const getCanvasPoint = (event: MouseEvent): Vector2 => {
   const rect = canvas.getBoundingClientRect();
-  const x = ((event.clientX - rect.left) / rect.width) * mapSize.width;
-  const y = ((event.clientY - rect.top) / rect.height) * mapSize.height;
-  return { x, y };
+  // Screen coords relative to canvas center
+  let sx = ((event.clientX - rect.left) / rect.width) * mapSize.width - mapSize.width / 2;
+  let sy = ((event.clientY - rect.top) / rect.height) * mapSize.height - mapSize.height / 2;
+  // Inverse zoom
+  sx /= state.camera.zoom;
+  sy /= state.camera.zoom;
+  // Inverse rotation
+  const cos = Math.cos(-state.camera.rotation);
+  const sin = Math.sin(-state.camera.rotation);
+  const rx = sx * cos - sy * sin;
+  const ry = sx * sin + sy * cos;
+  // Add camera offset + viewport center
+  return { x: rx + state.camera.x + mapSize.width / 2, y: ry + state.camera.y + mapSize.height / 2 };
 };
 
 const isMouseOnTank = (point: Vector2, tankPos: Vector2) => {
@@ -288,6 +306,43 @@ const draw = () => {
   ctx.clearRect(0, 0, mapSize.width, mapSize.height);
   ctx.fillStyle = "#0b132b";
   ctx.fillRect(0, 0, mapSize.width, mapSize.height);
+
+  // Camera movement (arrow keys, rotated to match view)
+  const camCos = Math.cos(state.camera.rotation);
+  const camSin = Math.sin(state.camera.rotation);
+  const spd = CAMERA_SPEED / state.camera.zoom;
+  let camDx = 0, camDy = 0;
+  if (keysDown.has("arrowleft")) { camDx -= spd; }
+  if (keysDown.has("arrowright")) { camDx += spd; }
+  if (keysDown.has("arrowup")) { camDy -= spd; }
+  if (keysDown.has("arrowdown")) { camDy += spd; }
+  // Rotate movement direction by camera rotation
+  state.camera.x += camDx * camCos + camDy * camSin;
+  state.camera.y += -camDx * camSin + camDy * camCos;
+
+  // Zoom keys (+/-)
+  if (keysDown.has("=") || keysDown.has("+")) {
+    state.camera.zoom = Math.min(ZOOM_MAX, state.camera.zoom + ZOOM_STEP * 0.3);
+  }
+  if (keysDown.has("-")) {
+    state.camera.zoom = Math.max(ZOOM_MIN, state.camera.zoom - ZOOM_STEP * 0.3);
+  }
+
+  // Rotation keys (Q/E)
+  if (keysDown.has("q") && document.activeElement !== chatInput) {
+    state.camera.rotation -= ROTATION_STEP * 0.3;
+  }
+  if (keysDown.has("e") && document.activeElement !== chatInput) {
+    state.camera.rotation += ROTATION_STEP * 0.3;
+  }
+
+  // Apply camera transform: translate center, rotate, zoom, offset
+  ctx.save();
+  ctx.translate(mapSize.width / 2, mapSize.height / 2);
+  ctx.rotate(state.camera.rotation);
+  ctx.scale(state.camera.zoom, state.camera.zoom);
+  ctx.translate(-state.camera.x - mapSize.width / 2, -state.camera.y - mapSize.height / 2);
+
   ctx.strokeStyle = "rgba(255,255,255,0.05)";
   for (let x = 0; x < mapSize.width; x += 60) {
     ctx.beginPath();
@@ -361,40 +416,155 @@ const draw = () => {
       if (pTeam === "blue") color = "#3b82f6";
     }
 
+    const hullAngle = (player as any).hullAngle ?? 0;
+    const turretAngle = (player as any).turretAngle ?? 0;
+
+    // === Hull (TankMatch style: simple box) ===
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(hullAngle);
+
+    // Body outline (dark border)
+    ctx.fillStyle = "#1a1a2e";
+    ctx.fillRect(-13, -10, 26, 20);
+
+    // Body fill (team color)
     ctx.fillStyle = color;
+    ctx.fillRect(-11, -8, 22, 16);
+
+    // Front direction indicator (small triangle)
+    ctx.fillStyle = "#fff";
+    ctx.globalAlpha = 0.7;
     ctx.beginPath();
-    ctx.arc(x, y, 18, 0, Math.PI * 2);
+    ctx.moveTo(11, -3);
+    ctx.lineTo(15, 0);
+    ctx.lineTo(11, 3);
+    ctx.closePath();
     ctx.fill();
-    ctx.fillStyle = "#0b0f1f";
-    ctx.fillRect(x - 8, y - 4, 16, 8);
+    ctx.globalAlpha = 1.0;
+
+    ctx.restore();
+
+    // === Turret (TankMatch style: white circle + thin barrel) ===
+    ctx.save();
+    ctx.translate(x, y);
+    if (state.aiming && player.id === state.selfId && state.aimPoint) {
+      const aimAngle = Math.atan2(state.aimPoint.y - y, state.aimPoint.x - x);
+      ctx.rotate(aimAngle);
+    } else {
+      ctx.rotate(turretAngle);
+    }
+    // Turret base (white filled circle)
+    ctx.fillStyle = "#ffffff";
+    ctx.beginPath();
+    ctx.arc(0, 0, 5, 0, Math.PI * 2);
+    ctx.fill();
+    // Barrel (thin dark line)
+    ctx.fillStyle = "#1a1a2e";
+    ctx.fillRect(5, -1.5, 14, 3);
+    ctx.restore();
+
+    // Counter-rotate text/bars so they stay upright
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(-state.camera.rotation);
+
     ctx.fillStyle = "#e8f1ff";
-    ctx.fillText(player.name, x + 24, y + 4);
+    ctx.fillText(player.name, 24, 4);
     ctx.fillStyle = "#22c55e";
-    ctx.fillRect(x - 20, y - 28, ((player as any).hp / 100) * 40, 4);
+    ctx.fillRect(-20, -28, ((player as any).hp / 100) * 40, 4);
     ctx.fillStyle = "#f97316";
-    ctx.fillRect(x - 20, y - 22, ((player as any).ammo / 20) * 40, 4);
+    ctx.fillRect(-20, -22, ((player as any).ammo / 20) * 40, 4);
+
+    // Action lock countdown (5→0) above tank — self only
+    const lockStep = (player as any).actionLockStep ?? 0;
+    if (lockStep > 0 && player.id === state.selfId) {
+      const display = Math.min(5, lockStep);
+      ctx.font = "bold 16px monospace";
+      ctx.fillStyle = "#f97316";
+      ctx.textAlign = "center";
+      ctx.fillText(`${display}`, 0, -34);
+      ctx.textAlign = "start";
+    }
+
+    ctx.restore();
   });
+
+  // Draw move queue markers for self
+  const selfPlayer = getSelf();
+  if (selfPlayer) {
+    const queue = (selfPlayer as any).moveQueue as Vector2[] ?? [];
+    queue.forEach((pt, i) => {
+      const alpha = 0.3 + (i === 0 ? 0.4 : 0);
+      ctx.strokeStyle = `rgba(76, 201, 240, ${alpha})`;
+      ctx.lineWidth = 2;
+      // Cross marker
+      const sz = 8;
+      ctx.beginPath();
+      ctx.moveTo(pt.x - sz, pt.y);
+      ctx.lineTo(pt.x + sz, pt.y);
+      ctx.moveTo(pt.x, pt.y - sz);
+      ctx.lineTo(pt.x, pt.y + sz);
+      ctx.stroke();
+      // Queue number
+      ctx.fillStyle = `rgba(76, 201, 240, ${alpha})`;
+      ctx.font = "10px monospace";
+      ctx.fillText(`${i + 1}`, pt.x + sz + 2, pt.y - 2);
+    });
+  }
 
   if (state.aiming && state.aimPoint) {
     const self = getSelf();
     if (self) {
-      ctx.strokeStyle = "rgba(76, 201, 240, 0.8)";
+      const sx = (self as any).position.x;
+      const sy = (self as any).position.y;
+      const ax = state.aimPoint.x;
+      const ay = state.aimPoint.y;
+      const dist = Math.hypot(ax - sx, ay - sy);
+
+      // Dotted aim line
+      ctx.save();
+      ctx.setLineDash([6, 4]);
+      ctx.strokeStyle = dist <= 18 ? "rgba(255, 100, 100, 0.6)" : "rgba(76, 201, 240, 0.8)";
+      ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.moveTo((self as any).position.x, (self as any).position.y);
-      ctx.lineTo(state.aimPoint.x, state.aimPoint.y);
+      ctx.moveTo(sx, sy);
+      ctx.lineTo(ax, ay);
       ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Crosshair circle at aim point
+      if (dist > 18) {
+        ctx.strokeStyle = "rgba(76, 201, 240, 0.6)";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(ax, ay, 10, 0, Math.PI * 2);
+        ctx.stroke();
+        // Cross inside
+        ctx.beginPath();
+        ctx.moveTo(ax - 6, ay); ctx.lineTo(ax + 6, ay);
+        ctx.moveTo(ax, ay - 6); ctx.lineTo(ax, ay + 6);
+        ctx.stroke();
+      } else {
+        // Cancel indicator
+        ctx.fillStyle = "rgba(255, 100, 100, 0.7)";
+        ctx.font = "bold 12px monospace";
+        ctx.textAlign = "center";
+        ctx.fillText("CANCEL", sx, sy - 28);
+        ctx.textAlign = "start";
+      }
+      ctx.restore();
     }
   }
 
-  const self = getSelf();
-  if (self) {
-    // nextActionAt sends the timestamp when cooldown ENDS
-    const nextActionAt = (self as any).nextActionAt ?? 0;
-    const remaining = Math.max(0, Math.ceil((nextActionAt - Date.now()) / 1000));
-    const isCooling = nextActionAt > Date.now();
+  // End camera transform
+  ctx.restore();
 
-    if (isCooling) {
-      cooldownEl.textContent = "WAIT...";
+  const self2 = getSelf();
+  if (self2) {
+    const lockStep = (self2 as any).actionLockStep ?? 0;
+    if (lockStep > 0) {
+      cooldownEl.textContent = `LOCK ${Math.min(5, lockStep)}`;
       cooldownEl.style.color = "#f97316";
     } else {
       cooldownEl.textContent = "READY";
@@ -497,16 +667,21 @@ const setupRoom = () => {
       state.aimPoint = null;
       return;
     }
-    // Block Input if Cooldown
-    const nextActionAt = (self as any).nextActionAt ?? 0;
-    if (nextActionAt > Date.now()) {
-      state.aiming = false;
-      state.aimPoint = null;
-      return;
-    }
-
     const point = getCanvasPoint(event);
     if (state.aiming) {
+      // Cancel if released on own tank
+      if (isMouseOnTank(point, (self as any).position)) {
+        state.aiming = false;
+        state.aimPoint = null;
+        return;
+      }
+      // Block AIM/Shoot if Cooldown
+      const nextActionAt = (self as any).nextActionAt ?? 0;
+      if (nextActionAt > Date.now()) {
+        state.aiming = false;
+        state.aimPoint = null;
+        return;
+      }
       const dx = point.x - (self as any).position.x;
       const dy = point.y - (self as any).position.y;
       const length = Math.hypot(dx, dy);
@@ -514,6 +689,7 @@ const setupRoom = () => {
         sendMessage({ type: "shoot", payload: { direction: { x: dx / length, y: dy / length } } });
       }
     } else {
+      // Move click always sent — server decides if it queues or ignores
       sendMessage({ type: "move", payload: { target: point } });
     }
     state.aiming = false;
@@ -521,11 +697,48 @@ const setupRoom = () => {
   });
 
   window.addEventListener("keydown", (event) => {
-    if (event.key.toLowerCase() === "t" && state.phase === "room") {
+    keysDown.add(event.key.toLowerCase());
+    if (state.phase !== "room") return;
+    const key = event.key.toLowerCase();
+
+    // Chat open
+    if (key === "t" && document.activeElement !== chatInput) {
       chatInput.classList.add("active");
       chatInput.focus();
+      event.preventDefault();
+      return;
+    }
+
+    // Z key — cancel last move reservation
+    if (key === "z" && document.activeElement !== chatInput) {
+      sendMessage({ type: "moveCancelOne" });
+      return;
+    }
+
+    // Space — reset camera
+    if (key === " " && document.activeElement !== chatInput) {
+      state.camera.x = 0;
+      state.camera.y = 0;
+      state.camera.zoom = 1;
+      state.camera.rotation = 0;
+      event.preventDefault();
+      return;
     }
   });
+
+  window.addEventListener("keyup", (event) => {
+    keysDown.delete(event.key.toLowerCase());
+  });
+
+  // Mouse wheel zoom
+  canvas.addEventListener("wheel", (event) => {
+    event.preventDefault();
+    if (event.deltaY < 0) {
+      state.camera.zoom = Math.min(ZOOM_MAX, state.camera.zoom + ZOOM_STEP);
+    } else {
+      state.camera.zoom = Math.max(ZOOM_MIN, state.camera.zoom - ZOOM_STEP);
+    }
+  }, { passive: false });
 
   chatInput.addEventListener("keydown", (event) => {
     if (event.key === "Enter") {
