@@ -73,6 +73,7 @@ export type RoomState = {
   bullets: any[]; // keeping as any for now or define Bullet
   explosions: Explosion[];
   timeLeftSec: number;
+  teamScores: { red: number; blue: number };
 };
 
 export type ChatMessage = {

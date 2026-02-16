@@ -97,6 +97,17 @@ type Room = {
   playerIds: Set<string>;
   bullets: Bullet[];
   explosions: Explosion[]; // Transient events to sync
+  scoreRed: number;
+  scoreBlue: number;
+  history: Map<string, {
+    name: string;
+    team: Team;
+    kills: number;
+    deaths: number;
+    score: number;
+    fired: number;
+    hits: number;
+  }>;
 };
 
 const PORT = Number(process.env.PORT ?? 3000);
@@ -387,7 +398,9 @@ function toRoomSummary(r: Room) {
 }
 
 function lobbyStatePayload() {
-  const list = [...rooms.values()].map(toRoomSummary);
+  const list = [...rooms.values()]
+    .filter(r => !r.ended) // Hide ended rooms
+    .map(toRoomSummary);
   list.sort((a, b) => b.createdAt - a.createdAt);
   return { rooms: list };
 }
@@ -427,6 +440,7 @@ function roomStatePayload(roomId: string) {
     bullets: bs,
     projectiles: bs,
     explosions: es,
+    teamScores: { red: room.scoreRed, blue: room.scoreBlue }
   };
 }
 
@@ -442,7 +456,8 @@ function broadcastRoom(roomId: string, msg: ServerMsg) {
   if (!room) return;
   for (const pid of room.playerIds) {
     const p = players.get(pid);
-    if (p) send(p.socket, msg);
+    // Double-check: ensure the player actually thinks they are in this room
+    if (p && p.roomId === roomId) send(p.socket, msg);
   }
 }
 
@@ -545,6 +560,15 @@ function joinRoom(p: PlayerRuntime, roomId: string, password?: string) {
   p.roomId = roomId;
   room.playerIds.add(p.id);
   p.team = assignTeam(room);
+
+  // Update History
+  const safeName = (p.name && p.name.trim().length > 0) ? p.name : `Player-${p.id.slice(0, 4)}`;
+  room.history.set(p.id, {
+    name: safeName,
+    team: p.team,
+    kills: 0, deaths: 0, score: 0, fired: 0, hits: 0
+  });
+
   spawnPlayer(p, room);
   sendRoomState(roomId);
   broadcastLobby();
@@ -628,19 +652,49 @@ function triggerExplosion(room: Room, x: number, y: number, shooterId: string) {
       }
 
       if (canDamage) {
-        target.hp = Math.max(0, target.hp - EXPLOSION_DAMAGE);
+        // Damage Rule: 20 per hit (Max 100 -> 5 hits)
+        const damage = 20;
+        target.hp = Math.max(0, target.hp - damage);
+
+        // Scoring: Hit (None for Team Mode "Kill is 1 point. That's it.")
+        // if (shooter && shooter.id !== target.id) {
+        //   shooter.score += 1; 
+        // }
+
         if (target.hp === 0) {
           // Kill credit
           if (shooter && shooter.id !== target.id) {
             shooter.kills += 1;
-            shooter.score += 1;
+            shooter.score += 1; // Team Mode: Kill = +1 point
+
+            // Updating Room Team Score
+            if (shooter.team === "red") room.scoreRed += 1;
+            if (shooter.team === "blue") room.scoreBlue += 1;
           } else if (shooter && shooter.id === target.id) {
-            // Suicide
-            shooter.score -= 1;
+            // Suicide: No penalty mentioned? Usually -1 but user said "Death score doesn't change".
+            // Let's keep 0 change for suicide to be safe with "That's it".
+          }
+
+          // Update history for shooter
+          if (shooter) {
+            const h = room.history.get(shooter.id);
+            if (h) {
+              h.kills = shooter.kills;
+              h.score = shooter.score;
+              // h.hits updated below?
+            }
           }
 
           target.deaths += 1;
-          target.score -= 5;
+          // target.score -= 5; // Team Mode: No death penalty
+
+          // Update history for target
+          const th = room.history.get(target.id);
+          if (th) {
+            th.deaths = target.deaths;
+            th.score = target.score;
+          }
+
           target.respawnAt = nowMs() + RESPAWN_MS;
           target.ammo = 0;
           target.isMoving = false;
@@ -665,6 +719,15 @@ function tryShoot(p: PlayerRuntime, dir: Vector2) {
 
   p.ammo -= 1;
   p.fired += 1; // Increment fired count
+
+  // Sync to history
+  if (p.roomId) {
+    const r = rooms.get(p.roomId);
+    if (r) {
+      const h = r.history.get(p.id);
+      if (h) h.fired = p.fired;
+    }
+  }
 
   // Trigger Cooldown immediately
   p.cooldownUntil = now + ACTION_COOLDOWN_MS;
@@ -769,20 +832,12 @@ function updateBullets(room: Room, dtSec: number, now: number) {
         const shooter = players.get(b.shooterId);
         if (shooter) {
           shooter.hits++;
-          // Check Kill
-          const target = players.get(t.id);
-          if (target && target.hp > 0) {
-            target.hp -= 25; // 4 hits to kill
-            if (target.hp <= 0) {
-              target.hp = 0;
-              target.deaths++;
-              target.respawnAt = nowMs() + 3000;
-              shooter.kills++;
-              shooter.score += 100;
-            } else {
-              shooter.score += 10;
-            }
-          }
+
+          // Sync history
+          const h = room.history.get(shooter.id);
+          if (h) h.hits = shooter.hits;
+
+          // Score for hit matches team mode logic (0)
         }
 
         triggerExplosion(room, curr.x, curr.y, b.shooterId);
@@ -820,25 +875,37 @@ function tick() {
       if (!room.ended) {
         room.ended = true;
 
-        const results = [...room.playerIds]
-          .map(pid => players.get(pid))
-          .filter((p): p is PlayerRuntime => !!p)
-          .map(p => toPlayerPublic(p));
+        const results = [...room.history.entries()].map(([id, h]) => {
+          const isActive = room.playerIds.has(id);
+          return {
+            id,
+            name: h.name.substring(0, 20) + (isActive ? "" : " (Left)"),
+            team: h.team,
+            roomId: room.id,
+            // dummy values for PlayerSummary compatibility
+            position: { x: 0, y: 0 },
+            target: null, moveQueue: [],
+            hp: 0, ammo: 0,
+            score: h.score,
+            deaths: h.deaths,
+            kills: h.kills,
+            hits: h.hits,
+            fired: h.fired,
+            nextActionAt: 0, actionLockStep: 0, hullAngle: 0, turretAngle: 0, respawnAt: null
+          };
+        });
 
         // Calculate winner
-        let redScore = 0;
-        let blueScore = 0;
-        results.forEach(p => {
-          if (p.team === "red") redScore += p.score;
-          if (p.team === "blue") blueScore += p.score;
-        });
-        let winners: "red" | "blue" | "draw" = "draw";
-        if (redScore > blueScore) winners = "red";
-        if (blueScore > redScore) winners = "blue";
+        const winners =
+          room.scoreRed > room.scoreBlue ? "red" :
+            room.scoreBlue > room.scoreRed ? "blue" : "draw";
+
+        console.log(`[DEBUG] GameEnd Room ${room.id}. Winner: ${winners}`);
+        console.log(`[DEBUG] Results Payload:`, JSON.stringify(results, null, 2));
 
         broadcastRoom(room.id, {
           type: "gameEnd",
-          payload: { winners, results }
+          payload: { roomId: room.id, winners, results } // Add roomId for client check
         });
       }
 
@@ -847,9 +914,16 @@ function tick() {
       // continue; 
     }
 
-    // Cleanup empty ended rooms
+    // Cleanup empty ended rooms (managed in detachFromRoom mostly, but safe here too)
     if (room.ended && room.playerIds.size === 0) {
       rooms.delete(room.id);
+      continue;
+    }
+
+    // FREEZE GAME: If ended, skip physics/logic updates
+    if (room.ended) {
+      // Just sync state (keep chat working etc)
+      sendRoomState(room.id);
       continue;
     }
 
@@ -1078,6 +1152,8 @@ wss.on("connection", (socket) => {
           passwordProtected, password: passwordProtected ? password : undefined,
           maxPlayers, timeLimitSec, createdAt, endsAt, ended: false,
           playerIds: new Set<string>(), bullets: [], explosions: [],
+          scoreRed: 0, scoreBlue: 0,
+          history: new Map(),
         };
         rooms.set(roomId, room);
         broadcastLobby();

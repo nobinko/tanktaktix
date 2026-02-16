@@ -52,18 +52,21 @@ app.innerHTML = `
   <section id="room-screen" class="screen">
     <div class="panel relative-panel">
       <!-- Result Overlay -->
+      <!-- Result Overlay -->
       <div id="result-overlay" class="result-overlay hidden">
-        <h2>Game Result</h2>
-        <h3 id="result-winner">Winner: ---</h3>
-        <div class="table-container">
-          <table id="result-table">
-            <thead><tr><th>Name</th><th>Score</th><th>K / D</th><th>Acc %</th></tr></thead>
-            <tbody id="result-body"></tbody>
-          </table>
-        </div>
-        <div class="actions">
-           <button id="copy-result">Copy Result</button>
-           <button id="close-result">Leave Room</button>
+        <div class="result-content">
+          <h2>Game Result</h2>
+          <h3 id="result-winner">Winner: ---</h3>
+          <div class="table-container">
+            <table id="result-table">
+              <thead><tr><th>Name</th><th>Score</th><th>K / D</th><th>Acc %</th></tr></thead>
+              <tbody id="result-body"></tbody>
+            </table>
+          </div>
+          <div class="actions">
+             <button id="copy-result" class="secondary">Copy Result</button>
+             <button id="close-result">Leave Room</button>
+          </div>
         </div>
       </div>
 
@@ -161,6 +164,12 @@ const ROTATION_STEP = Math.PI / 36; // 5 degrees
 const mapSize = { width: 900, height: 520 };
 
 const setScreen = (phase: "login" | "lobby" | "room") => {
+  // Cleanup room listeners if leaving room
+  if (phase !== "room" && roomAbortController) {
+    roomAbortController.abort();
+    roomAbortController = null;
+  }
+
   state.phase = phase;
   loginScreen.classList.toggle("active", phase === "login");
   lobbyScreen.classList.toggle("active", phase === "lobby");
@@ -197,6 +206,11 @@ const handleServerMessage = (message: ServerToClientMessage) => {
       state.selfId = message.payload.id;
       break;
     case "lobby":
+      state.roomId = "";
+      state.players = [];
+      state.bullets = [];
+      state.explosions = [];
+      setScreen("lobby");
       state.rooms = message.payload.rooms;
       renderRooms();
       break;
@@ -206,6 +220,7 @@ const handleServerMessage = (message: ServerToClientMessage) => {
       state.players = payloadAny.players;
       state.timeLeftSec = payloadAny.timeLeftSec;
       state.bullets = payloadAny.bullets ?? payloadAny.projectiles ?? [];
+      (state as any).teamScores = payloadAny.teamScores;
 
       // Update Map Data if provided (or if missing and in room)
       if (payloadAny.room?.mapData) {
@@ -224,6 +239,9 @@ const handleServerMessage = (message: ServerToClientMessage) => {
       break;
 
     case "gameEnd":
+      if ((message.payload as any).roomId && (message.payload as any).roomId !== state.roomId) {
+        return;
+      }
       // Show Result
       resultOverlay.classList.remove("hidden");
       const { winners, results } = message.payload;
@@ -674,12 +692,11 @@ const drawHUD = (ctx: CanvasRenderingContext2D) => {
   const isTeamMode = state.players.some((p) => (p as any).team != null);
   ctx.font = "bold 12px 'Segoe UI', Arial, sans-serif";
   if (isTeamMode) {
-    const redTotal = state.players
-      .filter((p) => (p as any).team === "red")
-      .reduce((s, p) => s + (p.score ?? 0), 0);
-    const blueTotal = state.players
-      .filter((p) => (p as any).team === "blue")
-      .reduce((s, p) => s + (p.score ?? 0), 0);
+    // Use persistent scores from server
+    const scores = (state as any).teamScores ?? { red: 0, blue: 0 };
+    const redTotal = scores.red;
+    const blueTotal = scores.blue;
+
     ctx.textAlign = "right";
     ctx.fillStyle = "#dc2626";
     ctx.fillText(`Red:${redTotal}`, W / 2 + 120, 19);
@@ -1106,7 +1123,7 @@ const setupRoom = () => {
       chatInput.value = "";
       chatInput.classList.remove("active");
     }
-  });
+  }, { signal });
 };
 
 setupLogin();
