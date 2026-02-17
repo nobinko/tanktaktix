@@ -1,21 +1,22 @@
-# Tank Taktix (MVP0)
+# Tank Taktix
 
-A Render-ready monorepo with a Vite client, an Express + `ws` server, and shared TypeScript types. The server hosts HTTP + WebSocket on the same port and serves the client build in production.
+Viteクライアント、Express + `ws` サーバー、共有TypeScript型定義を備えた、Renderデプロイ対応のモノレポです。
+サーバーはHTTPとWebSocketを同一ポートでホストし、本番環境ではビルド済みのクライアントを配信します。
 
-## Local Development (Windows PowerShell)
+## ローカル開発 (Windows PowerShell)
 
 ```powershell
-# From the repo root
+# リポジトリルートで実行
 npm install
 
-# Run client + server in dev mode
+# クライアントとサーバーを開発モードで同時起動
 npm run dev
 ```
 
-- Client: http://localhost:5173
-- Server (HTTP + WebSocket): http://localhost:3000
+- クライアント: http://localhost:5173
+- サーバー (HTTP + WebSocket): http://localhost:3000
 
-## Local Production Build (Windows PowerShell)
+## 本番ビルドのローカル実行 (Windows PowerShell)
 
 ```powershell
 npm install
@@ -23,26 +24,51 @@ npm run build
 npm run start
 ```
 
-Then open http://localhost:3000
+その後、 http://localhost:3000 を開いてください。
 
-## Render Deployment
+## Renderへのデプロイ
 
-This repo ships with a `render.yaml` Blueprint for a single web service. On Render:
+このリポジトリには単一のWebサービス用の `render.yaml` ブループリントが含まれています。Render上での手順:
 
-1. Create a new **Blueprint** from this repo.
-2. Render will read `render.yaml` and configure the build/start commands.
-3. Deploy.
+1. このリポジトリから新しい **Blueprint** を作成します。
+2. Renderが `render.yaml` を読み込み、ビルド・起動コマンドを設定します。
+3. デプロイします。
 
-Health checks hit `GET /health` on the same service/port.
+ヘルスチェックは同サービスの `GET /health` エンドポイントで行われます。
 
-## Gameplay Notes
+## ゲームプレイの概要
 
-- **Login:** enter a name or generate a random 4-digit callsign.
-- **Lobby:** create or join rooms, with optional passwords.
-- **Room:** top-down 2D with click-to-move, click-and-drag to aim and fire.
-- **Cooldown:** after any action, a short cooldown applies; movement can be queued.
-- **Ammo:** starts at 20, each shot costs 1.
-- **HP:** starts at 100; hits deal 20. On 0 HP, you respawn with full HP/ammo.
-- **Scoring:** hit +1, kill +1, death -5. End of time limit shows leaderboard.
-- **Chat:** press `T` to open chat, `Enter` to send.
+- **ログイン:** 司令官名を入力するか、ランダムなコールサインを生成します。
+- **ロビー:** ルームの作成や参加が可能です（パスワード設定可）。
+- **戦闘:** マウス操作によるトップダウン2Dシューティング。
+    - **移動:** マウス左クリック（移動先を指定）。
+    - **射撃:** マウスドラッグ＆ドロップ（引っ張って離す）。
+- **クールダウン:** 行動後に短いクールダウンが発生しますが、移動コマンドは先行入力（キューイング）が可能です。
+- **弾薬:** 初期20発。発射ごとに1消費します。
+- **HP:** 初期100。被弾すると20ダメージ。HPが0になるとフル回復状態でリスポーンします。
+- **スコア:** 命中+1、撃破+1、死亡-5。制限時間終了後に結果画面とリーダーボードが表示されます。
+- **チャット:** `T`キーでチャット入力、`Enter`で送信。
+- **チーム戦:** 赤チーム・青チームに分かれて戦います。自機の戦車も所属チームの色で表示されます。
 
+## 現在の進捗状況 (2026-02-17 更新)
+
+- **基本システム**
+    - [x] WebSocketによるリアルタイム同期
+    - [x] ルーム管理（作成、一覧、参加、パスワード）
+    - [x] チャット機能
+- **ゲームプレイ**
+    - [x] 移動（パスファインディング、先行入力）
+    - [x] 射撃（ドラッグ操作、サーバー権威の弾道計算）
+    - [x] サーバーサイドでの当たり判定と爆風処理
+    - [x] チームデスマッチ（スコア集計）
+- **UI/UX**
+    - [x] CanvasによるHUD描画（HP、残弾、スコア、ミニマップ）
+    - [x] チームカラーによる敵味方・自機の識別
+- **インフラ**
+    - [x] Render.com用デプロイ設定
+    - [x] モノレポ構成の整備
+
+## 今後の予定
+- [ ] 新しいマップや障害物の追加
+- [ ] 多様なアイテムの実装
+- [ ] モバイル対応の改善
