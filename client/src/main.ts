@@ -473,13 +473,15 @@ const draw = () => {
   state.players.forEach((player) => {
     const { x, y } = (player as any).position ?? { x: (player as any).x, y: (player as any).y };
     // Team Colors
-    let color = "#f72585"; // default enemy
-    if (player.id === state.selfId) {
-      color = "#4cc9f0"; // self
-    } else {
-      const pTeam = (player as any).team;
-      if (pTeam === "red") color = "#ef4444";
-      if (pTeam === "blue") color = "#3b82f6";
+    let color = "#f72585"; // default enemy (pink/magenta)
+
+    const pTeam = (player as any).team;
+    if (pTeam === "red") {
+      color = "#ef4444"; // Red Team
+    } else if (pTeam === "blue") {
+      color = "#3b82f6"; // Blue Team
+    } else if (player.id === state.selfId) {
+      color = "#4cc9f0"; // Self (no team / FFA)
     }
 
     const hullAngle = (player as any).hullAngle ?? 0;
