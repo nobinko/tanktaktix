@@ -402,7 +402,14 @@ function lobbyStatePayload() {
     .filter(r => !r.ended) // Hide ended rooms
     .map(toRoomSummary);
   list.sort((a, b) => b.createdAt - a.createdAt);
-  return { rooms: list };
+
+  const onlinePlayers = [...players.values()]
+    .filter(p => !p.roomId)
+    .map(p => ({ id: p.id, name: p.name }));
+
+  // console.log(`[DEBUG] Lobby Payload: ${onlinePlayers.length} online, ${list.length} rooms`);
+
+  return { rooms: list, onlinePlayers };
 }
 
 function roomStatePayload(roomId: string) {
@@ -1163,6 +1170,7 @@ wss.on("connection", (socket) => {
         const name = pickString(pld.name, "").trim();
         if (name) player.name = name.slice(0, 16);
         send(socket, { type: "welcome", payload: { id: playerId } });
+        joinLobby(player); // Trigger lobby update and broadcast
         break;
       }
       case "requestLobby": {
@@ -1198,7 +1206,8 @@ wss.on("connection", (socket) => {
         };
         rooms.set(roomId, room);
         broadcastLobby();
-        joinRoom(player, roomId, passwordProtected ? password : undefined);
+        // User requested: "Creation and Entry are separate". Do not auto-join.
+        // joinRoom(player, roomId, passwordProtected ? password : undefined);
         break;
       }
       case "joinRoom": {
@@ -1263,15 +1272,29 @@ wss.on("connection", (socket) => {
         const pld = isRecord(payload) ? payload : {};
         const message = pickString(pld.message, "").trim();
         if (!message) break;
-        if (!player.roomId) break;
-        broadcastRoom(player.roomId, {
-          type: "chat",
-          payload: {
-            from: player.name, color: "",
-            message: message.slice(0, 120),
-            at: nowMs(),
-          },
-        });
+        if (player.roomId) {
+          broadcastRoom(player.roomId, {
+            type: "chat",
+            payload: {
+              from: player.name, color: "",
+              message: message.slice(0, 120),
+              at: nowMs(),
+            },
+          });
+        } else {
+          // Lobby Chat
+          const chatMsg = {
+            type: "chat",
+            payload: {
+              from: player.name, color: "", // Lobby doesn't have team color
+              message: message.slice(0, 120),
+              at: nowMs(),
+            },
+          };
+          for (const p of players.values()) {
+            if (!p.roomId) send(p.socket, chatMsg);
+          }
+        }
         break;
       }
       default: break;

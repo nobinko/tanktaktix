@@ -37,7 +37,7 @@ app.innerHTML = `
           <button id="lobby-exit" class="secondary" style="padding: 4px 12px; font-size: 0.9em;">Exit</button>
         </div>
       </div>
-      <div class="grid two">
+      <div class="grid three" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
         <div>
           <h3>Rooms</h3>
           <ul id="room-list" class="room-list"></ul>
@@ -52,6 +52,14 @@ app.innerHTML = `
             <input id="room-password" placeholder="Password (optional)" />
             <button id="create-room">Create</button>
           </div>
+        </div>
+        <div>
+          <h3>Lobby Chat</h3>
+          <div id="lobby-chat-log" style="height: 200px; overflow-y: auto; background: rgba(0,0,0,0.3); border: 1px solid #444; padding: 4px; margin-bottom: 8px; font-size: 0.9em; font-family: monospace;"></div>
+          <input id="lobby-chat-input" placeholder="Type here..." style="width: 100%; box-sizing: border-box;" />
+          
+          <h3 style="margin-top: 12px;">Commanders</h3>
+          <ul id="lobby-player-list" style="height: 120px; overflow-y: auto; list-style: none; padding: 0; background: rgba(0,0,0,0.2);"></ul>
         </div>
       </div>
     </div>
@@ -157,6 +165,9 @@ const state = {
   explosions: [] as any[], // Local VFX
   mapData: null as any,
   camera: { x: 0, y: 0, zoom: 1, rotation: 0 },
+  // Lobby Ext
+  lobbyChat: [] as { from: string, message: string }[],
+  onlinePlayers: [] as { id: string, name: string }[],
 };
 
 let ws: WebSocket | null = null;
@@ -171,6 +182,14 @@ const ROTATION_STEP = Math.PI / 36; // 5 degrees
 const mapSize = { width: 900, height: 520 };
 
 const setScreen = (phase: "login" | "lobby" | "room") => {
+  console.log(`[DEBUG] setScreen("${phase}") called.`);
+  console.trace(); // Trace caller
+  // Guard: Prevent switching to room if we don't have a roomId yet
+  if (phase === "room" && !state.roomId) {
+    console.warn("[setScreen] Blocked switch to 'room' because state.roomId is missing.");
+    return;
+  }
+
   // Cleanup room listeners if leaving room
   if (phase !== "room" && roomAbortController) {
     roomAbortController.abort();
@@ -213,19 +232,40 @@ const handleServerMessage = (message: ServerToClientMessage) => {
       state.selfId = message.payload.id;
       break;
     case "lobby":
-      state.roomId = "";
-      state.players = [];
-      state.bullets = [];
-      state.explosions = [];
-      setScreen("lobby");
+      // Guard: If we are in 'room' phase, ignore lobby updates to prevent flicker/reset
+      if (state.phase === "room") break;
+
       state.rooms = message.payload.rooms;
+
+      // Update online players
+      if ((message.payload as any).onlinePlayers) {
+        state.onlinePlayers = (message.payload as any).onlinePlayers;
+        renderLobbyPlayers();
+      }
+
       renderRooms();
+
+      if (state.phase !== "lobby") {
+        setScreen("lobby");
+        // Reset game state for lobby
+        state.roomId = "";
+        state.players = [];
+        state.bullets = [];
+        state.explosions = [];
+      }
       break;
     case "room": {
       const payloadAny = message.payload as any;
       state.roomId = payloadAny.roomId;
       state.players = payloadAny.players;
       state.timeLeftSec = payloadAny.timeLeftSec;
+
+      // Ensure we switch to room screen if not already there
+      if (state.phase !== "room") {
+        setScreen("room");
+        setupRoom();
+      }
+
       state.bullets = payloadAny.bullets ?? payloadAny.projectiles ?? [];
       (state as any).teamScores = payloadAny.teamScores;
 
@@ -239,10 +279,15 @@ const handleServerMessage = (message: ServerToClientMessage) => {
       break;
     }
     case "chat":
-      state.chat.unshift(message.payload);
-      // Remove old messages
-      if (state.chat.length > 50) state.chat.pop();
-      // renderChat is Canvas-based now, called in loop
+      if (state.phase === "lobby") {
+        state.lobbyChat.push(message.payload);
+        if (state.lobbyChat.length > 50) state.lobbyChat.shift();
+        renderLobbyChat();
+      } else {
+        state.chat.unshift(message.payload);
+        if (state.chat.length > 50) state.chat.pop();
+        // renderChat is Canvas-based now, called in loop
+      }
       break;
 
     case "gameEnd":
@@ -314,11 +359,48 @@ const renderRooms = () => {
     joinBtn.addEventListener("click", () => {
       const pw = room.passwordProtected ? prompt("Password?") ?? "" : "";
       sendMessage({ type: "joinRoom", payload: { roomId: room.id, password: pw } });
-      setupRoom(); // Initialize room listeners
-      setScreen("room");
+      // Wait for "room" message to switch screen
     });
     roomList.appendChild(li);
   });
+};
+
+const renderLobbyPlayers = () => {
+  const list = document.querySelector("#lobby-player-list") as HTMLUListElement;
+  if (!list) return;
+  list.innerHTML = "";
+  state.onlinePlayers.forEach(p => {
+    const li = document.createElement("li");
+    li.textContent = p.name;
+    li.style.padding = "2px 4px";
+    li.style.borderBottom = "1px solid #444";
+    li.style.fontSize = "0.9em";
+    li.style.color = "#ccc";
+    list.appendChild(li);
+  });
+};
+
+const renderLobbyChat = () => {
+  const log = document.querySelector("#lobby-chat-log") as HTMLDivElement;
+  if (!log) return;
+  log.innerHTML = "";
+  state.lobbyChat.forEach(msg => {
+    const div = document.createElement("div");
+    const nameSpan = document.createElement("span");
+    nameSpan.textContent = msg.from + ": ";
+    nameSpan.style.color = "#aaa";
+    nameSpan.style.fontWeight = "bold";
+
+    const msgSpan = document.createElement("span");
+    msgSpan.textContent = msg.message;
+    msgSpan.style.color = "#fff";
+
+    div.appendChild(nameSpan);
+    div.appendChild(msgSpan);
+    div.style.marginBottom = "2px";
+    log.appendChild(div);
+  });
+  log.scrollTop = log.scrollHeight;
 };
 
 const renderRoom = () => {
@@ -873,7 +955,8 @@ const setupLogin = () => {
 
 const setupLobby = () => {
   const createRoomBtn = document.querySelector("#create-room") as HTMLButtonElement;
-  createRoomBtn.addEventListener("click", () => {
+  createRoomBtn.addEventListener("click", (e) => {
+    console.log("[DEBUG] Create Room Button Clicked", e);
     const id = roomIdInput.value.trim();
     const name = roomNameInput.value.trim();
     const maxP = parseInt(maxPlayersInput.value) || 4;
@@ -896,8 +979,20 @@ const setupLobby = () => {
         password: pw || undefined,
       },
     });
-    setupRoom(); // Initialize room listeners
-    setScreen("room");
+    // Do not switch screen optimistically. Wait for join.
+    // setupRoom(); 
+    // setScreen("room");
+  });
+
+  const lobbyChatInput = document.querySelector("#lobby-chat-input") as HTMLInputElement;
+  lobbyChatInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      const message = lobbyChatInput.value.trim();
+      if (message) {
+        sendMessage({ type: "chat", payload: { message } });
+      }
+      lobbyChatInput.value = "";
+    }
   });
 
   document.querySelector("#lobby-help")?.addEventListener("click", () => {
