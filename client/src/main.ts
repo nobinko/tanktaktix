@@ -29,7 +29,14 @@ app.innerHTML = `
   </section>
   <section id="lobby-screen" class="screen">
     <div class="panel">
-      <h2>Lobby</h2>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <h2 style="margin: 0;">Lobby</h2>
+        <div style="display: flex; gap: 8px;">
+          <button id="lobby-help" class="secondary" style="padding: 4px 12px; font-size: 0.9em;">Help</button>
+          <button id="lobby-setting" class="secondary" style="padding: 4px 12px; font-size: 0.9em;">Setting</button>
+          <button id="lobby-exit" class="secondary" style="padding: 4px 12px; font-size: 0.9em;">Exit</button>
+        </div>
+      </div>
       <div class="grid two">
         <div>
           <h3>Rooms</h3>
@@ -548,7 +555,7 @@ const draw = () => {
     // Action lock countdown (5→0) above tank — self only
     const lockStep = (player as any).actionLockStep ?? 0;
     if (lockStep > 0 && player.id === state.selfId) {
-      const display = Math.min(5, lockStep);
+      const display = lockStep;
       ctx.font = "bold 16px monospace";
       ctx.fillStyle = "#f97316";
       ctx.textAlign = "center";
@@ -649,7 +656,7 @@ const draw = () => {
 };
 
 /** Draw the in-game HUD directly on the canvas (screen-space). */
-const drawHUD = (ctx: CanvasRenderingContext2D) => {
+function drawHUD(ctx: CanvasRenderingContext2D) {
   const W = mapSize.width;
   const self = getSelf();
 
@@ -717,9 +724,9 @@ const drawHUD = (ctx: CanvasRenderingContext2D) => {
   ctx.textAlign = "right";
   if (lockStep > 0) {
     ctx.fillStyle = "#f97316";
-    ctx.fillText(`LOCK ${Math.min(5, lockStep)}`, W - 12, 19);
+    ctx.fillText(`LOCK ${lockStep}`, W - 12, 19);
     // Also update the DOM element for backward compat
-    cooldownEl.textContent = `LOCK ${Math.min(5, lockStep)}`;
+    cooldownEl.textContent = `LOCK ${lockStep}`;
     cooldownEl.style.color = "#f97316";
   } else {
     ctx.fillStyle = "#16a34a";
@@ -891,6 +898,21 @@ const setupLobby = () => {
     });
     setupRoom(); // Initialize room listeners
     setScreen("room");
+  });
+
+  document.querySelector("#lobby-help")?.addEventListener("click", () => {
+    alert("Help:\n- WASD/Arrows to Move\n- Click to Shoot\n- T to Chat\n- Objective: Defeat enemies!");
+  });
+
+  document.querySelector("#lobby-setting")?.addEventListener("click", () => {
+    alert("Settings: \n(Volume and Quality settings coming soon)");
+  });
+
+  document.querySelector("#lobby-exit")?.addEventListener("click", () => {
+    if (confirm("Return to Title Screen?")) {
+      if (ws) ws.close();
+      setScreen("login");
+    }
   });
 };
 

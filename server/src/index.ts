@@ -45,7 +45,7 @@ type PlayerRuntime = {
 
   aimDir: Vector2; // unit
   pendingMove: Vector2 | null; // unit (legacy directional, kept for compat)
-  moveQueue: Vector2[]; // click-to-move queue (max MOVE_QUEUE_MAX)
+  moveQueue: { x: number; y: number; cost: number }[]; // click-to-move queue (max MOVE_QUEUE_MAX)
 
   hullAngle: number;    // current hull facing (radians)
   turretAngle: number;  // current turret facing (radians)
@@ -122,7 +122,7 @@ const MOVE_SPEED = 6; // per tick
 
 // Action lock (5→0 countdown) — spec: 6 steps, 200ms each = 1200ms total
 const ACTION_LOCK_STEPS = 6;
-const ACTION_LOCK_STEP_MS = 200;
+const ACTION_LOCK_STEP_MS = 300;
 const ACTION_COOLDOWN_MS = ACTION_LOCK_STEPS * ACTION_LOCK_STEP_MS;
 
 const MOVE_QUEUE_MAX = 5; // max queued move targets
@@ -356,7 +356,7 @@ function toPlayerPublic(p: PlayerRuntime) {
     respawnAt: p.respawnAt,
     // Action lock: compute current step (5→0) from remaining cooldown ms
     nextActionAt: p.cooldownUntil,
-    actionLockStep: Math.max(0, Math.ceil((p.cooldownUntil - nowMs()) / ACTION_LOCK_STEP_MS) - 1),
+    actionLockStep: Math.max(0, Math.ceil((p.cooldownUntil - nowMs()) / ACTION_LOCK_STEP_MS)),
     hullAngle: p.hullAngle,
     turretAngle: p.turretAngle,
     // Stats
@@ -502,6 +502,7 @@ function assignTeam(room: Room): Team {
   let blue = 0;
   for (const pid of room.playerIds) {
     const p = players.get(pid);
+    // console.log(`[AssignTeam] Checking ${pid}: Team=${p?.team}`);
     if (p?.team === "red") red++;
     if (p?.team === "blue") blue++;
   }
@@ -598,14 +599,49 @@ function stopMove(p: PlayerRuntime) {
   // Note: if stop, triggers cooldown -> handled in tick
 }
 
+const MAX_MOVE_DIST = 300; // Max distance per move command
+const COOLDOWN_THRESHOLD = 200;
+const COOLDOWN_SHORT_MS = 1500; // 5 steps * 300ms
+const COOLDOWN_LONG_MS = 2100;  // 7 steps * 300ms
+
 function setMoveTarget(p: PlayerRuntime, target: Vector2) {
   // 仕様: 移動中/カウント中のクリックでも移動予約を受け付ける
+  // Spec A-4: Max movement distance limit
+
+  // Determine origin: last queued target OR current position
+  let origin = { x: p.x, y: p.y };
+  if (p.moveQueue.length > 0) {
+    origin = p.moveQueue[p.moveQueue.length - 1];
+  }
+
+  const dx = target.x - origin.x;
+  const dy = target.y - origin.y;
+  const dist = Math.hypot(dx, dy);
+
+  let finalTarget = target;
+  if (dist > MAX_MOVE_DIST) {
+    const ratio = MAX_MOVE_DIST / dist;
+    finalTarget = {
+      x: origin.x + dx * ratio,
+      y: origin.y + dy * ratio,
+    };
+  }
+
   const clamped = {
-    x: clamp(target.x, 0, MAP_W),
-    y: clamp(target.y, 0, MAP_H),
+    x: clamp(finalTarget.x, 0, MAP_W),
+    y: clamp(finalTarget.y, 0, MAP_H),
   };
+  // Spec A-6 EXT: Variable Cooldown
+  // Re-calculate distance of VALIDated move
+  const fdx = clamped.x - origin.x;
+  const fdy = clamped.y - origin.y;
+  const fdist = Math.hypot(fdx, fdy);
+
+  const cost = fdist > COOLDOWN_THRESHOLD ? COOLDOWN_LONG_MS : COOLDOWN_SHORT_MS;
+
   if (p.moveQueue.length >= MOVE_QUEUE_MAX) return; // 上限
-  p.moveQueue.push(clamped);
+  p.moveQueue.push({ ...clamped, cost });
+  // Start moving if not already (and if no current target? handled in tick)
   p.isMoving = true;
 }
 
@@ -965,7 +1001,7 @@ function tick() {
             p.moveQueue.shift();
             p.isMoving = false;
             p.isRotating = false;
-            p.cooldownUntil = now + ACTION_COOLDOWN_MS;
+            p.cooldownUntil = now + (currentTarget.cost ?? ACTION_COOLDOWN_MS);
           } else {
             const targetAngle = Math.atan2(to.y, to.x);
             const angleDiff = normalizeAngle(targetAngle - p.hullAngle);
@@ -1137,11 +1173,16 @@ wss.on("connection", (socket) => {
         const pld = isRecord(payload) ? payload : {};
         const roomIdRaw = pickString(pld.roomId, "");
         const roomId = roomIdRaw.trim() ? roomIdRaw.trim() : newId();
+
+        if (rooms.has(roomId)) {
+          send(socket, { type: "error", payload: { message: "Room ID already exists." } });
+          return;
+        }
         const nameRaw = pickString(pld.name ?? pld.roomName, "");
         const roomName = nameRaw.trim() ? nameRaw.trim() : roomId;
         const mapId = pickString(pld.mapId, "alpha");
         const maxPlayers = clamp(pickNumber(pld.maxPlayers, 4), 2, 16);
-        const timeLimitSec = clamp(pickNumber(pld.timeLimitSec ?? pld.timeLimit, 240), 30, 3600);
+        const timeLimitSec = clamp(pickNumber(pld.timeLimitSec ?? pld.timeLimit, 240), 5, 3600);
         const password = pickString(pld.password, "");
         const passwordProtected = !!password.trim();
         const createdAt = nowMs();
