@@ -578,6 +578,14 @@ const draw = () => {
 
     // === Hull (TankMatch style: simple box) ===
     ctx.save();
+
+    // Apply transparency if in respawn cooldown
+    const now = Date.now();
+    const isInvincible = (player as any).respawnCooldownUntil && (player as any).respawnCooldownUntil > now;
+    if (isInvincible) {
+      ctx.globalAlpha = 0.5;
+    }
+
     ctx.translate(x, y);
     ctx.rotate(hullAngle);
 
@@ -591,19 +599,24 @@ const draw = () => {
 
     // Front direction indicator (small triangle)
     ctx.fillStyle = "#fff";
-    ctx.globalAlpha = 0.7;
+    ctx.globalAlpha = isInvincible ? 0.35 : 0.7; // Scale down alpha if already transparent
     ctx.beginPath();
     ctx.moveTo(11, -3);
     ctx.lineTo(15, 0);
     ctx.lineTo(11, 3);
     ctx.closePath();
     ctx.fill();
-    ctx.globalAlpha = 1.0;
+    ctx.globalAlpha = isInvincible ? 0.5 : 1.0;
 
     ctx.restore();
 
     // === Turret (TankMatch style: white circle + thin barrel) ===
     ctx.save();
+
+    if (isInvincible) {
+      ctx.globalAlpha = 0.5;
+    }
+
     ctx.translate(x, y);
     if (state.aiming && player.id === state.selfId && state.aimPoint) {
       // Aim Angle: Opposite to drag direction (Tank - Mouse)
@@ -624,6 +637,11 @@ const draw = () => {
 
     // Counter-rotate text/bars so they stay upright
     ctx.save();
+
+    if (isInvincible) {
+      ctx.globalAlpha = 0.5;
+    }
+
     ctx.translate(x, y);
     ctx.rotate(-state.camera.rotation);
 
@@ -745,6 +763,16 @@ function drawHUD(ctx: CanvasRenderingContext2D) {
   // ── Top bar ──
   const barH = 28;
   ctx.fillStyle = "rgba(200, 200, 200, 0.85)";
+
+  // Respawn CD visual indicator for self
+  const now = Date.now();
+  const respawnCD = self ? (self as any).respawnCooldownUntil ?? 0 : 0;
+  if (respawnCD > now) {
+    // Make top bar slightly flashing or yellow during invincibility?
+    // Let's make it a noticeable blue/cyan tint
+    ctx.fillStyle = "rgba(100, 200, 255, 0.85)";
+  }
+
   ctx.fillRect(0, 0, W, barH);
   ctx.strokeStyle = "rgba(160, 160, 160, 0.6)";
   ctx.lineWidth = 1;

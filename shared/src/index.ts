@@ -40,6 +40,7 @@ export type PlayerSummary = {
   hullAngle: number;      // hull facing direction (radians)
   turretAngle: number;    // turret facing direction (radians)
   respawnAt: number | null;
+  respawnCooldownUntil: number | null; // Indicates until when the player is invincible and cannot act
 };
 
 export type RoomSummary = {

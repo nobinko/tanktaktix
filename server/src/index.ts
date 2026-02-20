@@ -62,6 +62,7 @@ type PlayerRuntime = {
   cooldownUntil: number; // Block all actions until this time
 
   respawnAt: number | null;
+  respawnCooldownUntil: number; // Instant respawn cooldown end time
 
   socket: WebSocket;
 };
@@ -132,6 +133,7 @@ const HULL_ROTATION_SPEED = Math.PI / 15;    // ~12 deg/tick → ~180° in 0.75s
 const TURRET_ROTATION_SPEED = Math.PI / 10;  // ~18 deg/tick → faster than hull
 
 const RESPAWN_MS = 1500;
+const RESPAWN_COOLDOWN_MS = 1500; // CD for invincibility after instant respawn
 
 const TANK_SIZE = 18;
 
@@ -354,6 +356,7 @@ function toPlayerPublic(p: PlayerRuntime) {
     ammo: p.ammo,
     score: p.score,
     respawnAt: p.respawnAt,
+    respawnCooldownUntil: p.respawnCooldownUntil,
     // Action lock: compute current step (5→0) from remaining cooldown ms
     nextActionAt: p.cooldownUntil,
     actionLockStep: Math.max(0, Math.ceil((p.cooldownUntil - nowMs()) / ACTION_LOCK_STEP_MS)),
@@ -494,6 +497,7 @@ function detachFromRoom(p: PlayerRuntime) {
   p.team = null;
   p.isMoving = false;
   p.cooldownUntil = 0;
+  p.respawnCooldownUntil = 0;
 
   sendRoomState(oldRoomId);
 }
@@ -541,6 +545,7 @@ function spawnPlayer(p: PlayerRuntime, room: Room) {
   p.isMoving = false;
   p.isRotating = false;
   p.cooldownUntil = 0;
+  // Note: we do not reset respawnCooldownUntil here. It's set explicitly upon death.
   p.hullAngle = 0;
   p.turretAngle = 0;
   p.score = 0; // Reset score on spawn
@@ -676,7 +681,7 @@ function triggerExplosion(room: Room, x: number, y: number, shooterId: string) {
 
   for (const pid of room.playerIds) {
     const target = players.get(pid);
-    if (!target || target.hp <= 0 || target.respawnAt) continue;
+    if (!target || target.hp <= 0 || target.respawnAt || target.respawnCooldownUntil > nowMs()) continue;
 
     // Calculate distance
     const dist = Math.hypot(target.x - x, target.y - y);
@@ -738,10 +743,11 @@ function triggerExplosion(room: Room, x: number, y: number, shooterId: string) {
             th.score = target.score;
           }
 
-          target.respawnAt = nowMs() + RESPAWN_MS;
-          target.ammo = 0;
-          target.isMoving = false;
-          target.cooldownUntil = 0;
+          // Instant Respawn Logic
+          spawnPlayer(target, room);
+          // Instead of delayed respawn, apply instant respawn with cooldown
+          target.respawnCooldownUntil = nowMs() + RESPAWN_COOLDOWN_MS;
+          // Note: spawnPlayer already clears moveQueue, pendingMove, and cooldownUntil (set to 0)
         }
       }
     }
@@ -753,6 +759,7 @@ function tryShoot(p: PlayerRuntime, dir: Vector2) {
   const now = nowMs();
 
   if (p.respawnAt && p.respawnAt > now) return;
+  if (p.respawnCooldownUntil > now) return; // Cannot shoot during respawn CD
 
   // Cooldown Check
   if (now < p.cooldownUntil) return;
@@ -848,6 +855,7 @@ function updateBullets(room: Room, dtSec: number, now: number) {
       const t = players.get(pid);
       if (!t) continue;
       if (t.respawnAt && t.respawnAt > now) continue;
+      if (t.respawnCooldownUntil > now) continue; // Invincible to bullets during respawn CD
       if (t.hp <= 0) continue;
 
       // Friendly fire check: Bullets pass through teammates?
@@ -985,7 +993,8 @@ function tick() {
       let dx = 0;
       let dy = 0;
 
-      if (p.cooldownUntil > now) {
+      // Movement freeze applied during both normal action cooldown AND respawn cooldown
+      if (p.cooldownUntil > now || p.respawnCooldownUntil > now) {
         // In Cooldown: FREEZE movement (but moveQueue keeps accepting)
         p.isMoving = false;
         p.isRotating = false;
@@ -1149,6 +1158,7 @@ wss.on("connection", (socket) => {
     hullAngle: 0, turretAngle: 0, isRotating: false,
     isMoving: false, cooldownUntil: 0,
     respawnAt: null,
+    respawnCooldownUntil: 0,
     socket,
   };
 

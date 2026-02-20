@@ -15,25 +15,10 @@ async function runTest() {
     let myId = "";
     let myState: any = null;
     let roomState: any = null;
-
-    ws.on('message', (data) => {
-        try {
-            const msg = JSON.parse(data.toString()) as ServerMsg;
-            if (msg.type === "room") {
-                roomState = msg.payload;
-                const p = msg.payload.players?.find((x: any) => x.id === myId);
-                if (p) {
-                    myState = p;
-                }
-            }
-        } catch (e) { }
-    });
-
     const openPromise = new Promise<void>(resolve => ws.on('open', resolve));
     await openPromise;
     console.log("[1/6] Connected to Server.");
 
-    // 1. Login
     const loginPromise = new Promise<void>(resolve => {
         const handler = (data: any) => {
             const msg = JSON.parse(data.toString());
@@ -49,20 +34,40 @@ async function runTest() {
     await loginPromise;
     console.log(`[2/6] Logged in as ${myId}.`);
 
+    // Add main message listener AFTER login to catch room updates
+    ws.on('message', (data) => {
+        try {
+            const msg = JSON.parse(data.toString()) as ServerMsg;
+            if (msg.type === "room") {
+                roomState = msg.payload;
+                const p = msg.payload.players?.find((x: any) => x.id === myId);
+                if (p) {
+                    myState = p;
+                }
+            }
+        } catch (e) { }
+    });
+
     // 2. Create Room
-    const roomPromise = new Promise<void>(resolve => {
+    const roomId = `mech_test_${Date.now()}`;
+    const roomPromise = new Promise<void>((resolve, reject) => {
         const handler = (data: any) => {
             const msg = JSON.parse(data.toString());
+            console.log(`[room wait] received msg type: ${msg.type}`);
             if (msg.type === "room") {
                 ws.removeListener('message', handler);
                 resolve();
+            } else if (msg.type === "error") {
+                ws.removeListener('message', handler);
+                reject(new Error(msg.payload.message));
             }
         };
         ws.on('message', handler);
-        ws.send(JSON.stringify({ type: "createRoom", payload: { roomId: "mech_test", name: "Mech Test Room" } }));
+        ws.send(JSON.stringify({ type: "createRoom", payload: { roomId, name: "Mech Test Room" } }));
+        ws.send(JSON.stringify({ type: "joinRoom", payload: { roomId } }));
     });
-    await roomPromise;
-    console.log("[3/6] Room Created.");
+    await roomPromise.catch(console.error);
+    console.log("[3/6] Room Created and Joined.");
 
     await sleep(500);
 
