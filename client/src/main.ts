@@ -462,15 +462,16 @@ const draw = () => {
   ctx.fillStyle = "#0b132b";
   ctx.fillRect(0, 0, mapSize.width, mapSize.height);
 
-  // Camera movement (arrow keys, rotated to match view)
+  // Camera movement (WASD, rotated to match view; disabled while chat is open)
   const camCos = Math.cos(state.camera.rotation);
   const camSin = Math.sin(state.camera.rotation);
   const spd = CAMERA_SPEED / state.camera.zoom;
+  const chatActive = document.activeElement === chatInput;
   let camDx = 0, camDy = 0;
-  if (keysDown.has("arrowleft")) { camDx -= spd; }
-  if (keysDown.has("arrowright")) { camDx += spd; }
-  if (keysDown.has("arrowup")) { camDy -= spd; }
-  if (keysDown.has("arrowdown")) { camDy += spd; }
+  if (keysDown.has("a") && !chatActive) { camDx -= spd; }
+  if (keysDown.has("d") && !chatActive) { camDx += spd; }
+  if (keysDown.has("w") && !chatActive) { camDy -= spd; }
+  if (keysDown.has("s") && !chatActive) { camDy += spd; }
   // Rotate movement direction by camera rotation
   state.camera.x += camDx * camCos + camDy * camSin;
   state.camera.y += -camDx * camSin + camDy * camCos;
@@ -484,10 +485,10 @@ const draw = () => {
   }
 
   // Rotation keys (Q/E)
-  if (keysDown.has("q") && document.activeElement !== chatInput) {
+  if (keysDown.has("q") && !chatActive) {
     state.camera.rotation -= ROTATION_STEP * 0.3;
   }
-  if (keysDown.has("e") && document.activeElement !== chatInput) {
+  if (keysDown.has("e") && !chatActive) {
     state.camera.rotation += ROTATION_STEP * 0.3;
   }
 
@@ -1024,7 +1025,7 @@ const setupLobby = () => {
   });
 
   document.querySelector("#lobby-help")?.addEventListener("click", () => {
-    alert("Help:\n- WASD/Arrows to Move\n- Click to Shoot\n- T to Chat\n- Objective: Defeat enemies!");
+    alert("Help:\n- WASD: Camera movement  Q/E: Rotate  Space: Reset view\n- Left-click on map: Move tank\n- Drag from tank: Aim & shoot  T: Chat\n- Objective: Kill enemies to score points for your team!");
   });
 
   document.querySelector("#lobby-setting")?.addEventListener("click", () => {
@@ -1109,6 +1110,8 @@ const setupRoom = () => {
     if (state.phase !== "room") {
       return;
     }
+    // A-11: all actions blocked while chat is open
+    if (document.activeElement === chatInput) return;
     const self = getSelf();
     if (!self) {
       return;
