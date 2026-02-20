@@ -548,11 +548,8 @@ function spawnPlayer(p: PlayerRuntime, room: Room) {
   // Note: we do not reset respawnCooldownUntil here. It's set explicitly upon death.
   p.hullAngle = 0;
   p.turretAngle = 0;
-  p.score = 0; // Reset score on spawn
-  p.kills = 0; // Reset kills on spawn
-  p.deaths = 0; // Reset deaths on spawn
-  p.hits = 0; // Reset hits on spawn
-  p.fired = 0; // Reset fired on spawn
+  // Stats (score/kills/deaths/hits/fired) are NOT reset here.
+  // They are reset once in joinRoom() at initial spawn only.
 }
 
 function joinRoom(p: PlayerRuntime, roomId: string, password?: string) {
@@ -583,6 +580,12 @@ function joinRoom(p: PlayerRuntime, roomId: string, password?: string) {
   });
 
   spawnPlayer(p, room);
+  // Reset stats only on initial join (not on respawn)
+  p.score = 0;
+  p.kills = 0;
+  p.deaths = 0;
+  p.hits = 0;
+  p.fired = 0;
   sendRoomState(roomId);
   broadcastLobby();
 }
@@ -1286,9 +1289,9 @@ wss.on("connection", (socket) => {
           broadcastRoom(player.roomId, {
             type: "chat",
             payload: {
-              from: player.name, color: "",
+              from: player.name,
               message: message.slice(0, 120),
-              at: nowMs(),
+              timestamp: nowMs(),
             },
           });
         } else {
@@ -1296,9 +1299,9 @@ wss.on("connection", (socket) => {
           const chatMsg = {
             type: "chat",
             payload: {
-              from: player.name, color: "", // Lobby doesn't have team color
+              from: player.name,
               message: message.slice(0, 120),
-              at: nowMs(),
+              timestamp: nowMs(),
             },
           };
           for (const p of players.values()) {
