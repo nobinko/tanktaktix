@@ -4,11 +4,13 @@ import type {
   ChatMessage,
   ClientToServerMessage,
   Explosion,
+  Item,
   MapData,
   PlayerSummary,
   RoomSummary,
   ServerToClientMessage,
-  Vector2
+  Vector2,
+  Flag
 } from "@tanktaktix/shared";
 
 const app = document.querySelector<HTMLDivElement>("#app");
@@ -52,6 +54,10 @@ app.innerHTML = `
             <input id="room-name" placeholder="Room name (optional)" />
             <input id="max-players" placeholder="Max players" value="4" />
             <input id="time-limit" placeholder="Time limit (sec)" value="240" />
+            <select id="game-mode">
+              <option value="deathmatch">Deathmatch (Combat)</option>
+              <option value="ctf">Flag (Team Objective)</option>
+            </select>
             <input id="room-password" placeholder="Password (optional)" />
             <button id="create-room">Create</button>
           </div>
@@ -128,6 +134,7 @@ const roomIdInput = document.querySelector("#room-id") as HTMLInputElement;
 const roomNameInput = document.querySelector("#room-name") as HTMLInputElement;
 const maxPlayersInput = document.querySelector("#max-players") as HTMLInputElement;
 const timeLimitInput = document.querySelector("#time-limit") as HTMLInputElement;
+const gameModeSelect = document.querySelector("#game-mode") as HTMLSelectElement;
 const passwordInput = document.querySelector("#room-password") as HTMLInputElement;
 const createRoomBtn = document.querySelector("#create-room") as HTMLButtonElement;
 
@@ -171,6 +178,8 @@ const state = {
   // Lobby Ext
   lobbyChat: [] as { from: string, message: string }[],
   onlinePlayers: [] as { id: string, name: string }[],
+  items: [] as Item[], // New: store items for rendering
+  flags: [] as Flag[], // New: store flags for CTF
 };
 
 let ws: WebSocket | null = null;
@@ -233,6 +242,7 @@ const handleServerMessage = (message: ServerToClientMessage) => {
   switch (message.type) {
     case "welcome":
       state.selfId = message.payload.id;
+      localStorage.setItem("tt_id", message.payload.id); // Save for reconnection (B-3)
       break;
     case "lobby":
       // Guard: If we are in 'room' phase, ignore lobby updates to prevent flicker/reset
@@ -262,7 +272,7 @@ const handleServerMessage = (message: ServerToClientMessage) => {
       const isFirstRoomMessage = !state.roomId; // check before state.roomId is set
 
       // Update map size first (needed for camera init calculation below)
-      mapSize.width  = payload.mapData.width;
+      mapSize.width = payload.mapData.width;
       mapSize.height = payload.mapData.height;
 
       // Camera init: on first room message, jump camera to player's spawn position
@@ -280,8 +290,11 @@ const handleServerMessage = (message: ServerToClientMessage) => {
       state.players = payload.players;
       state.timeLeftSec = payload.timeLeftSec;
       state.bullets = payload.bullets;
-      state.teamScores = payload.teamScores;
-      state.mapData = payload.mapData;
+      state.explosions = message.payload.explosions.map(e => ({ ...e, startedAt: Date.now() }));
+      state.mapData = message.payload.mapData;
+      state.teamScores = message.payload.teamScores;
+      state.items = message.payload.items;
+      state.flags = message.payload.flags || [];
 
       // Ensure we switch to room screen if not already there
       if (state.phase !== "room") {
@@ -521,14 +534,24 @@ const draw = () => {
 
   // Walls
   if (state.mapData && state.mapData.walls) {
-    ctx.fillStyle = "#4a5568";
     for (const w of state.mapData.walls) {
+      const type = w.type || "wall";
+      if (type === "bush") {
+        ctx.fillStyle = "rgba(34, 197, 94, 0.4)"; // Greenish bush
+      } else if (type === "water") {
+        ctx.fillStyle = "rgba(59, 130, 246, 0.4)"; // Bluish water
+      } else {
+        ctx.fillStyle = "#4a5568"; // Default wall
+      }
+
       ctx.fillRect(w.x, w.y, w.width, w.height);
 
-      // Bevel/Border for visibility
-      ctx.strokeStyle = "#718096";
-      ctx.lineWidth = 2;
-      ctx.strokeRect(w.x, w.y, w.width, w.height);
+      if (type === "wall") {
+        // Bevel/Border only for real walls
+        ctx.strokeStyle = "#718096";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(w.x, w.y, w.width, w.height);
+      }
     }
   }
 
@@ -560,6 +583,62 @@ const draw = () => {
     ctx.strokeStyle = `rgba(255, 69, 0, ${1 - progress})`;
     ctx.lineWidth = 4 * (1 - progress);
     ctx.stroke();
+  }
+
+  // --- Items ---
+  state.items.forEach(item => {
+    ctx.save();
+    ctx.translate(item.x, item.y);
+    ctx.rotate(-state.camera.rotation);
+
+    if (item.type === "medic") {
+      // Clean Medic Kit: Green Box with White Plus
+      ctx.fillStyle = "#16a34a"; // Green
+      ctx.fillRect(-10, -10, 20, 20);
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(-7, -2, 14, 4);
+      ctx.fillRect(-2, -7, 4, 14);
+    } else {
+      // Ammo Box: Brown/Yellow Box with Bullet icon
+      ctx.fillStyle = "#ca8a04"; // Yellow/Brown
+      ctx.fillRect(-10, -10, 20, 20);
+      ctx.fillStyle = "#1a1a2e";
+      ctx.fillRect(-7, 2, 8, 5); // Bullet tip
+    }
+    ctx.restore();
+  });
+
+  // --- Flags (CTF) ---
+  if (state.flags) {
+    state.flags.forEach(f => {
+      ctx.save();
+      ctx.translate(f.x, f.y);
+      ctx.rotate(-state.camera.rotation);
+
+      // Draw Flag pole
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(-1, -20, 2, 40);
+
+      // Draw Flag fabric
+      const team = f.team;
+      if (team) {
+        ctx.fillStyle = team === "red" ? "#dc2626" : "#2563eb";
+        ctx.beginPath();
+        ctx.moveTo(0, -20);
+        ctx.lineTo(25, -10);
+        ctx.lineTo(0, 0);
+        ctx.closePath();
+        ctx.fill();
+
+        // Label
+        ctx.fillStyle = "#fff";
+        ctx.font = "bold 10px Arial";
+        ctx.textAlign = "center";
+        ctx.fillText(team.toUpperCase(), 0, 30);
+      }
+
+      ctx.restore();
+    });
   }
 
   state.players.forEach((player) => {
@@ -664,6 +743,15 @@ const draw = () => {
       ctx.textAlign = "center";
       ctx.fillText(`${display}`, 0, -34);
       ctx.textAlign = "start";
+    }
+
+    // Flag Indicator
+    const hasFlag = state.flags.find(f => f.carrierId === player.id);
+    if (hasFlag) {
+      ctx.fillStyle = hasFlag.team === "red" ? "#ef4444" : "#3b82f6";
+      ctx.font = "bold 16px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText("🚩", 0, -38);
     }
 
     ctx.restore();
@@ -802,6 +890,13 @@ function drawHUD(ctx: CanvasRenderingContext2D) {
   ctx.fillStyle = ammo > 5 ? "#333" : "#dc2626";
   ctx.fillText(`${ammo}`, 108, 19);
 
+  // Hidden Indicator (B-2/B-5)
+  if (self && (self as any).isHidden) {
+    ctx.fillStyle = "#16a34a"; // Green
+    ctx.font = "bold 12px 'Segoe UI', Arial, sans-serif";
+    ctx.fillText("🕵️ HIDDEN", 138, 19);
+  }
+
   // Timer (center)
   const mins = Math.floor(state.timeLeftSec / 60).toString().padStart(2, "0");
   const secs = (state.timeLeftSec % 60).toString().padStart(2, "0");
@@ -876,8 +971,12 @@ const drawMinimap = (ctx: CanvasRenderingContext2D) => {
 
   // Walls
   if (state.mapData && state.mapData.walls) {
-    ctx.fillStyle = "rgba(100, 120, 140, 0.6)";
     for (const w of state.mapData.walls) {
+      const type = w.type || "wall";
+      if (type === "bush") ctx.fillStyle = "rgba(34, 197, 94, 0.6)";
+      else if (type === "water") ctx.fillStyle = "rgba(59, 130, 246, 0.6)";
+      else ctx.fillStyle = "rgba(100, 120, 140, 0.6)";
+
       ctx.fillRect(
         mmX + w.x * scaleX,
         mmY + w.y * scaleY,
@@ -894,6 +993,22 @@ const drawMinimap = (ctx: CanvasRenderingContext2D) => {
     const bx = b.x ?? (b.position?.x ?? 0);
     const by = b.y ?? (b.position?.y ?? 0);
     ctx.fillRect(mmX + bx * scaleX - 1, mmY + by * scaleY - 1, 2, 2);
+  }
+
+  // Items on Minimap
+  for (const item of state.items) {
+    ctx.fillStyle = item.type === "medic" ? "#22c55e" : "#facc15";
+    ctx.fillRect(mmX + item.x * scaleX - 1, mmY + item.y * scaleY - 1, 2, 2);
+  }
+
+  // Flags on Minimap
+  if (state.flags) {
+    for (const f of state.flags) {
+      ctx.fillStyle = f.team === "red" ? "#ef4444" : "#3b82f6";
+      ctx.beginPath();
+      ctx.arc(mmX + f.x * scaleX, mmY + f.y * scaleY, 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
 
   // Players
@@ -959,6 +1074,10 @@ const setupLogin = () => {
   const randomBtn = document.querySelector("#random-name") as HTMLButtonElement;
   const loginBtn = document.querySelector("#login-btn") as HTMLButtonElement;
 
+  // UX: Restore last used name
+  const savedName = localStorage.getItem("tt_name");
+  if (savedName) nameInput.value = savedName;
+
   randomBtn.addEventListener("click", () => {
     const random = Math.floor(1000 + Math.random() * 9000);
     nameInput.value = `Cmdr-${random}`;
@@ -967,15 +1086,22 @@ const setupLogin = () => {
   loginBtn.addEventListener("click", () => {
     const name = nameInput.value.trim() || `Cmdr-${Math.floor(1000 + Math.random() * 9000)}`;
     state.name = name;
+    localStorage.setItem("tt_name", name); // UX
+
+    // B-3 RECONNECTION
+    const savedId = localStorage.getItem("tt_id");
+
     connect();
     const waitForOpen = () => {
       if (!ws) {
         return;
       }
       if (ws.readyState === WebSocket.OPEN) {
-        sendMessage({ type: "login", payload: { name } });
+        // Send previous ID if we have one to reclaim session
+        sendMessage({ type: "login", payload: { name, id: savedId ?? undefined } });
         sendMessage({ type: "requestLobby" });
-        setScreen("lobby");
+        // We stay on login screen briefly until 'lobby' or 'room' message arrives
+        // (Actually setScreen("lobby") here is fine but might flicker if re-joining room)
         return;
       }
       requestAnimationFrame(waitForOpen);
@@ -986,12 +1112,20 @@ const setupLogin = () => {
 
 const setupLobby = () => {
   const createRoomBtn = document.querySelector("#create-room") as HTMLButtonElement;
+  const roomIdInput = document.querySelector("#room-id") as HTMLInputElement;
+  const roomNameInput = document.querySelector("#room-name") as HTMLInputElement;
+  const maxPlayersInput = document.querySelector("#max-players") as HTMLInputElement;
+  const timeLimitInput = document.querySelector("#time-limit") as HTMLInputElement;
+  const gameModeSelect = document.querySelector("#game-mode") as HTMLSelectElement;
+  const passwordInput = document.querySelector("#room-password") as HTMLInputElement;
+
   createRoomBtn.addEventListener("click", (e) => {
     console.log("[DEBUG] Create Room Button Clicked", e);
     const id = roomIdInput.value.trim();
     const name = roomNameInput.value.trim();
     const maxP = parseInt(maxPlayersInput.value) || 4;
     const time = parseInt(timeLimitInput.value) || 240;
+    const gm = gameModeSelect.value || "deathmatch";
     const pw = passwordInput.value.trim();
 
     let finalId = id;
@@ -1007,6 +1141,7 @@ const setupLobby = () => {
         mapId: "alpha", // Fix to alpha for now
         maxPlayers: maxP,
         timeLimitSec: time,
+        gameMode: gm as "deathmatch" | "ctf",
         password: pw || undefined,
       },
     });

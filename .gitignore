@@ -7,3 +7,7 @@ shared/dist/
 node_modules
 dist
 .env
+*.log
+logs.txt
+.claude/
+.gemini/

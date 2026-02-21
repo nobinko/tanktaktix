@@ -4,12 +4,23 @@ export type Vector2 = {
 };
 
 export type Team = "red" | "blue" | null;
+export type ItemType = "medic" | "ammo";
+export type WallType = "wall" | "bush" | "water";
+
+export type Item = {
+  id: string;
+  x: number;
+  y: number;
+  type: ItemType;
+  spawnedAt: number;
+};
 
 export type Wall = {
   x: number;
   y: number;
   width: number;
   height: number;
+  type?: WallType;
 };
 
 export type MapData = {
@@ -41,11 +52,14 @@ export type PlayerSummary = {
   turretAngle: number;    // turret facing direction (radians)
   respawnAt: number | null;
   respawnCooldownUntil: number | null; // Indicates until when the player is invincible and cannot act
+  isHidden: boolean;      // True if the player is in a bush and not visible to enemies
+  lastFiredAt: number;    // Used to reveal player shortly after shooting
 };
 
 export type RoomSummary = {
   id: string;
   name: string;
+  gameMode: "deathmatch" | "ctf";
   mapId: string;
   mapData?: MapData; // simple way to sync map for now
   maxPlayers: number;
@@ -83,8 +97,18 @@ export type RoomState = {
   bullets: BulletPublic[];
   explosions: Explosion[];
   timeLeftSec: number;
+  gameMode: "deathmatch" | "ctf";
   teamScores: { red: number; blue: number };
   mapData: MapData;
+  flags?: Flag[]; // Only for CTF
+  items: Item[];
+};
+
+export type Flag = {
+  team: Team; // "red" or "blue"
+  x: number;
+  y: number;
+  carrierId: string | null; // ID of player holding it
 };
 
 export type ChatMessage = {
@@ -96,7 +120,7 @@ export type ChatMessage = {
 export type ClientToServerMessage =
   | {
     type: "login";
-    payload: { name: string };
+    payload: { name: string; id?: string };
   }
   | {
     type: "requestLobby";
@@ -109,6 +133,7 @@ export type ClientToServerMessage =
       mapId: string;
       maxPlayers: number;
       timeLimitSec: number;
+      gameMode?: "deathmatch" | "ctf";
       password?: string;
     };
   }

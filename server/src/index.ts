@@ -4,7 +4,11 @@ import express from "express";
 import http from "http";
 import * as path from "path";
 import { WebSocket, WebSocketServer } from "ws";
-import type { BulletPublic, MapData, Team, Wall, Explosion } from "@tanktaktix/shared"; // Assumes shared is linked/built
+import type {
+  BulletPublic, Explosion, MapData, PlayerSummary, RoomState, Team, Vector2,
+  Item, ItemType, Wall, WallType, Flag
+} from "@tanktaktix/shared";
+// Assumes shared is linked/built
 
 /**
  * server/src/index.ts
@@ -24,7 +28,7 @@ process.on("unhandledRejection", (reason, promise) => {
   console.error("Unhandled Rejection at:", promise, "reason:", reason);
 });
 
-type Vector2 = { x: number; y: number };
+
 
 type ClientMsg = { type: string; payload?: unknown };
 type ServerMsg = { type: string; payload?: unknown };
@@ -63,8 +67,11 @@ type PlayerRuntime = {
 
   respawnAt: number | null;
   respawnCooldownUntil: number; // Instant respawn cooldown end time
+  isHidden: boolean;
+  lastFiredAt: number;
 
-  socket: WebSocket;
+  socket: WebSocket | null; // Null if disconnected but keeping state for rejoin
+  disconnectedAt: number | null;
 };
 
 type Bullet = {
@@ -94,10 +101,14 @@ type Room = {
   createdAt: number;
   endsAt: number;
   ended: boolean;
+  gameMode: "deathmatch" | "ctf";
 
   playerIds: Set<string>;
   bullets: Bullet[];
   explosions: Explosion[]; // Transient events to sync
+  items: Item[];           // Persistent items on map
+  lastItemSpawnAt: number;
+  flags: Flag[];           // CTF: current flag states
   scoreRed: number;
   scoreBlue: number;
   history: Map<string, {
@@ -145,6 +156,17 @@ const BULLET_TTL_MS = Math.ceil((BULLET_RANGE / BULLET_SPEED) * 1000);
 const EXPLOSION_RADIUS = 40; // AoE radius
 const EXPLOSION_DAMAGE = 20; // AoE damage
 const HIT_RADIUS = TANK_SIZE; // Hitbox radius
+const REVEAL_DURATION_MS = 1000;
+const RECONNECT_TIMEOUT_MS = 60000;
+
+const FLAG_RADIUS = 25; // Detection radius for taking/capturing
+const FLAG_SCORE = 100; // Team score for capturing a flag
+
+const ITEM_SPAWN_INTERVAL_MS = 10000; // Spawn an item every 10 seconds
+const ITEM_MAX_COUNT = 15;
+const ITEM_RADIUS = 15;
+const MEDIC_HEAL_AMOUNT = 20;
+const AMMO_REFILL_AMOUNT = 10;
 
 // --- Maps (all 1800×1040) ---
 
@@ -154,15 +176,15 @@ const MAP_ALPHA: MapData = {
   width: 1800,
   height: 1040,
   walls: [
-    { x: 600,  y: 200, width: 60,  height: 440 },  // 左縦壁
-    { x: 1140, y: 400, width: 60,  height: 440 },  // 右縦壁（下寄せ）
-    { x: 180,  y: 160, width: 220, height: 60  },  // 左上カバー
-    { x: 1400, y: 820, width: 220, height: 60  },  // 右下カバー
-    { x: 840,  y: 460, width: 120, height: 120 },  // 中央アイランド
+    { x: 600, y: 200, width: 60, height: 440 },  // 左縦壁
+    { x: 1140, y: 400, width: 60, height: 440 },  // 右縦壁（下寄せ）
+    { x: 180, y: 160, width: 220, height: 60 },  // 左上カバー
+    { x: 1400, y: 820, width: 220, height: 60 },  // 右下カバー
+    { x: 840, y: 460, width: 120, height: 120 },  // 中央アイランド
   ],
   spawnPoints: [
-    { team: "red",  x: 120,  y: 260 },
-    { team: "red",  x: 120,  y: 780 },
+    { team: "red", x: 120, y: 260 },
+    { team: "red", x: 120, y: 780 },
     { team: "blue", x: 1680, y: 260 },
     { team: "blue", x: 1680, y: 780 },
   ],
@@ -174,18 +196,18 @@ const MAP_BETA: MapData = {
   width: 1800,
   height: 1040,
   walls: [
-    { x: 400,  y: 180, width: 60,  height: 280 },  // 左上ピラー
-    { x: 400,  y: 580, width: 60,  height: 280 },  // 左下ピラー
-    { x: 870,  y: 120, width: 60,  height: 340 },  // 中央上ピラー
-    { x: 870,  y: 580, width: 60,  height: 340 },  // 中央下ピラー
-    { x: 1340, y: 180, width: 60,  height: 280 },  // 右上ピラー
-    { x: 1340, y: 580, width: 60,  height: 280 },  // 右下ピラー
-    { x: 160,  y: 460, width: 180, height: 60  },  // 左横カバー
-    { x: 1460, y: 520, width: 180, height: 60  },  // 右横カバー
+    { x: 400, y: 180, width: 60, height: 280 },  // 左上ピラー
+    { x: 400, y: 580, width: 60, height: 280 },  // 左下ピラー
+    { x: 870, y: 120, width: 60, height: 340 },  // 中央上ピラー
+    { x: 870, y: 580, width: 60, height: 340 },  // 中央下ピラー
+    { x: 1340, y: 180, width: 60, height: 280 },  // 右上ピラー
+    { x: 1340, y: 580, width: 60, height: 280 },  // 右下ピラー
+    { x: 160, y: 460, width: 180, height: 60 },  // 左横カバー
+    { x: 1460, y: 520, width: 180, height: 60 },  // 右横カバー
   ],
   spawnPoints: [
-    { team: "red",  x: 80,   y: 200 },
-    { team: "red",  x: 80,   y: 840 },
+    { team: "red", x: 80, y: 200 },
+    { team: "red", x: 80, y: 840 },
     { team: "blue", x: 1720, y: 200 },
     { team: "blue", x: 1720, y: 840 },
   ],
@@ -197,20 +219,39 @@ const MAP_GAMMA: MapData = {
   width: 1800,
   height: 1040,
   walls: [
-    { x: 560,  y: 200, width: 60,  height: 260 },  // 要塞 左上縦
-    { x: 1180, y: 200, width: 60,  height: 260 },  // 要塞 右上縦
-    { x: 560,  y: 580, width: 60,  height: 260 },  // 要塞 左下縦
-    { x: 1180, y: 580, width: 60,  height: 260 },  // 要塞 右下縦
-    { x: 620,  y: 200, width: 560, height: 60  },  // 要塞 上辺
-    { x: 620,  y: 780, width: 560, height: 60  },  // 要塞 下辺
-    { x: 200,  y: 440, width: 240, height: 60  },  // 左外カバー
-    { x: 1360, y: 540, width: 240, height: 60  },  // 右外カバー
+    { x: 560, y: 200, width: 60, height: 260 },  // 要塞 左上縦
+    { x: 1180, y: 200, width: 60, height: 260 },  // 要塞 右上縦
+    { x: 560, y: 580, width: 60, height: 260 },  // 要塞 左下縦
+    { x: 1180, y: 580, width: 60, height: 260 },  // 要塞 右下縦
+    { x: 620, y: 200, width: 560, height: 60 },  // 要塞 上辺
+    { x: 620, y: 780, width: 560, height: 60 },  // 要塞 下辺
+    { x: 200, y: 440, width: 240, height: 60 },  // 左外カバー
+    { x: 1360, y: 540, width: 240, height: 60 },  // 右外カバー
   ],
   spawnPoints: [
-    { team: "red",  x: 100,  y: 300 },
-    { team: "red",  x: 100,  y: 740 },
+    { team: "red", x: 100, y: 300 },
+    { team: "red", x: 100, y: 740 },
     { team: "blue", x: 1700, y: 300 },
     { team: "blue", x: 1700, y: 740 },
+  ],
+};
+
+
+
+/** delta — 自然: 中央に大きな水場とブッシュの隠れ家 */
+const MAP_DELTA: MapData = {
+  id: "delta",
+  width: 1800,
+  height: 1040,
+  walls: [
+    { x: 300, y: 300, width: 300, height: 440, type: "bush" },
+    { x: 1200, y: 300, width: 300, height: 440, type: "water" },
+    { x: 850, y: 100, width: 100, height: 300, type: "wall" },
+    { x: 850, y: 640, width: 100, height: 300, type: "wall" },
+  ],
+  spawnPoints: [
+    { team: "red", x: 100, y: 520 },
+    { team: "blue", x: 1700, y: 520 },
   ],
 };
 
@@ -218,8 +259,9 @@ const DEFAULT_MAP = MAP_ALPHA;
 
 const MAPS: Record<string, MapData> = {
   alpha: MAP_ALPHA,
-  beta:  MAP_BETA,
+  beta: MAP_BETA,
   gamma: MAP_GAMMA,
+  delta: MAP_DELTA,
 };
 
 // --- utils ---
@@ -250,13 +292,17 @@ function normalizeAngle(a: number): number {
 
 function checkWallCollision(x: number, y: number, r: number, walls: Wall[]): boolean {
   for (const w of walls) {
-    if (
-      x + r > w.x &&
-      x - r < w.x + w.width &&
-      y + r > w.y &&
-      y - r < w.y + w.height
-    ) {
-      return true;
+    // Tank is blocked by regular walls and water
+    const type = w.type || "wall";
+    if (type === "wall" || type === "water") {
+      if (
+        x + r > w.x &&
+        x - r < w.x + w.width &&
+        y + r > w.y &&
+        y - r < w.y + w.height
+      ) {
+        return true;
+      }
     }
   }
   return false;
@@ -264,8 +310,22 @@ function checkWallCollision(x: number, y: number, r: number, walls: Wall[]): boo
 
 function checkPointInWall(x: number, y: number, walls: Wall[]): boolean {
   for (const w of walls) {
-    if (x >= w.x && x <= w.x + w.width && y >= w.y && y <= w.y + w.height) {
-      return true;
+    const type = w.type || "wall";
+    if (type === "wall" || type === "water") {
+      if (x >= w.x && x <= w.x + w.width && y >= w.y && y <= w.y + w.height) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+function isPointInBush(x: number, y: number, walls: Wall[]): boolean {
+  for (const w of walls) {
+    if (w.type === "bush") {
+      if (x >= w.x && x <= w.x + w.width && y >= w.y && y <= w.y + w.height) {
+        return true;
+      }
     }
   }
   return false;
@@ -281,6 +341,18 @@ function distPointToSegment(
   let t = ((p.x - v.x) * (w.x - v.x) + (p.y - v.y) * (w.y - v.y)) / l2;
   t = Math.max(0, Math.min(1, t));
   return Math.hypot(p.x - (v.x + t * (w.x - v.x)), p.y - (v.y + t * (w.y - v.y)));
+}
+
+function isBulletBlockedByWall(x: number, y: number, walls: Wall[]): boolean {
+  for (const w of walls) {
+    const type = w.type || "wall";
+    if (type === "wall") {
+      if (x >= w.x && x <= w.x + w.width && y >= w.y && y <= w.y + w.height) {
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 /**
@@ -381,11 +453,11 @@ function pickVector2(v: unknown, fallback: Vector2): Vector2 {
 
 function newId() {
   if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
-  return `${Math.random().toString(16).slice(2)}-${Math.random().toString(16).slice(2)}`;
+  return `${Math.random().toString(16).slice(2)} -${Math.random().toString(16).slice(2)} `;
 }
 
-function send(ws: WebSocket, msg: ServerMsg) {
-  if (ws.readyState !== WebSocket.OPEN) return;
+function send(ws: WebSocket | null, msg: ServerMsg) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
   ws.send(JSON.stringify(msg));
 }
 
@@ -447,6 +519,7 @@ function toRoomSummary(r: Room) {
     createdAt: r.createdAt,
     endsAt: r.endsAt,
     ended: r.ended,
+    gameMode: r.gameMode,
     players: playerIds,
     playerCount: playerIds.length,
   };
@@ -462,48 +535,46 @@ function lobbyStatePayload() {
     .filter(p => !p.roomId)
     .map(p => ({ id: p.id, name: p.name }));
 
-  // console.log(`[DEBUG] Lobby Payload: ${onlinePlayers.length} online, ${list.length} rooms`);
+  // console.log(`[DEBUG] Lobby Payload: ${ onlinePlayers.length } online, ${ list.length } rooms`);
 
   return { rooms: list, onlinePlayers };
 }
 
-function roomStatePayload(roomId: string) {
+function roomStatePayloadForPlayer(roomId: string, recipient: PlayerRuntime) {
   const room = rooms.get(roomId);
-  if (!room) {
-    return {
-      roomId,
-      roomName: roomId,
-      timeLeftSec: 0,
-      timeLeft: 0,
-      room: null,
-      players: [],
-      bullets: [],
-      projectiles: [],
-      explosions: [], // added
-    };
-  }
+  if (!room) return null;
 
   const timeLeftSec = Math.max(0, Math.ceil((room.endsAt - nowMs()) / 1000));
-  // Removed duplicate gameEnd logic from here. Handled in tick().
 
+  const ps = [...room.playerIds]
+    .map(pid => players.get(pid))
+    .filter((p): p is PlayerRuntime => !!p)
+    .filter(p => {
+      // Visibility Logic (B-2/B-5)
+      if (p.id === recipient.id) return true; // Always see self
+      if (p.team && p.team === recipient.team) return true; // Always see teammates
+      return !p.isHidden; // Only see enemies if not hidden
+    })
+    .map(toPlayerPublic);
 
-  const ps = [...room.playerIds].map(pid => players.get(pid)).filter((p): p is PlayerRuntime => !!p).map(toPlayerPublic);
   const bs = room.bullets.map(toBulletPublic);
-  const es = room.explosions; // Sync current frame explosions
+  const es = room.explosions;
 
   return {
     roomId: room.id,
     roomName: room.name,
     mapId: room.mapId,
     timeLeftSec,
-    timeLeft: timeLeftSec,
     room: toRoomSummary(room),
     players: ps,
     bullets: bs,
     projectiles: bs,
     explosions: es,
+    gameMode: room.gameMode,
     teamScores: { red: room.scoreRed, blue: room.scoreBlue },
     mapData: room.mapData,
+    flags: room.gameMode === "ctf" ? room.flags : undefined,
+    items: room.items,
   };
 }
 
@@ -525,7 +596,14 @@ function broadcastRoom(roomId: string, msg: ServerMsg) {
 }
 
 function sendRoomState(roomId: string) {
-  broadcastRoom(roomId, { type: "room", payload: roomStatePayload(roomId) });
+  const room = rooms.get(roomId);
+  if (!room) return;
+  for (const pid of room.playerIds) {
+    const p = players.get(pid);
+    if (!p || p.roomId !== roomId) continue;
+    const payload = roomStatePayloadForPlayer(roomId, p);
+    if (payload) send(p.socket, { type: "room", payload });
+  }
 }
 
 function detachFromRoom(p: PlayerRuntime) {
@@ -540,7 +618,7 @@ function detachFromRoom(p: PlayerRuntime) {
         console.log(`Room ${old.id} is empty but kept because time remains.`);
       } else {
         rooms.delete(old.id);
-        console.log(`Room ${old.id} deleted (empty & time up).`);
+        console.log(`Room ${old.id} deleted(empty & time up).`);
       }
     }
   }
@@ -566,7 +644,7 @@ function assignTeam(room: Room): Team {
   let blue = 0;
   for (const pid of room.playerIds) {
     const p = players.get(pid);
-    // console.log(`[AssignTeam] Checking ${pid}: Team=${p?.team}`);
+    // console.log(`[AssignTeam] Checking ${ pid }: Team = ${ p?.team } `);
     if (p?.team === "red") red++;
     if (p?.team === "blue") blue++;
   }
@@ -579,37 +657,55 @@ function spawnPlayer(p: PlayerRuntime, room: Room) {
   let baseX: number;
   let baseY: number;
 
-  if (teamSpawns.length > 0) {
-    const sp = teamSpawns[Math.floor(Math.random() * teamSpawns.length)];
-    p.x = clamp(sp.x + (Math.random() * 80 - 40), TANK_SIZE, map.width - TANK_SIZE);
-    p.y = clamp(sp.y + (Math.random() * 80 - 40), TANK_SIZE, map.height - TANK_SIZE);
-    baseX = sp.x;
-    baseY = sp.y;
-  } else {
-    p.x = 150 + Math.random() * 200;
-    p.y = 150 + Math.random() * 200;
-    baseX = p.x;
-    baseY = p.y;
+  const otherPlayers = Array.from(room.playerIds)
+    .map(id => players.get(id))
+    .filter(other => other && other.id !== p.id && other.hp > 0 && other.respawnAt === null);
+
+  let foundSpot = false;
+  let attempts = 0;
+
+  while (attempts < 20 && !foundSpot) {
+    if (teamSpawns.length > 0) {
+      const sp = teamSpawns[Math.floor(Math.random() * teamSpawns.length)];
+      baseX = sp.x;
+      baseY = sp.y;
+    } else {
+      baseX = 150 + Math.random() * 200;
+      baseY = 150 + Math.random() * 200;
+    }
+
+    const tx = clamp(baseX + (Math.random() * 80 - 40), TANK_SIZE, map.width - TANK_SIZE);
+    const ty = clamp(baseY + (Math.random() * 80 - 40), TANK_SIZE, map.height - TANK_SIZE);
+
+    // Check Wall
+    if (checkWallCollision(tx, ty, TANK_SIZE, map.walls)) {
+      attempts++;
+      continue;
+    }
+
+    // Check Players (TANK_SIZE is radius, so diam is TANK_SIZE*2)
+    const tooClose = otherPlayers.some(other => {
+      if (!other) return false;
+      return Math.hypot(tx - other.x, ty - other.y) < TANK_SIZE * 2.2; // 2.2 for a bit of margin
+    });
+
+    if (tooClose) {
+      attempts++;
+      continue;
+    }
+
+    p.x = tx;
+    p.y = ty;
+    foundSpot = true;
   }
 
-  // If spawned inside a wall, scan nearby area for a free cell
-  if (checkWallCollision(p.x, p.y, TANK_SIZE, map.walls)) {
-    let escaped = false;
-    for (let dx = -120; dx <= 120 && !escaped; dx += 20) {
-      for (let dy = -120; dy <= 120 && !escaped; dy += 20) {
-        const nx = clamp(baseX + dx, TANK_SIZE, map.width - TANK_SIZE);
-        const ny = clamp(baseY + dy, TANK_SIZE, map.height - TANK_SIZE);
-        if (!checkWallCollision(nx, ny, TANK_SIZE, map.walls)) {
-          p.x = nx;
-          p.y = ny;
-          escaped = true;
-        }
-      }
-    }
-    // Fallback: place at spawn base (wall may be too thick to escape)
-    if (!escaped) {
-      p.x = baseX;
-      p.y = baseY;
+  // Fallback if no perfect spot found: use last attempts' coordinates or just spawn anyway
+  if (!foundSpot) {
+    console.log(`[DEBUG] Could not find perfectly clear spawn spot for ${p.id}, spawning at default.`);
+    if (teamSpawns.length > 0) {
+      const sp = teamSpawns[0];
+      p.x = sp.x;
+      p.y = sp.y;
     }
   }
 
@@ -626,6 +722,36 @@ function spawnPlayer(p: PlayerRuntime, room: Room) {
   p.turretAngle = 0;
   // Stats (score/kills/deaths/hits/fired) are NOT reset here.
   // They are reset once in joinRoom() at initial spawn only.
+}
+
+function spawnItem(room: Room) {
+  if (room.items.length >= ITEM_MAX_COUNT) return;
+
+  const map = room.mapData;
+  let x = 0, y = 0;
+  let attempts = 0;
+  let found = false;
+
+  while (attempts < 20 && !found) {
+    x = Math.random() * (map.width - 100) + 50;
+    y = Math.random() * (map.height - 100) + 50;
+    if (!checkWallCollision(x, y, ITEM_RADIUS, map.walls)) {
+      found = true;
+    }
+    attempts++;
+  }
+
+  if (found) {
+    const type: ItemType = Math.random() > 0.5 ? "medic" : "ammo";
+    const item: Item = {
+      id: newId(),
+      x,
+      y,
+      type,
+      spawnedAt: nowMs(),
+    };
+    room.items.push(item);
+  }
 }
 
 function joinRoom(p: PlayerRuntime, roomId: string, password?: string) {
@@ -648,7 +774,7 @@ function joinRoom(p: PlayerRuntime, roomId: string, password?: string) {
   p.team = assignTeam(room);
 
   // Update History
-  const safeName = (p.name && p.name.trim().length > 0) ? p.name : `Player-${p.id.slice(0, 4)}`;
+  const safeName = (p.name && p.name.trim().length > 0) ? p.name : `Player - ${p.id.slice(0, 4)} `;
   room.history.set(p.id, {
     name: safeName,
     team: p.team,
@@ -822,6 +948,11 @@ function triggerExplosion(room: Room, x: number, y: number, shooterId: string) {
             th.score = target.score;
           }
 
+          // CTF: Drop flag if carrying one
+          if (room.gameMode === "ctf") {
+            dropFlag(target.id, room);
+          }
+
           // Instant Respawn Logic
           spawnPlayer(target, room);
           // Instead of delayed respawn, apply instant respawn with cooldown
@@ -858,6 +989,8 @@ function tryShoot(p: PlayerRuntime, dir: Vector2) {
     }
   }
 
+  p.lastFiredAt = now;
+
   // Trigger Cooldown immediately
   p.cooldownUntil = now + ACTION_COOLDOWN_MS;
 
@@ -888,8 +1021,118 @@ function tryShoot(p: PlayerRuntime, dir: Vector2) {
 
   // Lock turret to shot direction
   p.turretAngle = Math.atan2(d.y, d.x);
-
   sendRoomState(p.roomId);
+}
+
+function dropFlag(carrierId: string, room: Room) {
+  for (const f of room.flags) {
+    if (f.carrierId === carrierId) {
+      console.log(`[DEBUG] Flag ${f.team} dropped by ${carrierId}`);
+      f.carrierId = null;
+      // Flag stays where it was (which should be the carrier's last pos)
+    }
+  }
+}
+
+function updateCTF(room: Room, now: number) {
+  if (room.gameMode !== "ctf") return;
+
+  for (const f of room.flags) {
+    // 1. Follow carrier
+    if (f.carrierId) {
+      const carrier = players.get(f.carrierId);
+      if (carrier && carrier.hp > 0 && carrier.roomId === room.id) {
+        f.x = carrier.x;
+        f.y = carrier.y;
+
+        // Check for capture: carrier brings enemy flag to their own base
+        // Carrier's team: carrier.team
+        // Flag's team: f.team (it's the enemy flag if carrier.team !== f.team)
+        if (carrier.team && carrier.team !== f.team) {
+          const mySpawn = room.mapData.spawnPoints.find(s => s.team === carrier.team);
+          const distToBase = mySpawn ? Math.hypot(carrier.x - mySpawn.x, carrier.y - mySpawn.y) : Infinity;
+
+          // Rule: Must be inside base AND stopped (quiesce) to capture
+          const isStopped = !carrier.isMoving && !carrier.isRotating;
+
+          if (distToBase < FLAG_RADIUS && isStopped) {
+            // CAPTURE!
+            console.log(`[DEBUG] Team ${carrier.team} captured ${f.team} flag!`);
+            if (carrier.team === "red") room.scoreRed += FLAG_SCORE;
+            else if (carrier.team === "blue") room.scoreBlue += FLAG_SCORE;
+
+            // Return flag to its original base
+            const originalSpawn = room.mapData.spawnPoints.find(s => s.team === f.team);
+            if (originalSpawn) {
+              f.x = originalSpawn.x;
+              f.y = originalSpawn.y;
+            }
+            f.carrierId = null;
+
+            // Update stats
+            carrier.score += 5; // Personal bonus
+            const h = room.history.get(carrier.id);
+            if (h) h.score = carrier.score;
+
+            broadcastRoom(room.id, {
+              type: "chat",
+              payload: {
+                from: "SYSTEM",
+                message: `🚩 Team ${carrier.team.toUpperCase()} captured the ${f.team} flag!`,
+                timestamp: now
+              }
+            });
+          }
+        }
+      } else {
+        // Carrier lost/dead/left
+        f.carrierId = null;
+      }
+    } else {
+      // 2. Pickup
+      for (const pid of room.playerIds) {
+        const p = players.get(pid);
+        if (!p || p.hp <= 0 || p.respawnAt || p.respawnCooldownUntil > now) continue;
+
+        const dist = Math.hypot(p.x - f.x, p.y - f.y);
+        if (dist < FLAG_RADIUS + TANK_SIZE) {
+          if (p.team !== f.team) {
+            // Enemy touches flag -> Take it
+            // Check if player already carrying a flag? (Usually only 1 flag per team, but safe check)
+            const alreadyCarrying = room.flags.some(otherF => otherF.carrierId === p.id);
+            if (!alreadyCarrying) {
+              f.carrierId = p.id;
+              console.log(`[DEBUG] CTF Pickup! Player ${p.id} (${p.team}) took ${f.team} flag. Dist: ${dist.toFixed(1)}`);
+              broadcastRoom(room.id, {
+                type: "chat",
+                payload: {
+                  from: "SYSTEM",
+                  message: `🚩 ${p.name} has the ${f.team} flag!`,
+                  timestamp: now
+                }
+              });
+            }
+          } else {
+            // Friendly touches flag -> Return to base IF it's not at base
+            const spawn = room.mapData.spawnPoints.find(s => s.team === f.team);
+            if (spawn && (Math.abs(f.x - spawn.x) > 1 || Math.abs(f.y - spawn.y) > 1)) {
+              console.log(`[DEBUG] Team ${f.team} flag returned to base by ${p.id}`);
+              f.x = spawn.x;
+              f.y = spawn.y;
+              broadcastRoom(room.id, {
+                type: "chat",
+                payload: {
+                  from: "SYSTEM",
+                  message: `🏠 The ${f.team} flag was returned to base.`,
+                  timestamp: now
+                }
+              });
+            }
+          }
+        }
+      }
+    }
+  }
 }
 
 function updateBullets(room: Room, dtSec: number, now: number) {
@@ -911,8 +1154,8 @@ function updateBullets(room: Room, dtSec: number, now: number) {
     const prev = { x: b.x, y: b.y };
     const curr = { x: b.x + b.vx * dtSec, y: b.y + b.vy * dtSec };
 
-    // 2. Wall Collision -> Explode
-    if (checkPointInWall(curr.x, curr.y, room.mapData.walls)) {
+    // 2. Wall Collision -> Explode (Only type "wall" blocks bullets)
+    if (isBulletBlockedByWall(curr.x, curr.y, room.mapData.walls)) {
       triggerExplosion(room, curr.x, curr.y, b.shooterId);
       exploded = true;
     }
@@ -993,13 +1236,27 @@ function tick() {
   const dtSec = Math.min(0.1, Math.max(0.001, (now - lastTickAt) / 1000));
   lastTickAt = now;
 
+  // Cleanup disconnected players (B-3)
+  for (const [pid, p] of players.entries()) {
+    if (p.disconnectedAt !== null && now - p.disconnectedAt > RECONNECT_TIMEOUT_MS) {
+      console.log(`[DEBUG] Player ${pid} reconnection timeout.Cleaning up.`);
+      detachFromRoom(p);
+      players.delete(pid);
+    }
+  }
+
   for (const room of rooms.values()) {
     // Clear old explosions for state sync (visuals are one-shot via broadcast, but state keeps for late joiners/re-sync if needed)
     // Actually, just clear them every tick from the "State" object to avoid piling up?
     // Client handles "event" based explosion. State persistence is only needed for 1 tick.
     room.explosions = [];
 
-    // if (room.ended) continue; // Removed to allow post-game updates (chat, physics)
+    // Periodic Item Spawning
+    if (!room.ended && now - room.lastItemSpawnAt >= ITEM_SPAWN_INTERVAL_MS) {
+      spawnItem(room);
+      room.lastItemSpawnAt = now;
+      // broadcastLobby()? No, sendRoomState covers it.
+    }
 
     if (room.endsAt > 0 && now >= room.endsAt) {
       if (!room.ended) {
@@ -1030,8 +1287,8 @@ function tick() {
           room.scoreRed > room.scoreBlue ? "red" :
             room.scoreBlue > room.scoreRed ? "blue" : "draw";
 
-        console.log(`[DEBUG] GameEnd Room ${room.id}. Winner: ${winners}`);
-        console.log(`[DEBUG] Results Payload:`, JSON.stringify(results, null, 2));
+        console.log(`[DEBUG] GameEnd Room ${room.id}.Winner: ${winners} `);
+        console.log(`[DEBUG] Results Payload: `, JSON.stringify(results, null, 2));
 
         broadcastRoom(room.id, {
           type: "gameEnd",
@@ -1066,6 +1323,11 @@ function tick() {
         spawnPlayer(p, room);
       }
       if (p.respawnAt && p.respawnAt > now) continue;
+
+      // Update visibility (B-2/B-5)
+      const inBush = isPointInBush(p.x, p.y, room.mapData.walls);
+      const revealByShooting = (now - p.lastFiredAt < REVEAL_DURATION_MS);
+      p.isHidden = inBush && !revealByShooting;
 
       // Movement Logic (with pivot-turn phase)
       let wantsToMove = false;
@@ -1169,6 +1431,33 @@ function tick() {
           p.cooldownUntil = now + ACTION_COOLDOWN_MS;
         }
       }
+
+      // Check Item Pickups
+      if (!room.ended && p.hp > 0 && !p.respawnAt) {
+        const nextItems: Item[] = [];
+        let pickedAny = false;
+        for (const item of room.items) {
+          const dist = Math.hypot(p.x - item.x, p.y - item.y);
+          if (dist < TANK_SIZE + ITEM_RADIUS) {
+            // Pickup!
+            if (item.type === "medic") {
+              p.hp = Math.min(100, p.hp + MEDIC_HEAL_AMOUNT);
+            } else if (item.type === "ammo") {
+              p.ammo = Math.min(50, p.ammo + AMMO_REFILL_AMOUNT);
+            }
+            pickedAny = true;
+          } else {
+            nextItems.push(item);
+          }
+        }
+        if (pickedAny) {
+          room.items = nextItems;
+        }
+      }
+    }
+
+    if (room.gameMode === "ctf") {
+      updateCTF(room, now);
     }
 
     updateBullets(room, dtSec, now);
@@ -1207,7 +1496,7 @@ app.get("/", (_req, res) => {
     res.sendFile(PUBLIC_INDEX);
     return;
   }
-  res.status(500).send(`client build not found. npm run build`);
+  res.status(500).send(`client build not found.npm run build`);
 });
 app.use((req, res, next) => {
   if (req.method !== "GET") return next();
@@ -1221,10 +1510,10 @@ const server = http.createServer(app);
 const wss = new WebSocketServer({ server, path: "/ws" });
 
 wss.on("connection", (socket) => {
-  const playerId = newId();
+  let boundPlayerId = newId();
   const p: PlayerRuntime = {
-    id: playerId,
-    name: `Player-${playerId.slice(0, 4)}`,
+    id: boundPlayerId,
+    name: `Player - ${boundPlayerId.slice(0, 4)} `,
     team: null,
     x: 150, y: 150,
     hp: 100, ammo: 20,
@@ -1238,11 +1527,14 @@ wss.on("connection", (socket) => {
     isMoving: false, cooldownUntil: 0,
     respawnAt: null,
     respawnCooldownUntil: 0,
+    isHidden: false,
+    lastFiredAt: 0,
     socket,
+    disconnectedAt: null,
   };
 
-  players.set(playerId, p);
-  send(socket, { type: "welcome", payload: { id: playerId } });
+  players.set(boundPlayerId, p);
+  send(socket, { type: "welcome", payload: { id: boundPlayerId } });
   send(socket, { type: "lobby", payload: lobbyStatePayload() });
 
   socket.on("message", (raw) => {
@@ -1250,15 +1542,43 @@ wss.on("connection", (socket) => {
     if (!isRecord(msg)) return;
     const type = pickString(msg.type, "");
     const payload = (msg as ClientMsg).payload;
-    const player = players.get(playerId);
+    const player = players.get(boundPlayerId);
     if (!player) return;
 
     switch (type) {
       case "login": {
         const pld = isRecord(payload) ? payload : {};
         const name = pickString(pld.name, "").trim();
+        const reclaimId = pickString(pld.id, "");
+
+        if (reclaimId && players.has(reclaimId)) {
+          const existing = players.get(reclaimId)!;
+          if (existing.disconnectedAt !== null) {
+            console.log(`[DEBUG] Player ${reclaimId} re - claiming their session.`);
+
+            // Cleanup the temporary guest ID created on connection
+            players.delete(boundPlayerId);
+
+            // Re-claim session
+            boundPlayerId = reclaimId; // Update the ID this connection points to
+            existing.socket = socket;
+            existing.disconnectedAt = null;
+
+            // Re-assign local variable for subsequent switch cases
+            const reclaimedPlayer = existing;
+            send(socket, { type: "welcome", payload: { id: reclaimedPlayer.id } });
+
+            if (reclaimedPlayer.roomId) {
+              sendRoomState(reclaimedPlayer.roomId);
+            } else {
+              joinLobby(reclaimedPlayer);
+            }
+            return; // Exit wss.on('message') early as we swapped players
+          }
+        }
+
         if (name) player.name = name.slice(0, 16);
-        send(socket, { type: "welcome", payload: { id: playerId } });
+        send(socket, { type: "welcome", payload: { id: boundPlayerId } });
         joinLobby(player); // Trigger lobby update and broadcast
         break;
       }
@@ -1285,11 +1605,25 @@ wss.on("connection", (socket) => {
         const createdAt = nowMs();
         const endsAt = createdAt + timeLimitSec * 1000;
         const mapData = MAPS[mapId] ?? DEFAULT_MAP;
+        const gameMode = (pickString(pld.gameMode, "deathmatch") === "ctf") ? "ctf" : "deathmatch";
+
+        const flags: Flag[] = [];
+        if (gameMode === "ctf") {
+          // Initialize flags at spawn points
+          const redSpawn = mapData.spawnPoints.find(s => s.team === "red");
+          const blueSpawn = mapData.spawnPoints.find(s => s.team === "blue");
+          if (redSpawn) flags.push({ team: "red", x: redSpawn.x, y: redSpawn.y, carrierId: null });
+          if (blueSpawn) flags.push({ team: "blue", x: blueSpawn.x, y: blueSpawn.y, carrierId: null });
+        }
+
         const room: Room = {
           id: roomId, name: roomName, mapId, mapData,
           passwordProtected, password: passwordProtected ? password : undefined,
+          gameMode,
           maxPlayers, timeLimitSec, createdAt, endsAt, ended: false,
           playerIds: new Set<string>(), bullets: [], explosions: [],
+          items: [], lastItemSpawnAt: createdAt,
+          flags,
           scoreRed: 0, scoreBlue: 0,
           history: new Map(),
         };
@@ -1324,7 +1658,7 @@ wss.on("connection", (socket) => {
             ? pickVector2(pld.target, { x: player.x, y: player.y })
             : { x: pickNumber(pld.x, player.x), y: pickNumber(pld.y, player.y) };
           const moveRoom = player.roomId ? rooms.get(player.roomId) : null;
-          const mw = moveRoom?.mapData.width  ?? 1800;
+          const mw = moveRoom?.mapData.width ?? 1800;
           const mh = moveRoom?.mapData.height ?? 1040;
           setMoveTarget(player, t, mw, mh);
         } else {
@@ -1394,8 +1728,12 @@ wss.on("connection", (socket) => {
   });
 
   socket.on("close", () => {
-    detachFromRoom(p);
-    players.delete(playerId);
+    const p = players.get(boundPlayerId);
+    if (p) {
+      console.log(`[DEBUG] Player ${boundPlayerId} socket closed.Waiting for rejoin...`);
+      p.socket = null;
+      p.disconnectedAt = nowMs();
+    }
   });
 });
 

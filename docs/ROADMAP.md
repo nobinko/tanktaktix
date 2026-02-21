@@ -1,12 +1,11 @@
 # TankTaktix Project Roadmap
 
 ## Current Project Status (2026-02-21)
-**State:** Phase 1 COMPLETE. Phase 2 (MVP Verification) in progress (A-10, A-11 verified).
+**State:** Phase 1, 2, 3 COMPLETE. Phase 4 (Future Features) in consideration.
 **Latest Changes:**
-- **Verified MVP A-10 & A-11**: Camera controls (WASD/Rotate/Zoom) and Chat locks are confirmed.
-- **Fixed spawn logic**: Tanks no longer spawn inside walls; improved escapes.
-- **Fixed tank color logic**: Self tank now matches team color (Red/Blue).
-**Next Action:** Verify MVP requirements (A-Rank items in `docs/ACCEPTANCE.md`) before starting Phase 3 features.
+- **Completed Phase 3 (Should Features)**: Added Items, Obstacles (Bushes/Water), Reconnect, and CTF Mode.
+- **Refined CTF Rules**: Implemented standstill capture rule and respawn safety.
+**Next Action:** Research Phase 4: B-5/B-6 and C-Rank features (Map Editor, Advanced Minimap).
 
 ---
 
@@ -45,14 +44,14 @@
 
 ## Phase 3: "Should" Features Implementation (Next Steps)
 Bランク（推奨）項目の実装。ゲーム性を高めるための追加機能。
-- [ ] **B-1: アイテム実装**
-  - [ ] メディカルキット / アモ / ボム / 他
-- [ ] **B-2: 障害物の多様化**
-  - [ ] ブッシュ（隠蔽）、水場（通行不可・弾通過）、破壊可能壁など
-- [ ] **B-3 ~ B-6: その他機能**
-  - [ ] 再接続処理（Rejoin）
-  - [ ] フラッグ戦ルール
-  - [ ] 観戦モード
+- [x] **B-1: アイテム実装**
+  - [x] メディカルキット / アモパッケージ
+- [x] **B-2: 障害物の多様化**
+  - [x] ブッシュ（隠蔽）、水場（通行不可・弾通過）
+- [x] **B-3 ~ B-6: その他機能**
+  - [x] 再接続処理（Rejoin / セッション復帰）
+  - [x] フラッグ戦ルール（静止得点化、ドロップ/回収）
+  - [ ] 観戦モード (B-6)
 
 ## Phase 4: Future Features (Later)
 Cランク項目。

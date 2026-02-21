@@ -47,7 +47,7 @@ async function runTest() {
                 resolve(msg.payload);
             }
         };
-        ws1.on('message', handler);
+        ws2.on('message', handler);
     });
 
     // Wait for it
