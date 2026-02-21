@@ -116,8 +116,7 @@ const PORT = Number(process.env.PORT ?? 3000);
 // --- gameplay tuning ---
 const TICK_MS = 50;
 
-const MAP_W = 900;
-const MAP_H = 520;
+// MAP_W / MAP_H removed — use room.mapData.width / room.mapData.height instead
 
 const MOVE_SPEED = 6; // per tick
 
@@ -147,27 +146,80 @@ const EXPLOSION_RADIUS = 40; // AoE radius
 const EXPLOSION_DAMAGE = 20; // AoE damage
 const HIT_RADIUS = TANK_SIZE; // Hitbox radius
 
-// --- Maps ---
-const DEFAULT_MAP: MapData = {
+// --- Maps (all 1800×1040) ---
+
+/** alpha — クラシック: 縦壁2本＋角カバー＋中央アイランド */
+const MAP_ALPHA: MapData = {
   id: "alpha",
-  width: MAP_W,
-  height: MAP_H,
+  width: 1800,
+  height: 1040,
   walls: [
-    { x: 300, y: 150, width: 40, height: 220 },
-    { x: 560, y: 150, width: 40, height: 220 },
-    { x: 100, y: 100, width: 100, height: 40 },
-    { x: 700, y: 380, width: 100, height: 40 },
+    { x: 600,  y: 200, width: 60,  height: 440 },  // 左縦壁
+    { x: 1140, y: 400, width: 60,  height: 440 },  // 右縦壁（下寄せ）
+    { x: 180,  y: 160, width: 220, height: 60  },  // 左上カバー
+    { x: 1400, y: 820, width: 220, height: 60  },  // 右下カバー
+    { x: 840,  y: 460, width: 120, height: 120 },  // 中央アイランド
   ],
   spawnPoints: [
-    { team: "red", x: 80, y: 260 },
-    { team: "blue", x: 820, y: 260 },
-    { team: "red", x: 80, y: 460 },
-    { team: "blue", x: 820, y: 60 },
+    { team: "red",  x: 120,  y: 260 },
+    { team: "red",  x: 120,  y: 780 },
+    { team: "blue", x: 1680, y: 260 },
+    { team: "blue", x: 1680, y: 780 },
   ],
 };
 
+/** beta — アーバン: 6本縦ピラーで3コリドー＋左右カバー */
+const MAP_BETA: MapData = {
+  id: "beta",
+  width: 1800,
+  height: 1040,
+  walls: [
+    { x: 400,  y: 180, width: 60,  height: 280 },  // 左上ピラー
+    { x: 400,  y: 580, width: 60,  height: 280 },  // 左下ピラー
+    { x: 870,  y: 120, width: 60,  height: 340 },  // 中央上ピラー
+    { x: 870,  y: 580, width: 60,  height: 340 },  // 中央下ピラー
+    { x: 1340, y: 180, width: 60,  height: 280 },  // 右上ピラー
+    { x: 1340, y: 580, width: 60,  height: 280 },  // 右下ピラー
+    { x: 160,  y: 460, width: 180, height: 60  },  // 左横カバー
+    { x: 1460, y: 520, width: 180, height: 60  },  // 右横カバー
+  ],
+  spawnPoints: [
+    { team: "red",  x: 80,   y: 200 },
+    { team: "red",  x: 80,   y: 840 },
+    { team: "blue", x: 1720, y: 200 },
+    { team: "blue", x: 1720, y: 840 },
+  ],
+};
+
+/** gamma — フォート: 中央要塞＋外側カバー2個 */
+const MAP_GAMMA: MapData = {
+  id: "gamma",
+  width: 1800,
+  height: 1040,
+  walls: [
+    { x: 560,  y: 200, width: 60,  height: 260 },  // 要塞 左上縦
+    { x: 1180, y: 200, width: 60,  height: 260 },  // 要塞 右上縦
+    { x: 560,  y: 580, width: 60,  height: 260 },  // 要塞 左下縦
+    { x: 1180, y: 580, width: 60,  height: 260 },  // 要塞 右下縦
+    { x: 620,  y: 200, width: 560, height: 60  },  // 要塞 上辺
+    { x: 620,  y: 780, width: 560, height: 60  },  // 要塞 下辺
+    { x: 200,  y: 440, width: 240, height: 60  },  // 左外カバー
+    { x: 1360, y: 540, width: 240, height: 60  },  // 右外カバー
+  ],
+  spawnPoints: [
+    { team: "red",  x: 100,  y: 300 },
+    { team: "red",  x: 100,  y: 740 },
+    { team: "blue", x: 1700, y: 300 },
+    { team: "blue", x: 1700, y: 740 },
+  ],
+};
+
+const DEFAULT_MAP = MAP_ALPHA;
+
 const MAPS: Record<string, MapData> = {
-  alpha: DEFAULT_MAP,
+  alpha: MAP_ALPHA,
+  beta:  MAP_BETA,
+  gamma: MAP_GAMMA,
 };
 
 // --- utils ---
@@ -450,7 +502,8 @@ function roomStatePayload(roomId: string) {
     bullets: bs,
     projectiles: bs,
     explosions: es,
-    teamScores: { red: room.scoreRed, blue: room.scoreBlue }
+    teamScores: { red: room.scoreRed, blue: room.scoreBlue },
+    mapData: room.mapData,
   };
 }
 
@@ -523,18 +576,41 @@ function assignTeam(room: Room): Team {
 function spawnPlayer(p: PlayerRuntime, room: Room) {
   const map = room.mapData;
   const teamSpawns = map.spawnPoints.filter(sp => sp.team === p.team);
+  let baseX: number;
+  let baseY: number;
 
   if (teamSpawns.length > 0) {
     const sp = teamSpawns[Math.floor(Math.random() * teamSpawns.length)];
-    p.x = clamp(sp.x + (Math.random() * 80 - 40), 0, map.width);
-    p.y = clamp(sp.y + (Math.random() * 80 - 40), 0, map.height);
+    p.x = clamp(sp.x + (Math.random() * 80 - 40), TANK_SIZE, map.width - TANK_SIZE);
+    p.y = clamp(sp.y + (Math.random() * 80 - 40), TANK_SIZE, map.height - TANK_SIZE);
+    baseX = sp.x;
+    baseY = sp.y;
   } else {
     p.x = 150 + Math.random() * 200;
     p.y = 150 + Math.random() * 200;
+    baseX = p.x;
+    baseY = p.y;
   }
 
+  // If spawned inside a wall, scan nearby area for a free cell
   if (checkWallCollision(p.x, p.y, TANK_SIZE, map.walls)) {
-    p.x += 20;
+    let escaped = false;
+    for (let dx = -120; dx <= 120 && !escaped; dx += 20) {
+      for (let dy = -120; dy <= 120 && !escaped; dy += 20) {
+        const nx = clamp(baseX + dx, TANK_SIZE, map.width - TANK_SIZE);
+        const ny = clamp(baseY + dy, TANK_SIZE, map.height - TANK_SIZE);
+        if (!checkWallCollision(nx, ny, TANK_SIZE, map.walls)) {
+          p.x = nx;
+          p.y = ny;
+          escaped = true;
+        }
+      }
+    }
+    // Fallback: place at spawn base (wall may be too thick to escape)
+    if (!escaped) {
+      p.x = baseX;
+      p.y = baseY;
+    }
   }
 
   p.hp = 100;
@@ -619,7 +695,7 @@ const COOLDOWN_THRESHOLD = 200;
 const COOLDOWN_SHORT_MS = 1500; // 5 steps * 300ms
 const COOLDOWN_LONG_MS = 2100;  // 7 steps * 300ms
 
-function setMoveTarget(p: PlayerRuntime, target: Vector2) {
+function setMoveTarget(p: PlayerRuntime, target: Vector2, mapW: number, mapH: number) {
   // 仕様: 移動中/カウント中のクリックでも移動予約を受け付ける
   // Spec A-4: Max movement distance limit
 
@@ -643,8 +719,8 @@ function setMoveTarget(p: PlayerRuntime, target: Vector2) {
   }
 
   const clamped = {
-    x: clamp(finalTarget.x, 0, MAP_W),
-    y: clamp(finalTarget.y, 0, MAP_H),
+    x: clamp(finalTarget.x, 0, mapW),
+    y: clamp(finalTarget.y, 0, mapH),
   };
   // Spec A-6 EXT: Variable Cooldown
   // Re-calculate distance of VALIDated move
@@ -792,8 +868,8 @@ function tryShoot(p: PlayerRuntime, dir: Vector2) {
   if (len(d) === 0) return;
 
   const spawnOffset = HIT_RADIUS + BULLET_RADIUS + 2;
-  const bx = clamp(p.x + d.x * spawnOffset, 0, MAP_W);
-  const by = clamp(p.y + d.y * spawnOffset, 0, MAP_H);
+  const bx = clamp(p.x + d.x * spawnOffset, 0, room.mapData.width);
+  const by = clamp(p.y + d.y * spawnOffset, 0, room.mapData.height);
 
   const bullet: Bullet = {
     id: newId(),
@@ -1247,7 +1323,10 @@ wss.on("connection", (socket) => {
           const t = pld.target
             ? pickVector2(pld.target, { x: player.x, y: player.y })
             : { x: pickNumber(pld.x, player.x), y: pickNumber(pld.y, player.y) };
-          setMoveTarget(player, t);
+          const moveRoom = player.roomId ? rooms.get(player.roomId) : null;
+          const mw = moveRoom?.mapData.width  ?? 1800;
+          const mh = moveRoom?.mapData.height ?? 1040;
+          setMoveTarget(player, t, mw, mh);
         } else {
           stopMove(player);
         }

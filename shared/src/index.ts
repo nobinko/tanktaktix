@@ -84,6 +84,7 @@ export type RoomState = {
   explosions: Explosion[];
   timeLeftSec: number;
   teamScores: { red: number; blue: number };
+  mapData: MapData;
 };
 
 export type ChatMessage = {

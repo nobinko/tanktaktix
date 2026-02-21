@@ -1,10 +1,10 @@
 # TankTaktix Project Roadmap
 
-## Current Project Status (2026-02-17)
-**State:** Phase 1 (Server Core & Critical Fixes) COMPLETE. Moved to Phase 2 (MVP Verification).
+## Current Project Status (2026-02-21)
+**State:** Phase 1 COMPLETE. Phase 2 (MVP Verification) in progress (A-10, A-11 verified).
 **Latest Changes:**
-- Fixed critical bugs: Bullet collision, Friendly fire, Result screen logic, Room persistence.
-- Merged `feat/canvas-hud` to `main`.
+- **Verified MVP A-10 & A-11**: Camera controls (WASD/Rotate/Zoom) and Chat locks are confirmed.
+- **Fixed spawn logic**: Tanks no longer spawn inside walls; improved escapes.
 - **Fixed tank color logic**: Self tank now matches team color (Red/Blue).
 **Next Action:** Verify MVP requirements (A-Rank items in `docs/ACCEPTANCE.md`) before starting Phase 3 features.
 
@@ -31,7 +31,7 @@
   - [x] A-1 ~ A-3: ログイン、ロビー、ルーム作成/参加の堅牢性確認
   - [x] A-2-EXT: ロビーチャットと参加者リスト (**New!**)
   - [x] A-8: ゲーム終了判定とリザルト（修正済みだが要再確認）
-  - [ ] A-11: チャット機能の動作確認 (ロビーは完了)
+  - [x] A-11: チャット機能の動作確認 <!-- 検証完了 -->
 - [x] **対戦アクション検証**
   - [x] A-4: 移動（クリック、予約、キャンセル）の挙動確認
   - [x] A-5: 射撃と弾道、壁衝突
@@ -39,9 +39,9 @@
   - [x] A-6-EXT: 変動移動クールダウン (距離ベース) (**New!**)
   - [x] A-7: HP/弾薬の増減とリスポーン処理
   - [x] A-7-EXT: インスタントリスポーン + 無敵クールダウン (1500ms) (**New!**)
-- [/] **チーム戦・視点**
+- [x] **チーム戦・視点**
   - [x] A-9: Red/Blue チーム分けとスポーン位置 (チーム色修正済み)
-  - [ ] A-10: 視点操作（矢印キー、ズーム）
+  - [x] A-10: 視点操作（矢印キー、ズーム） <!-- 検証完了 -->
 
 ## Phase 3: "Should" Features Implementation (Next Steps)
 Bランク（推奨）項目の実装。ゲーム性を高めるための追加機能。
