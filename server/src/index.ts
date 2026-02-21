@@ -4,7 +4,7 @@ import express from "express";
 import http from "http";
 import * as path from "path";
 import { WebSocket, WebSocketServer } from "ws";
-import type { MapData, Team, Wall, Explosion } from "@tanktaktix/shared"; // Assumes shared is linked/built
+import type { BulletPublic, MapData, Team, Wall, Explosion } from "@tanktaktix/shared"; // Assumes shared is linked/built
 
 /**
  * server/src/index.ts
@@ -370,7 +370,7 @@ function toPlayerPublic(p: PlayerRuntime) {
   };
 }
 
-function toBulletPublic(b: Bullet) {
+function toBulletPublic(b: Bullet): BulletPublic {
   return {
     id: b.id,
     shooterId: b.shooterId,

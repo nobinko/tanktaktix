@@ -68,10 +68,19 @@ export type Explosion = {
   at: number;
 };
 
+export type BulletPublic = {
+  id: string;
+  shooterId: string;
+  x: number;
+  y: number;
+  position: Vector2;
+  radius: number;
+};
+
 export type RoomState = {
   roomId: string;
   players: PlayerSummary[];
-  bullets: any[]; // keeping as any for now or define Bullet
+  bullets: BulletPublic[];
   explosions: Explosion[];
   timeLeftSec: number;
   teamScores: { red: number; blue: number };
