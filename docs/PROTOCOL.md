@@ -23,9 +23,9 @@
 
 | type | payload | 説明 |
 |---|---|---|
-| `login` | `{ name: string }` | ログイン。name は最大16文字。空白はランダム名を割り当てる |
+| `login` | `{ name: string, id?: string }` | ログイン。name は最大16文字。id は再接続用（B-3） |
 | `requestLobby` | なし | ロビー状態を要求する |
-| `createRoom` | `{ roomId, name, mapId, maxPlayers, timeLimitSec, password? }` | ルーム作成。roomId が既存の場合はエラー |
+| `createRoom` | `{ roomId, name, mapId, maxPlayers, timeLimitSec, gameMode?, password? }` | ルーム作成。roomId が既存の場合はエラー |
 | `joinRoom` | `{ roomId: string, password?: string }` | ルーム参加 |
 | `leaveRoom` | なし | ルームから退出してロビーへ戻る |
 | `move` | `{ target: Vector2 }` | クリック移動。移動中・クールダウン中でも予約として受け付ける |
@@ -39,9 +39,10 @@
 {
   roomId: string;        // ルームID（空白時はサーバが自動生成）
   name: string;          // 表示名
-  mapId: string;         // 現在は "alpha" のみ有効
+  mapId: string;         // "alpha" | "beta" | "gamma"
   maxPlayers: number;    // 2〜16（clamp される）
   timeLimitSec: number;  // 5〜3600（clamp される）
+  gameMode?: "deathmatch" | "ctf";  // 省略時は "deathmatch"
   password?: string;     // 省略または空文字で非パスワード保護
 }
 ```
@@ -75,6 +76,55 @@ type Vector2 = { x: number; y: number };
 type Team = "red" | "blue" | null;
 ```
 
+### ItemType / WallType
+```typescript
+type ItemType = "medic" | "ammo";
+type WallType = "wall" | "bush" | "water";
+```
+
+### Item
+```typescript
+type Item = {
+  id: string;
+  x: number;
+  y: number;
+  type: ItemType;
+  spawnedAt: number;     // スポーン時刻 Unix ms
+};
+```
+
+### Wall
+```typescript
+type Wall = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  type?: WallType;       // 省略時は "wall"
+};
+```
+
+### Flag
+```typescript
+type Flag = {
+  team: Team;            // "red" | "blue"
+  x: number;
+  y: number;
+  carrierId: string | null;  // 持っているプレイヤーの ID（null = 設置中）
+};
+```
+
+### MapData
+```typescript
+type MapData = {
+  id: string;
+  width: number;
+  height: number;
+  walls: Wall[];
+  spawnPoints: { team: Team; x: number; y: number }[];
+};
+```
+
 ### LobbyState
 ```typescript
 type LobbyState = {
@@ -88,6 +138,7 @@ type LobbyState = {
 type RoomSummary = {
   id: string;
   name: string;
+  gameMode: "deathmatch" | "ctf";
   mapId: string;
   mapData?: MapData;       // マップ同期用（現在は全量送信）
   maxPlayers: number;
@@ -107,7 +158,23 @@ type RoomState = {
   bullets: BulletPublic[];
   explosions: Explosion[];
   timeLeftSec: number;
+  gameMode: "deathmatch" | "ctf";
   teamScores: { red: number; blue: number };
+  mapData: MapData;
+  items: Item[];
+  flags?: Flag[];          // CTF モードのみ
+};
+```
+
+### BulletPublic
+```typescript
+type BulletPublic = {
+  id: string;
+  shooterId: string;
+  x: number;
+  y: number;
+  position: Vector2;
+  radius: number;
 };
 ```
 
@@ -134,6 +201,8 @@ type PlayerSummary = {
   turretAngle: number;        // 砲塔向き（ラジアン）
   respawnAt: number | null;   // リスポーン予定時刻（現在未使用）
   respawnCooldownUntil: number | null; // 無敵期間終了時刻
+  isHidden: boolean;          // bush 内で隠密中（B-5）
+  lastFiredAt: number;        // 射撃後の一時可視化用（B-5）
 };
 ```
 
@@ -173,6 +242,8 @@ type ChatMessage = {
 | フレンドリーファイア | 同チームへのダメージを無効化（自爆は有効） |
 | ルーム満員 | `playerIds.size >= maxPlayers` の場合は参加を拒否 |
 | パスワード | 不一致の場合は参加を拒否 |
+| 壁衝突 | 移動先が壁内部の場合は移動を中断しクールダウン発動 |
+| アイテム取得 | タンク半径内に入ったアイテムをサーバ側で判定・適用 |
 
 ---
 

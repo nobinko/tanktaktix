@@ -66,13 +66,16 @@ tanktaktix/
 
 **Shared** — 型定義のみ
 - `ClientToServerMessage`, `ServerToClientMessage` の Union 型
-- `PlayerSummary`, `RoomState`, `MapData` 等のデータ型
+- `PlayerSummary`, `RoomState`, `MapData`, `Item`, `Flag` 等のデータ型
+- `WallType`, `ItemType` 等の列挙的型
 - ロジックを持たない。client/server 両方が import する
 
 **Server** — サーバ権威・ゲームロジック
 - WebSocket 接続管理（`ws` ライブラリ）
 - ゲームループ: `setInterval(tick, 50ms)` = 20Hz
 - 物理計算（移動・弾道・衝突）はすべてサーバが計算
+- アイテムスポーン・拾得判定、CTF フラッグ判定
+- 隠密（bush）状態管理、再接続セッション保持
 - クライアントからの入力を検証し、不正なら拒否する
 - Express で静的ファイル（client/dist）を配信
 
@@ -80,6 +83,7 @@ tanktaktix/
 - サーバからの状態を受け取って Canvas に描画（60fps rAF）
 - マウス/キーボード入力を WebSocket メッセージに変換してサーバへ送信
 - ローカル予測なし（サーバ権威の状態をそのまま描画）
+- 再接続: `localStorage` に ID を保存し、login 時に送信
 
 ---
 
@@ -92,22 +96,27 @@ Server (20Hz = 50ms ごと):
       1. 死亡プレイヤーのリスポーン処理
       2. 移動フェーズ（ピボットターン → 前進）
       3. 弾丸の飛翔・衝突・爆発処理
-      4. ゲーム終了判定（endsAt 超過）
-      5. sendRoomState() で全員に状態をブロードキャスト
+      4. アイテムスポーン・拾得判定（B-1）
+      5. 隠密状態更新（bush 内判定 / 射撃後の可視化）（B-5）
+      6. CTF フラッグ判定（取得・帰還・完全停止スコア）（B-4）
+      7. ゲーム終了判定（endsAt 超過）
+      8. sendRoomState() で全員に状態をブロードキャスト
   }
 
 Client (60fps rAF):
   draw() {
     カメラ変換（zoom / rotation / pan）
-    ← 地形（壁・グリッド）を描画
+    ← 地形（壁・bush・water・グリッド）を描画
     ← 弾丸を描画
     ← 爆発エフェクト（VFX、ローカル管理）
-    ← 各プレイヤー（ハル + 砲塔 + HP/弾薬バー + ロックカウント）を描画
+    ← アイテム（medic / ammo ボックス）を描画
+    ← フラッグ（CTF の旗）を描画
+    ← 各プレイヤー（ハル + 砲塔 + HP/弾薬バー + ロックカウント + 旗インジケーター）を描画
     ← 移動予約マーカーを描画
     ← AIMガイドライン（射撃ドラッグ中）を描画
     HUD描画（スクリーン空間）
-    ← タイマー / HP / 弾薬 / チームスコア
-    ← ミニマップ
+    ← タイマー / HP / 弾薬 / チームスコア / HIDDEN インジケーター
+    ← ミニマップ（プレイヤー・壁・アイテム・フラッグ・ビューポート表示）
     ← チャットログ
   }
 ```
@@ -136,7 +145,7 @@ type PlayerRuntime = {
   moveQueue: { x: number; y: number; cost: number }[]; // 最大5件
   isMoving: boolean;
   isRotating: boolean;  // ピボットターン中フラグ
-  pendingMove: Vector2 | null; // レガシー、互換維持
+  pendingMove: Vector2 | null;
 
   // アクション制御
   cooldownUntil: number;        // クールダウン終了 Unix ms
@@ -144,12 +153,16 @@ type PlayerRuntime = {
 
   // ステータス
   hp: number;    // 0〜100
-  ammo: number;  // 0〜20
+  ammo: number;  // 0〜20（アイテムで最大40）
   score: number;
   kills: number;
   deaths: number;
   hits: number;
   fired: number;
+
+  // 隠密・可視性（B-5）
+  isHidden: boolean;     // bush 内で隠密中
+  lastFiredAt: number;   // 射撃後の一時可視化用
 
   socket: WebSocket; // 接続ソケット（クライアントには非公開）
 };
@@ -161,7 +174,8 @@ type PlayerRuntime = {
 type Room = {
   id: string;
   name: string;
-  mapData: MapData;         // マップ定義（壁・スポーン地点）
+  gameMode: "deathmatch" | "ctf";   // ゲームモード
+  mapData: MapData;                  // マップ定義（壁・スポーン地点）
   maxPlayers: number;
   timeLimitSec: number;
   endsAt: number;           // ゲーム終了時刻 Unix ms
@@ -170,9 +184,35 @@ type Room = {
   playerIds: Set<string>;
   bullets: Bullet[];
   explosions: Explosion[];  // 1tick だけ保持してブロードキャスト後クリア
+  items: Item[];            // マップ上のアイテム（B-1）
+  flags: Flag[];            // CTF の旗（B-4）
   scoreRed: number;
   scoreBlue: number;
-  history: Map<string, PlayerHistory>; // 退出後もスコアを保持
+  history: Map<string, PlayerHistory>;       // 退出後もスコアを保持
+  disconnectedPlayers: Map<string, { ... }>; // 再接続用セッション保持（B-3）
+};
+```
+
+### 新規型（Phase 3 追加）
+
+```typescript
+type ItemType = "medic" | "ammo";
+type WallType = "wall" | "bush" | "water";
+
+type Item = {
+  id: string; x: number; y: number;
+  type: ItemType; spawnedAt: number;
+};
+
+type Wall = {
+  x: number; y: number; width: number; height: number;
+  type?: WallType;  // 省略時は "wall"
+};
+
+type Flag = {
+  team: Team;          // "red" | "blue"
+  x: number; y: number;
+  carrierId: string | null;  // 持っているプレイヤーの ID
 };
 ```
 
@@ -183,13 +223,14 @@ type Room = {
 ```
 Client                          Server
   │                               │
-  │── login { name } ────────────▶│ プレイヤー登録、welcome 返却
+  │── login { name, id? } ──────▶│ プレイヤー登録 or 再接続（B-3）
   │◀─ welcome { id } ─────────────│
-  │◀─ lobby { rooms, players } ───│
+  │◀─ lobby { rooms } ────────────│
   │                               │
-  │── createRoom { ... } ────────▶│ ルーム作成、lobby ブロードキャスト
+  │── createRoom { ..., gameMode }▶│ ルーム作成、lobby ブロードキャスト
   │── joinRoom { roomId } ───────▶│ チーム割当・スポーン
-  │◀─ room { players, ... } ──────│ 参加成功
+  │◀─ room { players, items,      │ 参加成功
+  │         flags, mapData, ... } ─│
   │                               │
   │  ← 20Hz で room ブロードキャスト ─│ tick ごとに状態同期
   │                               │
@@ -219,4 +260,4 @@ Render Web Service
 **注意事項（無料枠の制約）:**
 - 15分間トラフィックがないとスリープ（復帰に最大1分）
 - ローカルファイルシステムの変更は再起動で消える（インメモリ状態も揮発）
-- 詳細は `docs/deep-research-report.md` の「Render無料枠対策」を参照
+- 詳細は `docs/archive/deep-research-report.md` の「Render無料枠対策」を参照
