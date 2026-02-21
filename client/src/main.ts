@@ -182,7 +182,7 @@ const ZOOM_MIN = 0.3;
 const ZOOM_MAX = 3.0;
 const ROTATION_STEP = Math.PI / 36; // 5 degrees
 
-const mapSize = { width: 900, height: 520 };
+let mapSize = { width: 1800, height: 1040 }; // updated when mapData arrives
 
 const setScreen = (phase: "login" | "lobby" | "room") => {
   console.log(`[DEBUG] setScreen("${phase}") called.`);
@@ -264,6 +264,9 @@ const handleServerMessage = (message: ServerToClientMessage) => {
       state.timeLeftSec = payload.timeLeftSec;
       state.bullets = payload.bullets;
       state.teamScores = payload.teamScores;
+      state.mapData = payload.mapData;
+      mapSize.width  = payload.mapData.width;
+      mapSize.height = payload.mapData.height;
 
       // Ensure we switch to room screen if not already there
       if (state.phase !== "room") {
