@@ -101,7 +101,7 @@ app.innerHTML = `
           <button id="leave-room">Leave Room</button>
         </div>
       </div>
-      <canvas id="map" width="900" height="520"></canvas>
+      <canvas id="map" width="1200" height="675"></canvas>
       <div class="hud">
         <div>
           <h3>Scores</h3>
@@ -259,14 +259,29 @@ const handleServerMessage = (message: ServerToClientMessage) => {
       break;
     case "room": {
       const payload = message.payload;
+      const isFirstRoomMessage = !state.roomId; // check before state.roomId is set
+
+      // Update map size first (needed for camera init calculation below)
+      mapSize.width  = payload.mapData.width;
+      mapSize.height = payload.mapData.height;
+
+      // Camera init: on first room message, jump camera to player's spawn position
+      if (isFirstRoomMessage) {
+        const me = payload.players.find(p => p.id === state.selfId);
+        if (me) {
+          state.camera.x = me.position.x - mapSize.width / 2;
+          state.camera.y = me.position.y - mapSize.height / 2;
+        }
+        state.camera.zoom = 1;
+        state.camera.rotation = 0;
+      }
+
       state.roomId = payload.roomId;
       state.players = payload.players;
       state.timeLeftSec = payload.timeLeftSec;
       state.bullets = payload.bullets;
       state.teamScores = payload.teamScores;
       state.mapData = payload.mapData;
-      mapSize.width  = payload.mapData.width;
-      mapSize.height = payload.mapData.height;
 
       // Ensure we switch to room screen if not already there
       if (state.phase !== "room") {
@@ -423,9 +438,9 @@ const getSelf = () => state.players.find((p) => p.id === state.selfId);
 
 const getCanvasPoint = (event: MouseEvent): Vector2 => {
   const rect = canvas.getBoundingClientRect();
-  // Screen coords relative to canvas center
-  let sx = ((event.clientX - rect.left) / rect.width) * mapSize.width - mapSize.width / 2;
-  let sy = ((event.clientY - rect.top) / rect.height) * mapSize.height - mapSize.height / 2;
+  // Screen coords relative to canvas center (use intrinsic canvas size, not world mapSize)
+  let sx = ((event.clientX - rect.left) / rect.width) * canvas.width - canvas.width / 2;
+  let sy = ((event.clientY - rect.top) / rect.height) * canvas.height - canvas.height / 2;
   // Inverse zoom
   sx /= state.camera.zoom;
   sy /= state.camera.zoom;
@@ -449,9 +464,9 @@ const draw = () => {
   if (state.phase !== "room") {
     return;
   }
-  ctx.clearRect(0, 0, mapSize.width, mapSize.height);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.fillStyle = "#0b132b";
-  ctx.fillRect(0, 0, mapSize.width, mapSize.height);
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   // Camera movement (WASD, rotated to match view; disabled while chat is open)
   const camCos = Math.cos(state.camera.rotation);
@@ -485,7 +500,7 @@ const draw = () => {
 
   // Apply camera transform: translate center, rotate, zoom, offset
   ctx.save();
-  ctx.translate(mapSize.width / 2, mapSize.height / 2);
+  ctx.translate(canvas.width / 2, canvas.height / 2); // viewport center = canvas center (NOT mapSize)
   ctx.rotate(state.camera.rotation);
   ctx.scale(state.camera.zoom, state.camera.zoom);
   ctx.translate(-state.camera.x - mapSize.width / 2, -state.camera.y - mapSize.height / 2);
@@ -745,7 +760,7 @@ const draw = () => {
 
 /** Draw the in-game HUD directly on the canvas (screen-space). */
 function drawHUD(ctx: CanvasRenderingContext2D) {
-  const W = mapSize.width;
+  const W = canvas.width; // HUD is screen-space, use canvas intrinsic width
   const self = getSelf();
 
   // ── Top bar ──
@@ -847,8 +862,8 @@ function drawHUD(ctx: CanvasRenderingContext2D) {
 const drawMinimap = (ctx: CanvasRenderingContext2D) => {
   const mmW = 160;
   const mmH = 92;
-  const mmX = mapSize.width - mmW - 8;
-  const mmY = mapSize.height - mmH - 8;
+  const mmX = canvas.width - mmW - 8;  // screen-space: canvas intrinsic width
+  const mmY = canvas.height - mmH - 8; // screen-space: canvas intrinsic height
   const scaleX = mmW / mapSize.width;
   const scaleY = mmH / mapSize.height;
 
@@ -903,20 +918,20 @@ const drawMinimap = (ctx: CanvasRenderingContext2D) => {
     );
   }
 
-  // Camera viewport indicator
+  // Camera viewport indicator (canvas intrinsic size determines visible area)
   ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
   ctx.lineWidth = 1;
   const vpX = mmX + state.camera.x * scaleX;
   const vpY = mmY + state.camera.y * scaleY;
-  const vpW = mapSize.width * scaleX / state.camera.zoom;
-  const vpH = mapSize.height * scaleY / state.camera.zoom;
+  const vpW = canvas.width * scaleX / state.camera.zoom;   // viewport = canvas pixels / zoom
+  const vpH = canvas.height * scaleY / state.camera.zoom;
   ctx.strokeRect(vpX, vpY, vpW, vpH);
 };
 
 const drawChat = (ctx: CanvasRenderingContext2D) => {
   const messages = state.chat.slice(-8); // Show last 8 messages
   const lineHeight = 16;
-  const bottomY = mapSize.height - 40; // Leave space for input
+  const bottomY = canvas.height - 40; // Leave space for input (screen-space)
   const startX = 10;
 
   ctx.font = "12px 'Segoe UI', Arial, sans-serif";
@@ -1108,14 +1123,15 @@ const setupRoom = () => {
     // Not implemented yet. Focus on gameplay.
 
     // Check click on minimap?
+    // Convert CSS pixels to canvas intrinsic pixels for accurate hit detection
     const rect = canvas.getBoundingClientRect();
-    const mx = event.clientX - rect.left;
-    const my = event.clientY - rect.top;
+    const mx = (event.clientX - rect.left) * canvas.width / rect.width;
+    const my = (event.clientY - rect.top) * canvas.height / rect.height;
 
     // Minimap click -> move command?
     const mmW = 160, mmH = 92;
-    const mmX = mapSize.width - mmW - 8;
-    const mmY = mapSize.height - mmH - 8;
+    const mmX = canvas.width - mmW - 8;   // canvas-pixel-space
+    const mmY = canvas.height - mmH - 8;
 
     if (mx >= mmX && mx <= mmX + mmW && my >= mmY && my <= mmY + mmH) {
       // Minimap click
@@ -1222,10 +1238,16 @@ const setupRoom = () => {
       return;
     }
 
-    // Space — reset camera
+    // Space — snap camera to own tank (or map center if not found)
     if (key === " " && document.activeElement !== chatInput) {
-      state.camera.x = 0;
-      state.camera.y = 0;
+      const me = state.players.find(p => p.id === state.selfId);
+      if (me) {
+        state.camera.x = me.position.x - mapSize.width / 2;
+        state.camera.y = me.position.y - mapSize.height / 2;
+      } else {
+        state.camera.x = 0;
+        state.camera.y = 0;
+      }
       state.camera.zoom = 1;
       state.camera.rotation = 0;
       event.preventDefault();

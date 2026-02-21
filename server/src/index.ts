@@ -576,18 +576,41 @@ function assignTeam(room: Room): Team {
 function spawnPlayer(p: PlayerRuntime, room: Room) {
   const map = room.mapData;
   const teamSpawns = map.spawnPoints.filter(sp => sp.team === p.team);
+  let baseX: number;
+  let baseY: number;
 
   if (teamSpawns.length > 0) {
     const sp = teamSpawns[Math.floor(Math.random() * teamSpawns.length)];
-    p.x = clamp(sp.x + (Math.random() * 80 - 40), 0, map.width);
-    p.y = clamp(sp.y + (Math.random() * 80 - 40), 0, map.height);
+    p.x = clamp(sp.x + (Math.random() * 80 - 40), TANK_SIZE, map.width - TANK_SIZE);
+    p.y = clamp(sp.y + (Math.random() * 80 - 40), TANK_SIZE, map.height - TANK_SIZE);
+    baseX = sp.x;
+    baseY = sp.y;
   } else {
     p.x = 150 + Math.random() * 200;
     p.y = 150 + Math.random() * 200;
+    baseX = p.x;
+    baseY = p.y;
   }
 
+  // If spawned inside a wall, scan nearby area for a free cell
   if (checkWallCollision(p.x, p.y, TANK_SIZE, map.walls)) {
-    p.x += 20;
+    let escaped = false;
+    for (let dx = -120; dx <= 120 && !escaped; dx += 20) {
+      for (let dy = -120; dy <= 120 && !escaped; dy += 20) {
+        const nx = clamp(baseX + dx, TANK_SIZE, map.width - TANK_SIZE);
+        const ny = clamp(baseY + dy, TANK_SIZE, map.height - TANK_SIZE);
+        if (!checkWallCollision(nx, ny, TANK_SIZE, map.walls)) {
+          p.x = nx;
+          p.y = ny;
+          escaped = true;
+        }
+      }
+    }
+    // Fallback: place at spawn base (wall may be too thick to escape)
+    if (!escaped) {
+      p.x = baseX;
+      p.y = baseY;
+    }
   }
 
   p.hp = 100;
