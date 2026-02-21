@@ -1,7 +1,10 @@
 import "./style.css";
 import type {
+  BulletPublic,
   ChatMessage,
   ClientToServerMessage,
+  Explosion,
+  MapData,
   PlayerSummary,
   RoomSummary,
   ServerToClientMessage,
@@ -158,12 +161,12 @@ const state = {
   players: [] as PlayerSummary[],
   timeLeftSec: 0,
   chat: [] as ChatMessage[],
-  leaderboard: null as PlayerSummary[] | null,
   aiming: false,
   aimPoint: null as Vector2 | null,
-  bullets: [] as any[],
-  explosions: [] as any[], // Local VFX
-  mapData: null as any,
+  bullets: [] as BulletPublic[],
+  explosions: [] as (Explosion & { startedAt: number })[],
+  mapData: null as MapData | null,
+  teamScores: { red: 0, blue: 0 } as { red: number; blue: number },
   camera: { x: 0, y: 0, zoom: 1, rotation: 0 },
   // Lobby Ext
   lobbyChat: [] as { from: string, message: string }[],
@@ -255,10 +258,12 @@ const handleServerMessage = (message: ServerToClientMessage) => {
       }
       break;
     case "room": {
-      const payloadAny = message.payload as any;
-      state.roomId = payloadAny.roomId;
-      state.players = payloadAny.players;
-      state.timeLeftSec = payloadAny.timeLeftSec;
+      const payload = message.payload;
+      state.roomId = payload.roomId;
+      state.players = payload.players;
+      state.timeLeftSec = payload.timeLeftSec;
+      state.bullets = payload.bullets;
+      state.teamScores = payload.teamScores;
 
       // Ensure we switch to room screen if not already there
       if (state.phase !== "room") {
@@ -266,15 +271,6 @@ const handleServerMessage = (message: ServerToClientMessage) => {
         setupRoom();
       }
 
-      state.bullets = payloadAny.bullets ?? payloadAny.projectiles ?? [];
-      (state as any).teamScores = payloadAny.teamScores;
-
-      // Update Map Data if provided (or if missing and in room)
-      if (payloadAny.room?.mapData) {
-        state.mapData = payloadAny.room.mapData;
-      }
-
-      state.leaderboard = null;
       renderRoom();
       break;
     }
@@ -317,10 +313,6 @@ const handleServerMessage = (message: ServerToClientMessage) => {
         `;
         resultBody.appendChild(tr);
       });
-      break;
-    case "leaderboard":
-      state.leaderboard = message.payload.players;
-      renderLeaderboard();
       break;
     case "error":
       alert(message.payload.message);
@@ -424,10 +416,6 @@ const renderChat = () => {
   // Chat is drawn on canvas via drawHUD
 };
 
-const renderLeaderboard = () => {
-  // optional
-};
-
 const getSelf = () => state.players.find((p) => p.id === state.selfId);
 
 const getCanvasPoint = (event: MouseEvent): Vector2 => {
@@ -526,23 +514,19 @@ const draw = () => {
   }
 
   // bullets（サーバ権威の projectile）
-  const bullets = (state as any).bullets ?? [];
-  if (bullets.length > 0) {
+  if (state.bullets.length > 0) {
     ctx.fillStyle = "#fde047";
-    for (const b of bullets) {
-      const pos = b.position ?? { x: b.x, y: b.y };
-      const r = typeof b.radius === "number" ? b.radius : 3;
-      if (!pos || typeof pos.x !== "number" || typeof pos.y !== "number") continue;
+    for (const b of state.bullets) {
       ctx.beginPath();
-      ctx.arc(pos.x, pos.y, r, 0, Math.PI * 2);
+      ctx.arc(b.position.x, b.position.y, b.radius, 0, Math.PI * 2);
       ctx.fill();
     }
   }
 
   // Explosions VFX
-  state.explosions = state.explosions.filter(e => Date.now() - (e.startedAt || e.at) < 500); // 0.5s duration
+  state.explosions = state.explosions.filter(e => Date.now() - e.startedAt < 500); // 0.5s duration
   for (const e of state.explosions) {
-    const start = e.startedAt || e.at || Date.now();
+    const start = e.startedAt;
     const progress = (Date.now() - start) / 500;
     if (progress > 1) continue;
 
@@ -812,7 +796,7 @@ function drawHUD(ctx: CanvasRenderingContext2D) {
   ctx.font = "bold 12px 'Segoe UI', Arial, sans-serif";
   if (isTeamMode) {
     // Use persistent scores from server
-    const scores = (state as any).teamScores ?? { red: 0, blue: 0 };
+    const scores = state.teamScores;
     const redTotal = scores.red;
     const blueTotal = scores.blue;
 
