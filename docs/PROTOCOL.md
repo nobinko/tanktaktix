@@ -78,7 +78,7 @@ type Team = "red" | "blue" | null;
 
 ### ItemType / WallType
 ```typescript
-type ItemType = "medic" | "ammo";
+type ItemType = "medic" | "ammo" | "heart" | "bomb" | "rope" | "boots";
 type WallType = "wall" | "bush" | "water";
 ```
 
@@ -172,9 +172,7 @@ type RoomState = {
 type BulletPublic = {
   id: string;
   shooterId: string;
-  x: number;
-  y: number;
-  position: Vector2;
+  position: Vector2;  // 座標は position を使う。x/y は廃止済み
   radius: number;
 };
 ```
@@ -203,7 +201,10 @@ type PlayerSummary = {
   respawnAt: number | null;   // リスポーン予定時刻（現在未使用）
   respawnCooldownUntil: number | null; // 無敵期間終了時刻
   isHidden: boolean;          // bush 内で隠密中（B-5）
-  lastFiredAt: number;        // 射撃後の一時可視化用（B-5）
+  // Phase 4: 新アイテム所持状態
+  hasBomb: boolean;           // bomb所持中（true = 次の1発がボムショットになる）
+  ropeCount: number;          // rope所持本数（0〜2）
+  bootsCharges: number;       // boots残り回数（0 = 未所持, 1〜5 = 残り）
 };
 ```
 
