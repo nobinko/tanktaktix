@@ -71,7 +71,7 @@ npm run start
     - [x] CanvasによるHUD描画（HP、残弾、スコア、ミニマップ）
     - [x] チームカラーによる敵味方・自機の識別
 - **追加機能 (Phase 3 完了)**
-    - [x] 3マップ（alpha / beta / gamma、1800×1040px）
+    - [x] 4マップ（alpha / beta / gamma / delta、1800×1040px）
     - [x] アイテム（回復キット・弾薬ボックス）
     - [x] 地形タイプ（ブッシュ・ウォーター）
     - [x] CTF（旗取り）モード
