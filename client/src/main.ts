@@ -55,8 +55,14 @@ app.innerHTML = `
             <input id="max-players" placeholder="Max players" value="4" />
             <input id="time-limit" placeholder="Time limit (sec)" value="240" />
             <select id="game-mode">
-              <option value="deathmatch">Deathmatch (Combat)</option>
-              <option value="ctf">Flag (Team Objective)</option>
+              <option value="ctf" selected>Flag (CTF)</option>
+              <option value="deathmatch">Deathmatch</option>
+            </select>
+            <select id="map-select">
+              <option value="alpha">Alpha (Classic)</option>
+              <option value="beta">Beta (Urban)</option>
+              <option value="gamma">Gamma (Fort)</option>
+              <option value="delta">Delta (Nature)</option>
             </select>
             <input id="room-password" placeholder="Password (optional)" />
             <button id="create-room">Create</button>
@@ -481,16 +487,16 @@ const draw = () => {
   ctx.fillStyle = "#0b132b";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // Camera movement (WASD, rotated to match view; disabled while chat is open)
+  // Camera movement (Arrow keys, rotated to match view; disabled while chat is open)
   const camCos = Math.cos(state.camera.rotation);
   const camSin = Math.sin(state.camera.rotation);
   const spd = CAMERA_SPEED / state.camera.zoom;
   const chatActive = document.activeElement === chatInput;
   let camDx = 0, camDy = 0;
-  if (keysDown.has("a") && !chatActive) { camDx -= spd; }
-  if (keysDown.has("d") && !chatActive) { camDx += spd; }
-  if (keysDown.has("w") && !chatActive) { camDy -= spd; }
-  if (keysDown.has("s") && !chatActive) { camDy += spd; }
+  if (keysDown.has("arrowleft") && !chatActive) { camDx -= spd; }
+  if (keysDown.has("arrowright") && !chatActive) { camDx += spd; }
+  if (keysDown.has("arrowup") && !chatActive) { camDy -= spd; }
+  if (keysDown.has("arrowdown") && !chatActive) { camDy += spd; }
   // Rotate movement direction by camera rotation
   state.camera.x += camDx * camCos + camDy * camSin;
   state.camera.y += -camDx * camSin + camDy * camCos;
@@ -552,6 +558,69 @@ const draw = () => {
         ctx.lineWidth = 2;
         ctx.strokeRect(w.x, w.y, w.width, w.height);
       }
+    }
+  }
+
+  // --- Spawn Points (base zones) ---
+  if (state.mapData && state.mapData.spawnPoints) {
+    const now = Date.now();
+    const pulse = Math.sin(now * 0.004) * 0.5 + 0.5; // 0..1 pulsating
+    const ZONE_W = 200;
+    const ZONE_H = 200;
+
+    for (const sp of state.mapData.spawnPoints) {
+      const spColor = sp.team === "red" ? "#ef4444" : sp.team === "blue" ? "#3b82f6" : "#aaa";
+      const spColorRgb = sp.team === "red" ? "239,68,68" : sp.team === "blue" ? "59,130,246" : "170,170,170";
+
+      const zx = sp.x - ZONE_W / 2;
+      const zy = sp.y - ZONE_H / 2;
+
+      // Pulsating outer border
+      ctx.save();
+      ctx.strokeStyle = `rgba(${spColorRgb}, ${0.15 + pulse * 0.25})`;
+      ctx.lineWidth = 2;
+      ctx.strokeRect(zx - 4 - pulse * 3, zy - 4 - pulse * 3, ZONE_W + 8 + pulse * 6, ZONE_H + 8 + pulse * 6);
+      ctx.restore();
+
+      // Filled zone rectangle
+      ctx.fillStyle = `rgba(${spColorRgb}, 0.15)`;
+      ctx.fillRect(zx, zy, ZONE_W, ZONE_H);
+
+      // Border
+      ctx.strokeStyle = spColor;
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(zx, zy, ZONE_W, ZONE_H);
+
+      // Corner brackets for a tactical look
+      const cb = 8; // bracket length
+      ctx.strokeStyle = `rgba(${spColorRgb}, 0.7)`;
+      ctx.lineWidth = 2;
+      // Top-left
+      ctx.beginPath();
+      ctx.moveTo(zx, zy + cb); ctx.lineTo(zx, zy); ctx.lineTo(zx + cb, zy);
+      ctx.stroke();
+      // Top-right
+      ctx.beginPath();
+      ctx.moveTo(zx + ZONE_W - cb, zy); ctx.lineTo(zx + ZONE_W, zy); ctx.lineTo(zx + ZONE_W, zy + cb);
+      ctx.stroke();
+      // Bottom-left
+      ctx.beginPath();
+      ctx.moveTo(zx, zy + ZONE_H - cb); ctx.lineTo(zx, zy + ZONE_H); ctx.lineTo(zx + cb, zy + ZONE_H);
+      ctx.stroke();
+      // Bottom-right
+      ctx.beginPath();
+      ctx.moveTo(zx + ZONE_W - cb, zy + ZONE_H); ctx.lineTo(zx + ZONE_W, zy + ZONE_H); ctx.lineTo(zx + ZONE_W, zy + ZONE_H - cb);
+      ctx.stroke();
+
+      // "SPAWN" label (counter-rotate so it stays upright)
+      ctx.save();
+      ctx.translate(sp.x, sp.y);
+      ctx.rotate(-state.camera.rotation);
+      ctx.font = "bold 9px 'Segoe UI', Arial, sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillStyle = `rgba(${spColorRgb}, 0.6)`;
+      ctx.fillText("SPAWN", 0, 4);
+      ctx.restore();
     }
   }
 
@@ -1125,8 +1194,10 @@ const setupLobby = () => {
     const name = roomNameInput.value.trim();
     const maxP = parseInt(maxPlayersInput.value) || 4;
     const time = parseInt(timeLimitInput.value) || 240;
-    const gm = gameModeSelect.value || "deathmatch";
+    const gm = gameModeSelect.value || "ctf";
     const pw = passwordInput.value.trim();
+    const mapSelect = document.querySelector("#map-select") as HTMLSelectElement;
+    const mapId = mapSelect?.value || "alpha";
 
     let finalId = id;
     if (!finalId) {
@@ -1138,7 +1209,7 @@ const setupLobby = () => {
       payload: {
         roomId: finalId,
         name: name || `Room ${finalId}`, // Auto-fill name using ID
-        mapId: "alpha", // Fix to alpha for now
+        mapId,
         maxPlayers: maxP,
         timeLimitSec: time,
         gameMode: gm as "deathmatch" | "ctf",
