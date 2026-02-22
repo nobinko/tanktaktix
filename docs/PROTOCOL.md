@@ -39,10 +39,10 @@
 {
   roomId: string;        // ルームID（空白時はサーバが自動生成）
   name: string;          // 表示名
-  mapId: string;         // "alpha" | "beta" | "gamma"
+  mapId: string;         // "alpha" | "beta" | "gamma" | "delta"
   maxPlayers: number;    // 2〜16（clamp される）
   timeLimitSec: number;  // 5〜3600（clamp される）
-  gameMode?: "deathmatch" | "ctf";  // 省略時は "deathmatch"
+  gameMode?: "deathmatch" | "ctf";  // 省略時は "ctf"
   password?: string;     // 省略または空文字で非パスワード保護
 }
 ```
@@ -122,6 +122,7 @@ type MapData = {
   height: number;
   walls: Wall[];
   spawnPoints: { team: Team; x: number; y: number }[];
+  flagPositions?: { team: Team; x: number; y: number }[]; // CTF旗の初期位置（省略時はspawnPointsを使用）
 };
 ```
 
