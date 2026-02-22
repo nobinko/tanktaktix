@@ -159,8 +159,9 @@ const HIT_RADIUS = TANK_SIZE; // Hitbox radius
 const REVEAL_DURATION_MS = 1000;
 const RECONNECT_TIMEOUT_MS = 60000;
 
-const FLAG_RADIUS = 25; // Detection radius for taking/capturing
-const FLAG_SCORE = 100; // Team score for capturing a flag
+const FLAG_RADIUS = 25; // Detection radius for taking/capturing (legacy, used for friendly return)
+const FLAG_SCORE = 5; // Team score for capturing a flag
+const SPAWN_ZONE_HALF = 100; // Half-size of 200x200 spawn zone (used for flag pickup & capture)
 
 const ITEM_SPAWN_INTERVAL_MS = 10000; // Spawn an item every 10 seconds
 const ITEM_MAX_COUNT = 15;
@@ -183,10 +184,12 @@ const MAP_ALPHA: MapData = {
     { x: 840, y: 460, width: 120, height: 120 },  // 中央アイランド
   ],
   spawnPoints: [
-    { team: "red", x: 120, y: 260 },
-    { team: "red", x: 120, y: 780 },
-    { team: "blue", x: 1680, y: 260 },
-    { team: "blue", x: 1680, y: 780 },
+    { team: "red", x: 120, y: 520 },
+    { team: "blue", x: 1680, y: 520 },
+  ],
+  flagPositions: [
+    { team: "red", x: 120, y: 520 },
+    { team: "blue", x: 1680, y: 520 },
   ],
 };
 
@@ -206,10 +209,12 @@ const MAP_BETA: MapData = {
     { x: 1460, y: 520, width: 180, height: 60 },  // 右横カバー
   ],
   spawnPoints: [
-    { team: "red", x: 80, y: 200 },
-    { team: "red", x: 80, y: 840 },
-    { team: "blue", x: 1720, y: 200 },
-    { team: "blue", x: 1720, y: 840 },
+    { team: "red", x: 80, y: 520 },
+    { team: "blue", x: 1720, y: 520 },
+  ],
+  flagPositions: [
+    { team: "red", x: 80, y: 520 },
+    { team: "blue", x: 1720, y: 520 },
   ],
 };
 
@@ -229,27 +234,40 @@ const MAP_GAMMA: MapData = {
     { x: 1360, y: 540, width: 240, height: 60 },  // 右外カバー
   ],
   spawnPoints: [
-    { team: "red", x: 100, y: 300 },
-    { team: "red", x: 100, y: 740 },
-    { team: "blue", x: 1700, y: 300 },
-    { team: "blue", x: 1700, y: 740 },
+    { team: "red", x: 100, y: 520 },
+    { team: "blue", x: 1700, y: 520 },
+  ],
+  flagPositions: [
+    { team: "red", x: 100, y: 520 },
+    { team: "blue", x: 1700, y: 520 },
   ],
 };
 
 
 
-/** delta — 自然: 中央に大きな水場とブッシュの隠れ家 */
+/** delta — 自然: ブッシュと水場が点対称に配置 */
 const MAP_DELTA: MapData = {
   id: "delta",
   width: 1800,
   height: 1040,
   walls: [
-    { x: 300, y: 300, width: 300, height: 440, type: "bush" },
-    { x: 1200, y: 300, width: 300, height: 440, type: "water" },
-    { x: 850, y: 100, width: 100, height: 300, type: "wall" },
-    { x: 850, y: 640, width: 100, height: 300, type: "wall" },
+    // 左上ブッシュ (Red側隠れ家)
+    { x: 250, y: 170, width: 250, height: 300, type: "bush" },
+    // 左下水場
+    { x: 250, y: 570, width: 250, height: 300, type: "water" },
+    // 右下ブッシュ (Blue側隠れ家) — 点対称
+    { x: 1300, y: 570, width: 250, height: 300, type: "bush" },
+    // 右上水場 — 点対称
+    { x: 1300, y: 170, width: 250, height: 300, type: "water" },
+    // 中央壁（上下対称）
+    { x: 850, y: 100, width: 100, height: 280, type: "wall" },
+    { x: 850, y: 660, width: 100, height: 280, type: "wall" },
   ],
   spawnPoints: [
+    { team: "red", x: 100, y: 520 },
+    { team: "blue", x: 1700, y: 520 },
+  ],
+  flagPositions: [
     { team: "red", x: 100, y: 520 },
     { team: "blue", x: 1700, y: 520 },
   ],
@@ -909,6 +927,11 @@ function triggerExplosion(room: Room, x: number, y: number, shooterId: string) {
         const damage = 20;
         target.hp = Math.max(0, target.hp - damage);
 
+        // CTF: Drop flag on ANY damage (not just death)
+        if (room.gameMode === "ctf" && target.hp > 0) {
+          dropFlag(target.id, room);
+        }
+
         // Scoring: Hit (None for Team Mode "Kill is 1 point. That's it.")
         // if (shooter && shooter.id !== target.id) {
         //   shooter.score += 1; 
@@ -1025,13 +1048,26 @@ function tryShoot(p: PlayerRuntime, dir: Vector2) {
 }
 
 function dropFlag(carrierId: string, room: Room) {
+  const flagSrc = room.mapData.flagPositions ?? room.mapData.spawnPoints;
   for (const f of room.flags) {
     if (f.carrierId === carrierId) {
-      console.log(`[DEBUG] Flag ${f.team} dropped by ${carrierId}`);
+      console.log(`[DEBUG] Flag ${f.team} dropped by ${carrierId} — returning to base`);
       f.carrierId = null;
-      // Flag stays where it was (which should be the carrier's last pos)
+      // Return flag to its original position
+      const base = flagSrc.find(s => s.team === f.team);
+      if (base) {
+        f.x = base.x;
+        f.y = base.y;
+      }
     }
   }
+}
+
+/** Check if a point is inside the spawn zone (200x200 area) of a given team */
+function isInSpawnZone(x: number, y: number, team: Team, mapData: MapData): boolean {
+  const sp = mapData.spawnPoints.find(s => s.team === team);
+  if (!sp) return false;
+  return Math.abs(x - sp.x) < SPAWN_ZONE_HALF && Math.abs(y - sp.y) < SPAWN_ZONE_HALF;
 }
 
 function updateCTF(room: Room, now: number) {
@@ -1049,23 +1085,22 @@ function updateCTF(room: Room, now: number) {
         // Carrier's team: carrier.team
         // Flag's team: f.team (it's the enemy flag if carrier.team !== f.team)
         if (carrier.team && carrier.team !== f.team) {
-          const mySpawn = room.mapData.spawnPoints.find(s => s.team === carrier.team);
-          const distToBase = mySpawn ? Math.hypot(carrier.x - mySpawn.x, carrier.y - mySpawn.y) : Infinity;
-
-          // Rule: Must be inside base AND stopped (quiesce) to capture
+          // Rule: Must be inside own spawn zone AND stopped to capture
           const isStopped = !carrier.isMoving && !carrier.isRotating;
+          const inZone = isInSpawnZone(carrier.x, carrier.y, carrier.team, room.mapData);
 
-          if (distToBase < FLAG_RADIUS && isStopped) {
+          if (inZone && isStopped) {
             // CAPTURE!
             console.log(`[DEBUG] Team ${carrier.team} captured ${f.team} flag!`);
             if (carrier.team === "red") room.scoreRed += FLAG_SCORE;
             else if (carrier.team === "blue") room.scoreBlue += FLAG_SCORE;
 
             // Return flag to its original base
-            const originalSpawn = room.mapData.spawnPoints.find(s => s.team === f.team);
-            if (originalSpawn) {
-              f.x = originalSpawn.x;
-              f.y = originalSpawn.y;
+            const flagSrcOrig = room.mapData.flagPositions ?? room.mapData.spawnPoints;
+            const originalBase = flagSrcOrig.find(s => s.team === f.team);
+            if (originalBase) {
+              f.x = originalBase.x;
+              f.y = originalBase.y;
             }
             f.carrierId = null;
 
@@ -1102,7 +1137,7 @@ function updateCTF(room: Room, now: number) {
             const alreadyCarrying = room.flags.some(otherF => otherF.carrierId === p.id);
             if (!alreadyCarrying) {
               f.carrierId = p.id;
-              console.log(`[DEBUG] CTF Pickup! Player ${p.id} (${p.team}) took ${f.team} flag. Dist: ${dist.toFixed(1)}`);
+              console.log(`[DEBUG] CTF Pickup! Player ${p.id} (${p.team}) took ${f.team} flag.`);
               broadcastRoom(room.id, {
                 type: "chat",
                 payload: {
@@ -1114,11 +1149,12 @@ function updateCTF(room: Room, now: number) {
             }
           } else {
             // Friendly touches flag -> Return to base IF it's not at base
-            const spawn = room.mapData.spawnPoints.find(s => s.team === f.team);
-            if (spawn && (Math.abs(f.x - spawn.x) > 1 || Math.abs(f.y - spawn.y) > 1)) {
+            const flagSrcReturn = room.mapData.flagPositions ?? room.mapData.spawnPoints;
+            const basePos = flagSrcReturn.find(s => s.team === f.team);
+            if (basePos && (Math.abs(f.x - basePos.x) > 1 || Math.abs(f.y - basePos.y) > 1)) {
               console.log(`[DEBUG] Team ${f.team} flag returned to base by ${p.id}`);
-              f.x = spawn.x;
-              f.y = spawn.y;
+              f.x = basePos.x;
+              f.y = basePos.y;
               broadcastRoom(room.id, {
                 type: "chat",
                 payload: {
@@ -1605,15 +1641,16 @@ wss.on("connection", (socket) => {
         const createdAt = nowMs();
         const endsAt = createdAt + timeLimitSec * 1000;
         const mapData = MAPS[mapId] ?? DEFAULT_MAP;
-        const gameMode = (pickString(pld.gameMode, "deathmatch") === "ctf") ? "ctf" : "deathmatch";
+        const gameMode = (pickString(pld.gameMode, "ctf") === "ctf") ? "ctf" : "deathmatch";
 
         const flags: Flag[] = [];
         if (gameMode === "ctf") {
-          // Initialize flags at spawn points
-          const redSpawn = mapData.spawnPoints.find(s => s.team === "red");
-          const blueSpawn = mapData.spawnPoints.find(s => s.team === "blue");
-          if (redSpawn) flags.push({ team: "red", x: redSpawn.x, y: redSpawn.y, carrierId: null });
-          if (blueSpawn) flags.push({ team: "blue", x: blueSpawn.x, y: blueSpawn.y, carrierId: null });
+          // Use flagPositions if defined, fallback to spawnPoints
+          const flagSrc = mapData.flagPositions ?? mapData.spawnPoints;
+          const redFlag = flagSrc.find(s => s.team === "red");
+          const blueFlag = flagSrc.find(s => s.team === "blue");
+          if (redFlag) flags.push({ team: "red", x: redFlag.x, y: redFlag.y, carrierId: null });
+          if (blueFlag) flags.push({ team: "blue", x: blueFlag.x, y: blueFlag.y, carrierId: null });
         }
 
         const room: Room = {

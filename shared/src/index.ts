@@ -29,6 +29,7 @@ export type MapData = {
   height: number;
   walls: Wall[];
   spawnPoints: { team: Team; x: number; y: number }[];
+  flagPositions?: { team: Team; x: number; y: number }[]; // CTF flag locations (defaults to spawnPoints if omitted)
 };
 
 export type PlayerSummary = {
