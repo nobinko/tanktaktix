@@ -186,6 +186,7 @@ const state = {
   onlinePlayers: [] as { id: string, name: string }[],
   items: [] as Item[], // New: store items for rendering
   flags: [] as Flag[], // New: store flags for CTF
+  isSpectator: false, // Spectator mode flag
 };
 
 let ws: WebSocket | null = null;
@@ -283,10 +284,16 @@ const handleServerMessage = (message: ServerToClientMessage) => {
 
       // Camera init: on first room message, jump camera to player's spawn position
       if (isFirstRoomMessage) {
-        const me = payload.players.find(p => p.id === state.selfId);
-        if (me) {
-          state.camera.x = me.position.x - mapSize.width / 2;
-          state.camera.y = me.position.y - mapSize.height / 2;
+        if (state.isSpectator) {
+          // Spectators start at map center
+          state.camera.x = 0;
+          state.camera.y = 0;
+        } else {
+          const me = payload.players.find(p => p.id === state.selfId);
+          if (me) {
+            state.camera.x = me.position.x - mapSize.width / 2;
+            state.camera.y = me.position.y - mapSize.height / 2;
+          }
         }
         state.camera.zoom = 1;
         state.camera.rotation = 0;
@@ -375,20 +382,31 @@ const renderRooms = () => {
   state.rooms.forEach((room) => {
     const li = document.createElement("li");
     li.className = "room";
+    const spectCount = (room as any).spectatorCount ?? 0;
+    const spectLabel = spectCount > 0 ? ` • 👁 ${spectCount}` : "";
     li.innerHTML = `
       <div class="room-row">
         <div>
           <strong>${room.name ?? (room as any).roomName ?? room.id}</strong>
-          <div class="meta">${(room as any).players?.length ?? (room as any).playerCount ?? 0}/${room.maxPlayers} players • ${room.timeLimitSec}s</div>
+          <div class="meta">${(room as any).players?.length ?? (room as any).playerCount ?? 0}/${room.maxPlayers} players${spectLabel} • ${room.timeLimitSec}s</div>
         </div>
-        <button class="join">Join</button>
+        <div style="display: flex; gap: 4px;">
+          <button class="join">Join</button>
+          <button class="watch" style="background: #6b7280; color: #fff; border: none; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 0.85em;">Watch</button>
+        </div>
       </div>
     `;
     const joinBtn = li.querySelector(".join") as HTMLButtonElement;
     joinBtn.addEventListener("click", () => {
       const pw = room.passwordProtected ? prompt("Password?") ?? "" : "";
+      state.isSpectator = false;
       sendMessage({ type: "joinRoom", payload: { roomId: room.id, password: pw } });
-      // Wait for "room" message to switch screen
+    });
+    const watchBtn = li.querySelector(".watch") as HTMLButtonElement;
+    watchBtn.addEventListener("click", () => {
+      const pw = room.passwordProtected ? prompt("Password?") ?? "" : "";
+      state.isSpectator = true;
+      sendMessage({ type: "spectateRoom" as any, payload: { roomId: room.id, password: pw } });
     });
     roomList.appendChild(li);
   });
@@ -966,6 +984,14 @@ function drawHUD(ctx: CanvasRenderingContext2D) {
     ctx.fillText("🕵️ HIDDEN", 138, 19);
   }
 
+  // Spectator Badge
+  if (state.isSpectator) {
+    ctx.fillStyle = "#a855f7"; // Purple
+    ctx.font = "bold 12px 'Segoe UI', Arial, sans-serif";
+    ctx.textAlign = "left";
+    ctx.fillText("📺 SPECTATING", 138, 19);
+  }
+
   // Timer (center)
   const mins = Math.floor(state.timeLeftSec / 60).toString().padStart(2, "0");
   const secs = (state.timeLeftSec % 60).toString().padStart(2, "0");
@@ -996,20 +1022,21 @@ function drawHUD(ctx: CanvasRenderingContext2D) {
     ctx.fillText(`Score:${myScore}`, W / 2 + 140, 19);
   }
 
-  // Status (READY / LOCK)
-  const lockStep = self ? ((self as any).actionLockStep ?? 0) : 0;
-  ctx.textAlign = "right";
-  if (lockStep > 0) {
-    ctx.fillStyle = "#f97316";
-    ctx.fillText(`LOCK ${lockStep}`, W - 12, 19);
-    // Also update the DOM element for backward compat
-    cooldownEl.textContent = `LOCK ${lockStep}`;
-    cooldownEl.style.color = "#f97316";
-  } else {
-    ctx.fillStyle = "#16a34a";
-    ctx.fillText("READY", W - 12, 19);
-    cooldownEl.textContent = "READY";
-    cooldownEl.style.color = "#22c55e";
+  // Status (READY / LOCK) — hide for spectators
+  if (!state.isSpectator) {
+    const lockStep = self ? ((self as any).actionLockStep ?? 0) : 0;
+    ctx.textAlign = "right";
+    if (lockStep > 0) {
+      ctx.fillStyle = "#f97316";
+      ctx.fillText(`LOCK ${lockStep}`, W - 12, 19);
+      cooldownEl.textContent = `LOCK ${lockStep}`;
+      cooldownEl.style.color = "#f97316";
+    } else {
+      ctx.fillStyle = "#16a34a";
+      ctx.fillText("READY", W - 12, 19);
+      cooldownEl.textContent = "READY";
+      cooldownEl.style.color = "#22c55e";
+    }
   }
 
   // ── Minimap (bottom-right) ──
@@ -1280,6 +1307,7 @@ const setupRoom = () => {
     state.roomId = "";
     state.players = [];
     state.bullets = [];
+    state.isSpectator = false; // Reset spectator flag
     resultOverlay.classList.add("hidden"); // Hide result overlay
     if (roomAbortController) {
       roomAbortController.abort();
@@ -1318,6 +1346,8 @@ const setupRoom = () => {
     if (state.phase !== "room") {
       return;
     }
+    // Spectators: only allow camera interactions, not game actions
+    if (state.isSpectator) return;
     // A-11: all actions blocked while chat is open
     if (document.activeElement === chatInput) return;
     const self = getSelf();
@@ -1430,7 +1460,7 @@ const setupRoom = () => {
     if (state.phase !== "room") return;
     const key = event.key.toLowerCase();
 
-    // Chat open
+    // Chat open (spectators can also chat)
     if (key === "t" && document.activeElement !== chatInput) {
       chatInput.classList.add("active");
       chatInput.focus();
@@ -1438,8 +1468,8 @@ const setupRoom = () => {
       return;
     }
 
-    // Z key — cancel last move reservation
-    if (key === "z" && document.activeElement !== chatInput) {
+    // Z key — cancel last move reservation (not for spectators)
+    if (key === "z" && document.activeElement !== chatInput && !state.isSpectator) {
       sendMessage({ type: "moveCancelOne" });
       return;
     }

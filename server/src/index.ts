@@ -104,6 +104,7 @@ type Room = {
   gameMode: "deathmatch" | "ctf";
 
   playerIds: Set<string>;
+  spectatorIds: Set<string>; // Spectators watching the room
   bullets: Bullet[];
   explosions: Explosion[]; // Transient events to sync
   items: Item[];           // Persistent items on map
@@ -540,6 +541,7 @@ function toRoomSummary(r: Room) {
     gameMode: r.gameMode,
     players: playerIds,
     playerCount: playerIds.length,
+    spectatorCount: r.spectatorIds.size,
   };
 }
 
@@ -549,11 +551,10 @@ function lobbyStatePayload() {
     .map(toRoomSummary);
   list.sort((a, b) => b.createdAt - a.createdAt);
 
+  // Exclude players who are in a room (including spectators)
   const onlinePlayers = [...players.values()]
     .filter(p => !p.roomId)
     .map(p => ({ id: p.id, name: p.name }));
-
-  // console.log(`[DEBUG] Lobby Payload: ${ onlinePlayers.length } online, ${ list.length } rooms`);
 
   return { rooms: list, onlinePlayers };
 }
@@ -596,6 +597,40 @@ function roomStatePayloadForPlayer(roomId: string, recipient: PlayerRuntime) {
   };
 }
 
+/** Spectator version: no stealth filter — spectators see ALL players */
+function roomStatePayloadForSpectator(roomId: string) {
+  const room = rooms.get(roomId);
+  if (!room) return null;
+
+  const timeLeftSec = Math.max(0, Math.ceil((room.endsAt - nowMs()) / 1000));
+
+  // Spectators see ALL players (no stealth filter)
+  const ps = [...room.playerIds]
+    .map(pid => players.get(pid))
+    .filter((p): p is PlayerRuntime => !!p)
+    .map(toPlayerPublic);
+
+  const bs = room.bullets.map(toBulletPublic);
+  const es = room.explosions;
+
+  return {
+    roomId: room.id,
+    roomName: room.name,
+    mapId: room.mapId,
+    timeLeftSec,
+    room: toRoomSummary(room),
+    players: ps,
+    bullets: bs,
+    projectiles: bs,
+    explosions: es,
+    gameMode: room.gameMode,
+    teamScores: { red: room.scoreRed, blue: room.scoreBlue },
+    mapData: room.mapData,
+    flags: room.gameMode === "ctf" ? room.flags : undefined,
+    items: room.items,
+  };
+}
+
 function broadcastLobby() {
   const payload = lobbyStatePayload();
   for (const p of players.values()) {
@@ -611,6 +646,11 @@ function broadcastRoom(roomId: string, msg: ServerMsg) {
     // Double-check: ensure the player actually thinks they are in this room
     if (p && p.roomId === roomId) send(p.socket, msg);
   }
+  // Also broadcast to spectators
+  for (const sid of room.spectatorIds) {
+    const s = players.get(sid);
+    if (s && s.roomId === roomId) send(s.socket, msg);
+  }
 }
 
 function sendRoomState(roomId: string) {
@@ -622,6 +662,13 @@ function sendRoomState(roomId: string) {
     const payload = roomStatePayloadForPlayer(roomId, p);
     if (payload) send(p.socket, { type: "room", payload });
   }
+  // Send to spectators (full visibility, no stealth filter)
+  for (const sid of room.spectatorIds) {
+    const s = players.get(sid);
+    if (!s || s.roomId !== roomId) continue;
+    const payload = roomStatePayloadForSpectator(roomId);
+    if (payload) send(s.socket, { type: "room", payload });
+  }
 }
 
 function detachFromRoom(p: PlayerRuntime) {
@@ -630,7 +677,8 @@ function detachFromRoom(p: PlayerRuntime) {
   const old = rooms.get(oldRoomId);
   if (old) {
     old.playerIds.delete(p.id);
-    if (old.playerIds.size === 0) {
+    old.spectatorIds.delete(p.id); // Also remove from spectators
+    if (old.playerIds.size === 0 && old.spectatorIds.size === 0) {
       // Persistent Room: Keep valid until time ends
       if (nowMs() < old.endsAt) {
         console.log(`Room ${old.id} is empty but kept because time remains.`);
@@ -1338,7 +1386,7 @@ function tick() {
     }
 
     // Cleanup empty ended rooms (managed in detachFromRoom mostly, but safe here too)
-    if (room.ended && room.playerIds.size === 0) {
+    if (room.ended && room.playerIds.size === 0 && room.spectatorIds.size === 0) {
       rooms.delete(room.id);
       continue;
     }
@@ -1658,7 +1706,8 @@ wss.on("connection", (socket) => {
           passwordProtected, password: passwordProtected ? password : undefined,
           gameMode,
           maxPlayers, timeLimitSec, createdAt, endsAt, ended: false,
-          playerIds: new Set<string>(), bullets: [], explosions: [],
+          playerIds: new Set<string>(), spectatorIds: new Set<string>(),
+          bullets: [], explosions: [],
           items: [], lastItemSpawnAt: createdAt,
           flags,
           scoreRed: 0, scoreBlue: 0,
@@ -1677,12 +1726,40 @@ wss.on("connection", (socket) => {
         if (roomId) joinRoom(player, roomId, password);
         break;
       }
+      case "spectateRoom": {
+        const pld = isRecord(payload) ? payload : {};
+        const roomId = pickString(pld.roomId, "").trim();
+        const password = pickString(pld.password, "").trim() || undefined;
+        if (roomId) {
+          const room = rooms.get(roomId);
+          if (!room) {
+            send(socket, { type: "error", payload: { message: "Room not found." } });
+            break;
+          }
+          if (room.passwordProtected && room.password !== password) {
+            send(socket, { type: "error", payload: { message: "Invalid password." } });
+            break;
+          }
+          detachFromRoom(player);
+          player.roomId = roomId;
+          player.team = null; // Spectators have no team
+          room.spectatorIds.add(player.id);
+          console.log(`[DEBUG] Player ${player.id} spectating room ${roomId}`);
+          // Send initial room state to spectator (full visibility)
+          const statePayload = roomStatePayloadForSpectator(roomId);
+          if (statePayload) send(player.socket, { type: "room", payload: statePayload });
+          broadcastLobby();
+        }
+        break;
+      }
       case "leaveRoom":
       case "leave": {
         joinLobby(player);
         break;
       }
       case "move": {
+        // Spectators cannot move
+        if (player.roomId && rooms.get(player.roomId)?.spectatorIds.has(player.id)) break;
         const pld = isRecord(payload) ? payload : payload ?? {};
         if (isRecord(pld) && (pld.dir || pld.direction)) {
           const d = pickVector2(pld.dir ?? pld.direction, { x: 0, y: 0 });
@@ -1718,6 +1795,8 @@ wss.on("connection", (socket) => {
         break;
       }
       case "shoot": {
+        // Spectators cannot shoot
+        if (player.roomId && rooms.get(player.roomId)?.spectatorIds.has(player.id)) break;
         const pld = isRecord(payload) ? payload : payload ?? {};
         let shootDir: Vector2 | null = null;
         if (isRecord(pld) && (pld.dir || pld.direction)) {
@@ -1735,11 +1814,14 @@ wss.on("connection", (socket) => {
         const pld = isRecord(payload) ? payload : {};
         const message = pickString(pld.message, "").trim();
         if (!message) break;
+        // Spectators can chat but with a distinguishing prefix
+        const isSpectatorChat = player.roomId && rooms.get(player.roomId)?.spectatorIds.has(player.id);
+        const chatName = isSpectatorChat ? `👁 ${player.name}` : player.name;
         if (player.roomId) {
           broadcastRoom(player.roomId, {
             type: "chat",
             payload: {
-              from: player.name,
+              from: chatName,
               message: message.slice(0, 120),
               timestamp: nowMs(),
             },

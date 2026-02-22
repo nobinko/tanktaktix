@@ -69,6 +69,7 @@ export type RoomSummary = {
   createdAt: number;
   endsAt: number;
   players: string[];
+  spectatorCount?: number; // Number of spectators watching
 };
 
 export type LobbyState = {
@@ -159,6 +160,10 @@ export type ClientToServerMessage =
   }
   | {
     type: "moveCancelOne";
+  }
+  | {
+    type: "spectateRoom";
+    payload: { roomId: string; password?: string };
   };
 
 export type ServerToClientMessage =
