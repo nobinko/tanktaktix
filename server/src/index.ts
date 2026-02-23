@@ -68,7 +68,11 @@ type PlayerRuntime = {
   respawnAt: number | null;
   respawnCooldownUntil: number; // Instant respawn cooldown end time
   isHidden: boolean;
-  lastFiredAt: number;
+
+  // Phase 4 item state
+  hasBomb: boolean;       // true = next shot is a bomb shot
+  ropeCount: number;      // 0~2 rope items held
+  bootsCharges: number;   // 0 = no boots, 1~3 = remaining move arrivals
 
   socket: WebSocket | null; // Null if disconnected but keeping state for rejoin
   disconnectedAt: number | null;
@@ -85,6 +89,9 @@ type Bullet = {
   startX: number;
   startY: number;
   expiresAt: number;
+  isBomb?: boolean; // Phase 4: bomb shot = 3x explosion radius
+  isRope?: boolean; // Phase 4: rope projectile for item/flag pickup
+  ropeOwnerId?: string; // Who fired the rope (for item collection)
 };
 
 type Room = {
@@ -132,10 +139,9 @@ const TICK_MS = 50;
 
 const MOVE_SPEED = 6; // per tick
 
-// Action lock (5→0 countdown) — spec: 6 steps, 200ms each = 1200ms total
-const ACTION_LOCK_STEPS = 6;
+// Action lock (1 step = 300ms)
 const ACTION_LOCK_STEP_MS = 300;
-const ACTION_COOLDOWN_MS = ACTION_LOCK_STEPS * ACTION_LOCK_STEP_MS;
+const ACTION_COOLDOWN_MS = 1800; // 6 steps (shoot, item, bump, etc.)
 
 const MOVE_QUEUE_MAX = 5; // max queued move targets
 
@@ -157,18 +163,26 @@ const BULLET_TTL_MS = Math.ceil((BULLET_RANGE / BULLET_SPEED) * 1000);
 const EXPLOSION_RADIUS = 40; // AoE radius
 const EXPLOSION_DAMAGE = 20; // AoE damage
 const HIT_RADIUS = TANK_SIZE; // Hitbox radius
-const REVEAL_DURATION_MS = 1000;
+
 const RECONNECT_TIMEOUT_MS = 60000;
 
 const FLAG_RADIUS = 25; // Detection radius for taking/capturing (legacy, used for friendly return)
 const FLAG_SCORE = 5; // Team score for capturing a flag
 const SPAWN_ZONE_HALF = 100; // Half-size of 200x200 spawn zone (used for flag pickup & capture)
 
-const ITEM_SPAWN_INTERVAL_MS = 10000; // Spawn an item every 10 seconds
-const ITEM_MAX_COUNT = 15;
 const ITEM_RADIUS = 15;
 const MEDIC_HEAL_AMOUNT = 20;
 const AMMO_REFILL_AMOUNT = 10;
+
+// Phase 4-1: Fixed item pool per map (total 12 items)
+const ITEM_POOL: { type: ItemType; count: number }[] = [
+  { type: "medic", count: 2 },
+  { type: "ammo", count: 2 },
+  { type: "heart", count: 2 },
+  { type: "bomb", count: 2 },
+  { type: "rope", count: 2 },
+  { type: "boots", count: 2 },
+];
 
 // --- Maps (all 1800×1040) ---
 
@@ -500,7 +514,7 @@ function toPlayerPublic(p: PlayerRuntime) {
     score: p.score,
     respawnAt: p.respawnAt,
     respawnCooldownUntil: p.respawnCooldownUntil,
-    // Action lock: compute current step (5→0) from remaining cooldown ms
+    // Action lock: compute current step from remaining cooldown ms (1 step = 300ms)
     nextActionAt: p.cooldownUntil,
     actionLockStep: Math.max(0, Math.ceil((p.cooldownUntil - nowMs()) / ACTION_LOCK_STEP_MS)),
     hullAngle: p.hullAngle,
@@ -510,6 +524,11 @@ function toPlayerPublic(p: PlayerRuntime) {
     deaths: p.deaths,
     hits: p.hits,
     fired: p.fired,
+    isHidden: p.isHidden,
+    // Phase 4 item state
+    hasBomb: p.hasBomb,
+    ropeCount: p.ropeCount,
+    bootsCharges: p.bootsCharges,
   };
 }
 
@@ -521,6 +540,8 @@ function toBulletPublic(b: Bullet): BulletPublic {
     y: b.y,
     position: { x: b.x, y: b.y },
     radius: b.radius,
+    isBomb: b.isBomb || false,
+    isRope: b.isRope || false,
   };
 }
 
@@ -786,37 +807,58 @@ function spawnPlayer(p: PlayerRuntime, room: Room) {
   // Note: we do not reset respawnCooldownUntil here. It's set explicitly upon death.
   p.hullAngle = 0;
   p.turretAngle = 0;
+  // Phase 4: Reset item state on respawn
+  p.hasBomb = false;
+  p.ropeCount = 0;
+  p.bootsCharges = 0;
+
   // Stats (score/kills/deaths/hits/fired) are NOT reset here.
   // They are reset once in joinRoom() at initial spawn only.
 }
 
-function spawnItem(room: Room) {
-  if (room.items.length >= ITEM_MAX_COUNT) return;
-
-  const map = room.mapData;
-  let x = 0, y = 0;
-  let attempts = 0;
-  let found = false;
-
-  while (attempts < 20 && !found) {
-    x = Math.random() * (map.width - 100) + 50;
-    y = Math.random() * (map.height - 100) + 50;
+/** Find a random open position on the map (not inside walls) */
+function findRandomItemPosition(map: MapData): { x: number; y: number } | null {
+  for (let attempts = 0; attempts < 30; attempts++) {
+    const x = Math.random() * (map.width - 100) + 50;
+    const y = Math.random() * (map.height - 100) + 50;
     if (!checkWallCollision(x, y, ITEM_RADIUS, map.walls)) {
-      found = true;
+      return { x, y };
     }
-    attempts++;
   }
+  return null;
+}
 
-  if (found) {
-    const type: ItemType = Math.random() > 0.5 ? "medic" : "ammo";
-    const item: Item = {
+/** Phase 4-1: Initialize all items from pool at game start */
+function initializeItems(room: Room) {
+  room.items = [];
+  for (const entry of ITEM_POOL) {
+    for (let i = 0; i < entry.count; i++) {
+      const pos = findRandomItemPosition(room.mapData);
+      if (pos) {
+        room.items.push({
+          id: newId(),
+          x: pos.x,
+          y: pos.y,
+          type: entry.type,
+          spawnedAt: nowMs(),
+        });
+      }
+    }
+  }
+  console.log(`[DEBUG] Initialized ${room.items.length} items for room ${room.id}`);
+}
+
+/** Phase 4-1: Respawn a single item of the given type at a random location */
+function respawnItem(room: Room, type: ItemType) {
+  const pos = findRandomItemPosition(room.mapData);
+  if (pos) {
+    room.items.push({
       id: newId(),
-      x,
-      y,
+      x: pos.x,
+      y: pos.y,
       type,
       spawnedAt: nowMs(),
-    };
-    room.items.push(item);
+    });
   }
 }
 
@@ -935,11 +977,13 @@ function setAimDir(p: PlayerRuntime, dir: Vector2) {
   p.aimDir = d;
 }
 
-function triggerExplosion(room: Room, x: number, y: number, shooterId: string) {
+function triggerExplosion(room: Room, x: number, y: number, shooterId: string, isBomb = false) {
+  // Phase 4: bomb = 3x explosion radius
+  const explosionRadius = isBomb ? EXPLOSION_RADIUS * 3 : EXPLOSION_RADIUS;
   const explosion: Explosion = {
     id: newId(),
     x, y,
-    radius: EXPLOSION_RADIUS,
+    radius: explosionRadius,
     at: nowMs()
   };
   room.explosions.push(explosion);
@@ -956,7 +1000,7 @@ function triggerExplosion(room: Room, x: number, y: number, shooterId: string) {
 
     // Calculate distance
     const dist = Math.hypot(target.x - x, target.y - y);
-    if (dist <= EXPLOSION_RADIUS + TANK_SIZE) {
+    if (dist <= explosionRadius + TANK_SIZE) {
       // Friendly Fire Rules:
       // - Damage Self: YES
       // - Damage Enemy: YES
@@ -971,8 +1015,19 @@ function triggerExplosion(room: Room, x: number, y: number, shooterId: string) {
       }
 
       if (canDamage) {
-        // Damage Rule: 20 per hit (Max 100 -> 5 hits)
-        const damage = 20;
+        // Phase 4: Bomb = tiered damage based on distance
+        let damage = EXPLOSION_DAMAGE; // default 20
+        if (isBomb) {
+          const innerR = explosionRadius / 3;
+          const midR = (explosionRadius * 2) / 3;
+          if (dist <= innerR + TANK_SIZE) {
+            damage = 60; // Inner zone
+          } else if (dist <= midR + TANK_SIZE) {
+            damage = 40; // Mid zone
+          } else {
+            damage = 20; // Outer zone
+          }
+        }
         target.hp = Math.max(0, target.hp - damage);
 
         // CTF: Drop flag on ANY damage (not just death)
@@ -1060,7 +1115,13 @@ function tryShoot(p: PlayerRuntime, dir: Vector2) {
     }
   }
 
-  p.lastFiredAt = now;
+
+
+  // Phase 4: Check if this is a bomb shot
+  const isBombShot = p.hasBomb;
+  if (isBombShot) {
+    p.hasBomb = false; // Consume bomb on use
+  }
 
   // Trigger Cooldown immediately
   p.cooldownUntil = now + ACTION_COOLDOWN_MS;
@@ -1075,6 +1136,9 @@ function tryShoot(p: PlayerRuntime, dir: Vector2) {
   const bx = clamp(p.x + d.x * spawnOffset, 0, room.mapData.width);
   const by = clamp(p.y + d.y * spawnOffset, 0, room.mapData.height);
 
+  // Phase 4: Bomb shot has 3x explosion radius
+  const bulletRadius = isBombShot ? BULLET_RADIUS * 1.5 : BULLET_RADIUS; // slightly larger visual
+
   const bullet: Bullet = {
     id: newId(),
     shooterId: p.id,
@@ -1082,10 +1146,11 @@ function tryShoot(p: PlayerRuntime, dir: Vector2) {
     y: by,
     vx: d.x * BULLET_SPEED,
     vy: d.y * BULLET_SPEED,
-    radius: BULLET_RADIUS,
+    radius: bulletRadius,
     startX: bx,
     startY: by,
     expiresAt: now + BULLET_TTL_MS,
+    isBomb: isBombShot, // Tag for explosion handler
   };
 
   room.bullets.push(bullet);
@@ -1095,18 +1160,69 @@ function tryShoot(p: PlayerRuntime, dir: Vector2) {
   sendRoomState(p.roomId);
 }
 
+// Phase 4-7: Use Item Action (e.g. Rope)
+function tryUseItem(p: PlayerRuntime, dir: Vector2) {
+  if (!p.roomId) return;
+  const now = nowMs();
+
+  if (p.respawnAt && p.respawnAt > now) return;
+  if (p.respawnCooldownUntil > now) return;
+
+  // Actions share cooldown
+  if (now < p.cooldownUntil) return;
+
+  const room = rooms.get(p.roomId);
+  if (!room) return;
+
+  // Attempt to use Rope if we have one
+  if (p.ropeCount > 0) {
+    const ropeRange = p.ropeCount === 2 ? 300 : 200;
+    p.ropeCount -= 1;
+    p.cooldownUntil = now + ACTION_COOLDOWN_MS; // Same cooldown as shooting
+
+    const d = norm(dir);
+    if (len(d) === 0) return;
+
+    // Fire a rope projectile (same speed as normal bullets)
+    const bx = p.x + d.x * 20;
+    const by = p.y + d.y * 20;
+    const ropeBullet: Bullet = {
+      id: newId(),
+      shooterId: p.id,
+      x: bx,
+      y: by,
+      vx: d.x * BULLET_SPEED,
+      vy: d.y * BULLET_SPEED,
+      radius: 4,
+      startX: bx,
+      startY: by,
+      expiresAt: now + (ropeRange / BULLET_SPEED) * 1000 + 200, // auto-expire after range
+      isRope: true,
+      ropeOwnerId: p.id,
+    };
+    room.bullets.push(ropeBullet);
+
+    // Lock turret to rope direction
+    p.turretAngle = Math.atan2(d.y, d.x);
+
+    broadcastRoom(p.roomId, {
+      type: "chat",
+      payload: {
+        from: "SYSTEM",
+        message: `🔗 ${p.name} used a Rope!`,
+        timestamp: now
+      }
+    });
+  }
+}
+
 function dropFlag(carrierId: string, room: Room) {
-  const flagSrc = room.mapData.flagPositions ?? room.mapData.spawnPoints;
   for (const f of room.flags) {
     if (f.carrierId === carrierId) {
-      console.log(`[DEBUG] Flag ${f.team} dropped by ${carrierId} — returning to base`);
+      console.log(`[DEBUG] Flag ${f.team} dropped by ${carrierId} at (${f.x}, ${f.y})`);
       f.carrierId = null;
-      // Return flag to its original position
-      const base = flagSrc.find(s => s.team === f.team);
-      if (base) {
-        f.x = base.x;
-        f.y = base.y;
-      }
+      f.droppedById = carrierId; // Phase 4-5: mark who dropped it to prevent instant re-pickup
+      // Phase 4-5: flag stays exactly where dropped, do not return to base
     }
   }
 }
@@ -1178,7 +1294,18 @@ function updateCTF(room: Room, now: number) {
         if (!p || p.hp <= 0 || p.respawnAt || p.respawnCooldownUntil > now) continue;
 
         const dist = Math.hypot(p.x - f.x, p.y - f.y);
+
+        // Phase 4-5: Clear droppedById if the dropper moves away from the flag
+        if (f.droppedById === p.id && dist > FLAG_RADIUS + TANK_SIZE) {
+          f.droppedById = undefined;
+        }
+
         if (dist < FLAG_RADIUS + TANK_SIZE) {
+          // Phase 4-5: Prevent immediate re-pickup by the dropper
+          if (f.droppedById === p.id) {
+            continue; // Cannot pick it up until they move away first
+          }
+
           if (p.team !== f.team) {
             // Enemy touches flag -> Take it
             // Check if player already carrying a flag? (Usually only 1 flag per team, but safe check)
@@ -1227,9 +1354,11 @@ function updateBullets(room: Room, dtSec: number, now: number) {
   for (const b of room.bullets) {
     let exploded = false;
 
-    // 1. Timeout -> Explode
+    // 1. Timeout -> Explode (rope projectiles just disappear)
     if (now >= b.expiresAt) {
-      triggerExplosion(room, b.x, b.y, b.shooterId);
+      if (!b.isRope) {
+        triggerExplosion(room, b.x, b.y, b.shooterId, b.isBomb);
+      }
       exploded = true;
     }
 
@@ -1238,15 +1367,65 @@ function updateBullets(room: Room, dtSec: number, now: number) {
     const prev = { x: b.x, y: b.y };
     const curr = { x: b.x + b.vx * dtSec, y: b.y + b.vy * dtSec };
 
-    // 2. Wall Collision -> Explode (Only type "wall" blocks bullets)
+    // Rope bullet: Check item/flag collision FIRST
+    if (b.isRope && !exploded) {
+      const owner = players.get(b.ropeOwnerId || b.shooterId);
+
+      // Check Items
+      const hitItem = room.items.find(i => Math.hypot(i.x - curr.x, i.y - curr.y) < 25);
+      if (hitItem && owner) {
+        // Teleport item to owner so they pick it up next tick
+        hitItem.x = owner.x;
+        hitItem.y = owner.y;
+        exploded = true;
+      }
+
+      // Check Flags
+      if (!exploded) {
+        const hitFlag = room.flags.find(f => Math.hypot(f.x - curr.x, f.y - curr.y) < 25);
+        if (hitFlag && owner && hitFlag.carrierId !== owner.id) {
+          hitFlag.carrierId = owner.id;
+          hitFlag.droppedById = undefined;
+          exploded = true;
+        }
+      }
+
+      // Check teammates carrying flags (rope can steal from ally)
+      if (!exploded && owner) {
+        for (const pid of room.playerIds) {
+          if (pid === owner.id) continue;
+          const other = players.get(pid);
+          if (!other || other.hp <= 0) continue;
+          const dist = Math.hypot(other.x - curr.x, other.y - curr.y);
+          if (dist < 20) {
+            // Check if this player carries a flag
+            const carriedFlag = room.flags.find(f => f.carrierId === other.id);
+            if (carriedFlag) {
+              carriedFlag.carrierId = owner.id;
+              carriedFlag.droppedById = undefined;
+              exploded = true;
+              break;
+            }
+          }
+        }
+      }
+
+      if (exploded) continue;
+    }
+
+    // 2. Wall Collision -> Explode (rope just disappears)
     if (isBulletBlockedByWall(curr.x, curr.y, room.mapData.walls)) {
-      triggerExplosion(room, curr.x, curr.y, b.shooterId);
+      if (!b.isRope) {
+        triggerExplosion(room, curr.x, curr.y, b.shooterId, b.isBomb);
+      }
       exploded = true;
     }
 
-    // 3. Out of bounds -> Explode
+    // 3. Out of bounds -> Explode (rope just disappears)
     if (!exploded && (curr.x < 0 || curr.x > room.mapData.width || curr.y < 0 || curr.y > room.mapData.height)) {
-      triggerExplosion(room, curr.x, curr.y, b.shooterId);
+      if (!b.isRope) {
+        triggerExplosion(room, curr.x, curr.y, b.shooterId, b.isBomb);
+      }
       exploded = true;
     }
 
@@ -1297,9 +1476,55 @@ function updateBullets(room: Room, dtSec: number, now: number) {
           // Score for hit matches team mode logic (0)
         }
 
-        triggerExplosion(room, curr.x, curr.y, b.shooterId);
+        triggerExplosion(room, curr.x, curr.y, b.shooterId, b.isBomb);
         exploded = true;
         break;
+      }
+    }
+
+    if (exploded) continue;
+
+    // 5. Phase 4-2: Item Collision — bullet destroys items, same-type respawns
+    {
+      const hitIdx = room.items.findIndex(item =>
+        Math.hypot(curr.x - item.x, curr.y - item.y) < b.radius + ITEM_RADIUS
+      );
+      if (hitIdx >= 0) {
+        const destroyed = room.items[hitIdx];
+        room.items.splice(hitIdx, 1);
+        respawnItem(room, destroyed.type);
+        triggerExplosion(room, curr.x, curr.y, b.shooterId, b.isBomb);
+        exploded = true;
+      }
+    }
+
+    if (exploded) continue;
+
+    // 6. Phase 4-5: Flag Collision — bullet hits dropped flag → reset to base
+    if (room.gameMode === "ctf") {
+      for (const f of room.flags) {
+        if (f.carrierId) continue; // Carried flags can't be hit
+        const flagSrc = room.mapData.flagPositions ?? room.mapData.spawnPoints;
+        const basePos = flagSrc.find(s => s.team === f.team);
+        if (!basePos) continue;
+        // Skip if flag is already at base
+        if (Math.abs(f.x - basePos.x) < 2 && Math.abs(f.y - basePos.y) < 2) continue;
+        const dist = Math.hypot(curr.x - f.x, curr.y - f.y);
+        if (dist < b.radius + 25) { // FLAG_RADIUS = 25
+          f.x = basePos.x;
+          f.y = basePos.y;
+          broadcastRoom(room.id, {
+            type: "chat",
+            payload: {
+              from: "SYSTEM",
+              message: `🔫 The ${f.team} flag was shot and returned to base!`,
+              timestamp: now
+            }
+          });
+          triggerExplosion(room, curr.x, curr.y, b.shooterId, b.isBomb);
+          exploded = true;
+          break;
+        }
       }
     }
 
@@ -1335,12 +1560,7 @@ function tick() {
     // Client handles "event" based explosion. State persistence is only needed for 1 tick.
     room.explosions = [];
 
-    // Periodic Item Spawning
-    if (!room.ended && now - room.lastItemSpawnAt >= ITEM_SPAWN_INTERVAL_MS) {
-      spawnItem(room);
-      room.lastItemSpawnAt = now;
-      // broadcastLobby()? No, sendRoomState covers it.
-    }
+    // Phase 4-1: アイテムは固定プール制。10秒スポーンは廃止済み。
 
     if (room.endsAt > 0 && now >= room.endsAt) {
       if (!room.ended) {
@@ -1408,10 +1628,9 @@ function tick() {
       }
       if (p.respawnAt && p.respawnAt > now) continue;
 
-      // Update visibility (B-2/B-5)
+      // Update visibility (B-2/B-5) — bush内は常に隠密、射撃で解除しない
       const inBush = isPointInBush(p.x, p.y, room.mapData.walls);
-      const revealByShooting = (now - p.lastFiredAt < REVEAL_DURATION_MS);
-      p.isHidden = inBush && !revealByShooting;
+      p.isHidden = inBush;
 
       // Movement Logic (with pivot-turn phase)
       let wantsToMove = false;
@@ -1435,14 +1654,28 @@ function tick() {
           const to = { x: currentTarget.x - p.x, y: currentTarget.y - p.y };
           const distance = len(to);
 
-          if (distance <= MOVE_SPEED) {
+          // Phase 4: boots speed boost
+          const effectiveSpeed = p.bootsCharges > 0 ? MOVE_SPEED * 1.5 : MOVE_SPEED;
+
+          if (distance <= effectiveSpeed) {
             // Arrived at current target
             p.x = currentTarget.x;
             p.y = currentTarget.y;
             p.moveQueue.shift();
             p.isMoving = false;
             p.isRotating = false;
-            p.cooldownUntil = now + (currentTarget.cost ?? ACTION_COOLDOWN_MS);
+
+            // Phase 4: boots speed boost uses cost or specific logic, but normal movement is based on dist
+            const applyCooldown = (dist: number) => {
+              return dist >= 200 ? COOLDOWN_LONG_MS : COOLDOWN_SHORT_MS;
+            };
+            const arrivedCooldown = (currentTarget as any).cost ?? applyCooldown(Math.hypot(currentTarget.x - (p.pendingMove?.x || p.x), currentTarget.y - (p.pendingMove?.y || p.y)));
+            p.cooldownUntil = now + arrivedCooldown;
+
+            // Phase 4: consume boots charge on arrival
+            if (p.bootsCharges > 0) {
+              p.bootsCharges--;
+            }
           } else {
             const targetAngle = Math.atan2(to.y, to.x);
             const angleDiff = normalizeAngle(targetAngle - p.hullAngle);
@@ -1463,8 +1696,9 @@ function tick() {
               p.turretAngle = targetAngle; // turret aligned to front
               p.isRotating = false;
               const d = norm(to);
-              dx = d.x * MOVE_SPEED;
-              dy = d.y * MOVE_SPEED;
+              const moveSpd = p.bootsCharges > 0 ? MOVE_SPEED * 1.5 : MOVE_SPEED;
+              dx = d.x * moveSpd;
+              dy = d.y * moveSpd;
               wantsToMove = true;
             }
           }
@@ -1512,30 +1746,60 @@ function tick() {
           if (p.moveQueue.length > 0) p.moveQueue.shift();
           p.isMoving = false;
           p.isRotating = false;
-          p.cooldownUntil = now + ACTION_COOLDOWN_MS;
+          p.cooldownUntil = now + Math.min(ACTION_COOLDOWN_MS, 300); // Back to normal penalty for bumping walls
         }
       }
 
-      // Check Item Pickups
+      // Check Item Pickups (Phase 4-1/4-3/4-4)
       if (!room.ended && p.hp > 0 && !p.respawnAt) {
         const nextItems: Item[] = [];
-        let pickedAny = false;
+        const pickedTypes: ItemType[] = [];
         for (const item of room.items) {
           const dist = Math.hypot(p.x - item.x, p.y - item.y);
           if (dist < TANK_SIZE + ITEM_RADIUS) {
-            // Pickup!
-            if (item.type === "medic") {
-              p.hp = Math.min(100, p.hp + MEDIC_HEAL_AMOUNT);
+            // Phase 4-3: Check pickup limits before applying
+            let canPickup = true;
+            if (item.type === "medic" || item.type === "heart") {
+              if (p.hp >= 100) canPickup = false; // HP full → cannot pick
             } else if (item.type === "ammo") {
-              p.ammo = Math.min(50, p.ammo + AMMO_REFILL_AMOUNT);
+              if (p.ammo >= 40) canPickup = false; // Ammo full → cannot pick
+            } else if (item.type === "bomb") {
+              if (p.hasBomb) canPickup = false; // Already has bomb
+            } else if (item.type === "rope") {
+              if (p.ropeCount >= 2) canPickup = false; // Max 2 ropes
+            } else if (item.type === "boots") {
+              if (p.bootsCharges > 0) canPickup = false; // Already has boots
             }
-            pickedAny = true;
+
+            if (canPickup) {
+              // Phase 4-4: Apply effects
+              if (item.type === "medic") {
+                p.hp = Math.min(100, p.hp + MEDIC_HEAL_AMOUNT);
+              } else if (item.type === "ammo") {
+                p.ammo = Math.min(40, p.ammo + AMMO_REFILL_AMOUNT);
+              } else if (item.type === "heart") {
+                p.hp = 100; // Full heal
+              } else if (item.type === "bomb") {
+                p.hasBomb = true; // Next shot is bomb shot
+              } else if (item.type === "rope") {
+                p.ropeCount = Math.min(2, p.ropeCount + 1);
+              } else if (item.type === "boots") {
+                p.bootsCharges = 3; // 3 move arrivals
+              }
+              pickedTypes.push(item.type);
+            } else {
+              nextItems.push(item); // Cannot pick → keep item
+            }
           } else {
             nextItems.push(item);
           }
         }
-        if (pickedAny) {
+        if (pickedTypes.length > 0) {
           room.items = nextItems;
+          // Respawn same types at new random locations
+          for (const t of pickedTypes) {
+            respawnItem(room, t);
+          }
         }
       }
     }
@@ -1612,7 +1876,11 @@ wss.on("connection", (socket) => {
     respawnAt: null,
     respawnCooldownUntil: 0,
     isHidden: false,
-    lastFiredAt: 0,
+    // Phase 4 item state
+    hasBomb: false,
+    ropeCount: 0,
+    bootsCharges: 0,
+
     socket,
     disconnectedAt: null,
   };
@@ -1708,12 +1976,13 @@ wss.on("connection", (socket) => {
           maxPlayers, timeLimitSec, createdAt, endsAt, ended: false,
           playerIds: new Set<string>(), spectatorIds: new Set<string>(),
           bullets: [], explosions: [],
-          items: [], lastItemSpawnAt: createdAt,
+          items: [], lastItemSpawnAt: createdAt, // kept for compat
           flags,
           scoreRed: 0, scoreBlue: 0,
           history: new Map(),
         };
         rooms.set(roomId, room);
+        initializeItems(room); // Phase 4-1: populate item pool
         broadcastLobby();
         // User requested: "Creation and Entry are separate". Do not auto-join.
         // joinRoom(player, roomId, passwordProtected ? password : undefined);

@@ -187,6 +187,16 @@ const state = {
   items: [] as Item[], // New: store items for rendering
   flags: [] as Flag[], // New: store flags for CTF
   isSpectator: false, // Spectator mode flag
+
+  // Phase 4-6: Damage Flash System
+  lastHpMap: {} as Record<string, number>,
+  hitFlashes: {} as Record<string, number>,
+
+  // Phase 4-8: Floating Combat Text
+  floatingTexts: [] as { id: string, text: string, color: string, x: number, y: number, startedAt: number }[],
+
+  // Phase 4-8: Hit Particles
+  particles: [] as { x: number, y: number, vx: number, vy: number, life: number, maxLife: number, color: string }[],
 };
 
 let ws: WebSocket | null = null;
@@ -309,6 +319,24 @@ const handleServerMessage = (message: ServerToClientMessage) => {
       state.items = message.payload.items;
       state.flags = message.payload.flags || [];
 
+      // Phase 4-6: Check for HP drops to trigger damage flashes
+      const now = Date.now();
+      for (const p of payload.players) {
+        const lastHp = state.lastHpMap[p.id];
+        if (lastHp !== undefined) {
+          if (p.hp < lastHp && p.hp > 0) {
+            // HP dropped -> Trigger flash (duration: 150ms)
+            state.hitFlashes[p.id] = now + 150;
+            // Add Damage FCT
+            state.floatingTexts.push({ id: Math.random().toString(), text: `-${lastHp - p.hp}`, color: "#ff6b6b", x: p.position.x, y: p.position.y - 25, startedAt: now });
+          } else if (p.hp > lastHp) {
+            // Add Heal FCT
+            state.floatingTexts.push({ id: Math.random().toString(), text: `+${p.hp - lastHp}`, color: "#4ade80", x: p.position.x, y: p.position.y - 25, startedAt: now });
+          }
+        }
+        state.lastHpMap[p.id] = p.hp; // Update for next frame
+      }
+
       // Ensure we switch to room screen if not already there
       if (state.phase !== "room") {
         setScreen("room");
@@ -367,6 +395,21 @@ const handleServerMessage = (message: ServerToClientMessage) => {
         ...message.payload,
         startedAt: Date.now()
       });
+      // Phase 4-8: Generate Hit Particles (Sparks)
+      const numParticles = message.payload.radius > 30 ? 12 : 6; // More sparks for Bomb
+      for (let i = 0; i < numParticles; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = Math.random() * 4 + 2;
+        state.particles.push({
+          x: message.payload.x,
+          y: message.payload.y,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          life: 1.0,
+          maxLife: Math.random() * 0.5 + 0.3, // 0.3~0.8 seconds
+          color: Math.random() > 0.5 ? "#fde047" : "#f97316" // Yellow or Orange
+        });
+      }
       break;
     default:
       break;
@@ -644,8 +687,17 @@ const draw = () => {
 
   // bullets（サーバ権威の projectile）
   if (state.bullets.length > 0) {
-    ctx.fillStyle = "#fde047";
     for (const b of state.bullets) {
+      if ((b as any).isRope) {
+        // Rope projectile: brown wavy line feel
+        ctx.fillStyle = "#a3752c";
+      } else if ((b as any).isBomb) {
+        // Bomb shot: red
+        ctx.fillStyle = "#ef4444";
+      } else {
+        // Normal bullet: yellow
+        ctx.fillStyle = "#fde047";
+      }
       ctx.beginPath();
       ctx.arc(b.position.x, b.position.y, b.radius, 0, Math.PI * 2);
       ctx.fill();
@@ -672,6 +724,33 @@ const draw = () => {
     ctx.stroke();
   }
 
+  // Phase 4-8: Particles VFX
+  const dt = 1 / 60; // Approximate delta time for 60FPS
+  for (let i = state.particles.length - 1; i >= 0; i--) {
+    const p = state.particles[i];
+    p.life -= dt / p.maxLife;
+
+    if (p.life <= 0) {
+      state.particles.splice(i, 1);
+      continue;
+    }
+
+    // Move
+    p.x += p.vx;
+    p.y += p.vy;
+    // Friction
+    p.vx *= 0.92;
+    p.vy *= 0.92;
+
+    const alpha = Math.max(0, p.life);
+    ctx.fillStyle = p.color;
+    ctx.globalAlpha = alpha;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1.0;
+  }
+
   // --- Items ---
   state.items.forEach(item => {
     ctx.save();
@@ -679,18 +758,71 @@ const draw = () => {
     ctx.rotate(-state.camera.rotation);
 
     if (item.type === "medic") {
-      // Clean Medic Kit: Green Box with White Plus
-      ctx.fillStyle = "#16a34a"; // Green
+      // Medic Kit: Green Box with White Plus
+      ctx.fillStyle = "#16a34a";
       ctx.fillRect(-10, -10, 20, 20);
       ctx.fillStyle = "#fff";
       ctx.fillRect(-7, -2, 14, 4);
       ctx.fillRect(-2, -7, 4, 14);
-    } else {
+    } else if (item.type === "ammo") {
       // Ammo Box: Brown/Yellow Box with Bullet icon
-      ctx.fillStyle = "#ca8a04"; // Yellow/Brown
+      ctx.fillStyle = "#ca8a04";
       ctx.fillRect(-10, -10, 20, 20);
       ctx.fillStyle = "#1a1a2e";
-      ctx.fillRect(-7, 2, 8, 5); // Bullet tip
+      ctx.fillRect(-7, 2, 8, 5);
+    } else if (item.type === "heart") {
+      // Heart: Pink/Red heart shape
+      ctx.fillStyle = "#ec4899";
+      ctx.beginPath();
+      ctx.moveTo(0, 4);
+      ctx.bezierCurveTo(-10, -6, -14, 2, 0, 12);
+      ctx.bezierCurveTo(14, 2, 10, -6, 0, 4);
+      ctx.fill();
+    } else if (item.type === "bomb") {
+      // Bomb: Dark circle with fuse
+      ctx.fillStyle = "#374151";
+      ctx.beginPath();
+      ctx.arc(0, 0, 10, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#f97316";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(5, -8);
+      ctx.lineTo(8, -14);
+      ctx.stroke();
+      // Spark
+      ctx.fillStyle = "#fbbf24";
+      ctx.beginPath();
+      ctx.arc(8, -14, 2, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (item.type === "rope") {
+      // Rope: Coiled rope icon
+      ctx.strokeStyle = "#a3752c";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(0, 0, 8, 0, Math.PI * 1.5);
+      ctx.stroke();
+      // Arrow tip
+      ctx.fillStyle = "#a3752c";
+      ctx.beginPath();
+      ctx.moveTo(0, -8);
+      ctx.lineTo(4, -4);
+      ctx.lineTo(-4, -4);
+      ctx.closePath();
+      ctx.fill();
+    } else if (item.type === "boots") {
+      // Boots: Blue boot icon
+      ctx.fillStyle = "#6366f1";
+      ctx.fillRect(-8, -4, 10, 12); // Shaft
+      ctx.fillRect(-8, 4, 16, 6);   // Sole
+      // Speed lines
+      ctx.strokeStyle = "#a5b4fc";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(-12, 0); ctx.lineTo(-16, 0);
+      ctx.moveTo(-12, 4); ctx.lineTo(-18, 4);
+      ctx.moveTo(-12, 8); ctx.lineTo(-15, 8);
+      ctx.stroke();
     }
     ctx.restore();
   });
@@ -742,6 +874,13 @@ const draw = () => {
       color = "#4cc9f0"; // Self (no team / FFA)
     }
 
+    // Phase 4-6: Apply Damage Flash override
+    const now = Date.now();
+    const isFlashing = state.hitFlashes[player.id] && state.hitFlashes[player.id] > now;
+    if (isFlashing) {
+      color = "#ffffff"; // Flash white
+    }
+
     const hullAngle = (player as any).hullAngle ?? 0;
     const turretAngle = (player as any).turretAngle ?? 0;
 
@@ -749,7 +888,6 @@ const draw = () => {
     ctx.save();
 
     // Apply transparency if in respawn cooldown
-    const now = Date.now();
     const isInvincible = (player as any).respawnCooldownUntil && (player as any).respawnCooldownUntil > now;
     if (isInvincible) {
       ctx.globalAlpha = 0.5;
@@ -758,16 +896,16 @@ const draw = () => {
     ctx.translate(x, y);
     ctx.rotate(hullAngle);
 
-    // Body outline (dark border)
-    ctx.fillStyle = "#1a1a2e";
+    // Body outline (dark border - turns white if flashing)
+    ctx.fillStyle = isFlashing ? "#ffffff" : "#1a1a2e";
     ctx.fillRect(-13, -10, 26, 20);
 
-    // Body fill (team color)
+    // Body fill (team color or flash)
     ctx.fillStyle = color;
     ctx.fillRect(-11, -8, 22, 16);
 
     // Front direction indicator (small triangle)
-    ctx.fillStyle = "#fff";
+    ctx.fillStyle = isFlashing ? "#ff0000" : "#fff"; // Turn red when flashing for contrast
     ctx.globalAlpha = isInvincible ? 0.35 : 0.7; // Scale down alpha if already transparent
     ctx.beginPath();
     ctx.moveTo(11, -3);
@@ -776,6 +914,26 @@ const draw = () => {
     ctx.closePath();
     ctx.fill();
     ctx.globalAlpha = isInvincible ? 0.5 : 1.0;
+
+    // Phase 4: Draw bomb on tank back if hasBomb
+    if ((player as any).hasBomb) {
+      ctx.fillStyle = "#1a1a2e";
+      ctx.beginPath();
+      ctx.arc(-8, 0, 5, 0, Math.PI * 2);
+      ctx.fill();
+      // Fuse
+      ctx.strokeStyle = "#f97316";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(-8, -5);
+      ctx.lineTo(-6, -8);
+      ctx.stroke();
+      // Spark
+      ctx.fillStyle = "#fde047";
+      ctx.beginPath();
+      ctx.arc(-6, -8, 1.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
 
     ctx.restore();
 
@@ -926,6 +1084,33 @@ const draw = () => {
     }
   }
 
+  // Phase 4-8: Floating Combat Text
+  const FCT_DURATION = 1000; // 1 second
+  state.floatingTexts = state.floatingTexts.filter(ft => Date.now() - ft.startedAt < FCT_DURATION);
+  for (const ft of state.floatingTexts) {
+    const progress = (Date.now() - ft.startedAt) / FCT_DURATION;
+    const currentY = ft.y - (progress * 30); // Float up
+
+    ctx.save();
+    ctx.translate(ft.x, currentY);
+    ctx.rotate(-state.camera.rotation); // keep upright
+
+    ctx.globalAlpha = 1 - Math.pow(progress, 1.5); // fade out (non-linear)
+    ctx.font = "bold 16px 'Segoe UI', Arial, sans-serif";
+    ctx.textAlign = "center";
+
+    // Black outline
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = "#000";
+    ctx.strokeText(ft.text, 0, 0);
+
+    // Colored Text
+    ctx.fillStyle = ft.color;
+    ctx.fillText(ft.text, 0, 0);
+
+    ctx.restore();
+  }
+
   // End camera transform
   ctx.restore();
 
@@ -982,6 +1167,30 @@ function drawHUD(ctx: CanvasRenderingContext2D) {
     ctx.fillStyle = "#16a34a"; // Green
     ctx.font = "bold 12px 'Segoe UI', Arial, sans-serif";
     ctx.fillText("🕵️ HIDDEN", 138, 19);
+  }
+
+  // Phase 4: Item Indicators
+  if (self && !state.isSpectator) {
+    let itemX = 240;
+    const iy = 19;
+    ctx.font = "bold 11px 'Segoe UI', Arial, sans-serif";
+    ctx.textAlign = "left";
+
+    if ((self as any).hasBomb) {
+      ctx.fillStyle = "#f97316";
+      ctx.fillText("💣BOMB", itemX, iy);
+      itemX += 58;
+    }
+    if ((self as any).ropeCount > 0) {
+      ctx.fillStyle = "#a3752c";
+      ctx.fillText(`🪢×${(self as any).ropeCount}`, itemX, iy);
+      itemX += 42;
+    }
+    if ((self as any).bootsCharges > 0) {
+      ctx.fillStyle = "#818cf8";
+      ctx.fillText(`👢×${(self as any).bootsCharges}`, itemX, iy);
+      itemX += 42;
+    }
   }
 
   // Spectator Badge
@@ -1091,10 +1300,14 @@ const drawMinimap = (ctx: CanvasRenderingContext2D) => {
     ctx.fillRect(mmX + bx * scaleX - 1, mmY + by * scaleY - 1, 2, 2);
   }
 
-  // Items on Minimap
+  // Items on Minimap (color by type)
+  const itemColors: Record<string, string> = {
+    medic: "#22c55e", ammo: "#facc15", heart: "#ec4899",
+    bomb: "#6b7280", rope: "#a3752c", boots: "#818cf8",
+  };
   for (const item of state.items) {
-    ctx.fillStyle = item.type === "medic" ? "#22c55e" : "#facc15";
-    ctx.fillRect(mmX + item.x * scaleX - 1, mmY + item.y * scaleY - 1, 2, 2);
+    ctx.fillStyle = itemColors[item.type] ?? "#fff";
+    ctx.fillRect(mmX + item.x * scaleX - 1, mmY + item.y * scaleY - 1, 3, 3);
   }
 
   // Flags on Minimap
@@ -1342,6 +1555,11 @@ const setupRoom = () => {
   // For MVP, T key and Exit button (leaveBtn) are enough?
   // Let's rely on T key for chat.
 
+  // Prevent context menu (right click) on canvas
+  canvas.addEventListener("contextmenu", (event) => {
+    event.preventDefault();
+  }, { signal });
+
   canvas.addEventListener("mousedown", (event) => {
     if (state.phase !== "room") {
       return;
@@ -1449,6 +1667,7 @@ const setupRoom = () => {
     // If we are here, we are outside tank radius (mostly).
 
     if (len > 0) {
+      // Normal shoot
       sendMessage({ type: "shoot", payload: { direction: { x: shootX / len, y: shootY / len } } });
       state.aiming = false;
       state.aimPoint = null;
@@ -1471,6 +1690,31 @@ const setupRoom = () => {
     // Z key — cancel last move reservation (not for spectators)
     if (key === "z" && document.activeElement !== chatInput && !state.isSpectator) {
       sendMessage({ type: "moveCancelOne" });
+      return;
+    }
+
+    // R key — use item (Rope) towards aim or turret direction
+    if (key === "r" && document.activeElement !== chatInput && !state.isSpectator) {
+      event.preventDefault();
+      const self = getSelf();
+      if (self) {
+        let dirX = 0, dirY = 0;
+        if (state.aiming && state.aimPoint) {
+          // If aiming: slingshot direction (opposite of drag)
+          const selfPos = (self as any).position;
+          dirX = -(state.aimPoint.x - selfPos.x);
+          dirY = -(state.aimPoint.y - selfPos.y);
+        } else {
+          // Not aiming: use turret direction
+          const ta = (self as any).turretAngle || 0;
+          dirX = Math.cos(ta);
+          dirY = Math.sin(ta);
+        }
+        const len = Math.hypot(dirX, dirY);
+        if (len > 0) {
+          sendMessage({ type: "useItem", payload: { direction: { x: dirX / len, y: dirY / len } } });
+        }
+      }
       return;
     }
 

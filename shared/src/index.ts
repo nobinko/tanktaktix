@@ -4,7 +4,7 @@ export type Vector2 = {
 };
 
 export type Team = "red" | "blue" | null;
-export type ItemType = "medic" | "ammo";
+export type ItemType = "medic" | "ammo" | "heart" | "bomb" | "rope" | "boots";
 export type WallType = "wall" | "bush" | "water";
 
 export type Item = {
@@ -54,7 +54,10 @@ export type PlayerSummary = {
   respawnAt: number | null;
   respawnCooldownUntil: number | null; // Indicates until when the player is invincible and cannot act
   isHidden: boolean;      // True if the player is in a bush and not visible to enemies
-  lastFiredAt: number;    // Used to reveal player shortly after shooting
+  // Phase 4: Item state
+  hasBomb?: boolean;
+  ropeCount?: number;
+  bootsCharges?: number;
 };
 
 export type RoomSummary = {
@@ -91,6 +94,8 @@ export type BulletPublic = {
   y: number;
   position: Vector2;
   radius: number;
+  isBomb?: boolean;
+  isRope?: boolean;
 };
 
 export type RoomState = {
@@ -111,6 +116,7 @@ export type Flag = {
   x: number;
   y: number;
   carrierId: string | null; // ID of player holding it
+  droppedById?: string; // Phase 4-5: ID of player who dropped it, to prevent immediate re-pickup
 };
 
 export type ChatMessage = {
@@ -156,6 +162,10 @@ export type ClientToServerMessage =
   }
   | {
     type: "shoot";
+    payload: { direction: Vector2 };
+  }
+  | {
+    type: "useItem"; // Phase 4-7: Secondary Aim Action
     payload: { direction: Vector2 };
   }
   | {
