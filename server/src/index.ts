@@ -1669,7 +1669,7 @@ function tick() {
             const applyCooldown = (dist: number) => {
               return dist >= 200 ? COOLDOWN_LONG_MS : COOLDOWN_SHORT_MS;
             };
-            const arrivedCooldown = (currentTarget as any).cost ?? applyCooldown(Math.hypot(currentTarget.x - (p.pendingMove?.x || p.x), currentTarget.y - (p.pendingMove?.y || p.y)));
+            const arrivedCooldown = currentTarget.cost ?? applyCooldown(Math.hypot(currentTarget.x - p.x, currentTarget.y - p.y));
             p.cooldownUntil = now + arrivedCooldown;
 
             // Phase 4: consume boots charge on arrival
