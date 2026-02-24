@@ -180,6 +180,13 @@ export type ClientToServerMessage =
   | {
     type: "spectateRoom";
     payload: { roomId: string; password?: string };
+  }
+  | {
+    type: "stopMove"; // Cancel all queued moves and stop immediately
+  }
+  | {
+    type: "aim"; // Update turret aim direction (during AIM mode)
+    payload: { direction: Vector2 };
   };
 
 export type ServerToClientMessage =

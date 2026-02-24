@@ -32,6 +32,10 @@
 | `moveCancelOne` | なし | 移動キューの末尾を1つキャンセル（Zキー相当） |
 | `shoot` | `{ direction: Vector2 }` | 射撃。direction は単位ベクトル |
 | `chat` | `{ message: string }` | チャット送信。最大120文字。ルーム内ならルームへ、ロビーならロビー全体へ配信 |
+| `stopMove` | なし | 移動キューを全クリアして即座に停止する |
+| `aim` | `{ direction: Vector2 }` | AIMモード中の砲塔方向を更新する。direction は単位ベクトル |
+| `useItem` | `{ item: string, direction: Vector2 }` | AIMアクション派生。item は `"rope"` / `"ammo"` / `"heal"` / `"flag"` |
+| `spectateRoom` | `{ roomId: string, password?: string }` | ルームに観戦者として参加する |
 
 ### createRoom payload 詳細
 
@@ -111,6 +115,7 @@ type Flag = {
   x: number;
   y: number;
   carrierId: string | null;  // 持っているプレイヤーの ID（null = 設置中）
+  droppedById?: string;      // 旗を落としたプレイヤーの ID（即再取得防止用）
 };
 ```
 
@@ -148,6 +153,7 @@ type RoomSummary = {
   createdAt: number;       // Unix ms
   endsAt: number;          // Unix ms
   players: string[];       // プレイヤーID一覧
+  spectatorCount?: number; // 観戦者数
 };
 ```
 
@@ -172,8 +178,18 @@ type RoomState = {
 type BulletPublic = {
   id: string;
   shooterId: string;
-  position: Vector2;  // 座標は position を使う。x/y は廃止済み
+  x: number;
+  y: number;
+  position: Vector2;
   radius: number;
+  startX?: number;
+  startY?: number;
+  isBomb?: boolean;       // ボムショット
+  isRope?: boolean;       // ロープ射出
+  isAmmoPass?: boolean;   // 弾薬パス
+  isHealPass?: boolean;   // 回復パス
+  isFlagPass?: boolean;   // 旗パス
+  flagTeam?: Team;        // 旗パス時のチーム
 };
 ```
 
@@ -202,9 +218,9 @@ type PlayerSummary = {
   respawnCooldownUntil: number | null; // 無敵期間終了時刻
   isHidden: boolean;          // bush 内で隠密中（B-5）
   // Phase 4: 新アイテム所持状態
-  hasBomb: boolean;           // bomb所持中（true = 次の1発がボムショットになる）
-  ropeCount: number;          // rope所持本数（0〜2）
-  bootsCharges: number;       // boots残り回数（0 = 未所持, 1〜5 = 残り）
+  hasBomb?: boolean;          // bomb所持中（true = 次の1発がボムショットになる）
+  ropeCount?: number;         // rope所持本数（0〜2）
+  bootsCharges?: number;      // boots残り回数（0 = 未所持, 1〜3 = 残り）
 };
 ```
 

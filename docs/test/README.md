@@ -17,9 +17,11 @@
 | [multiplayer.md](./spec/multiplayer.md) | 8v8 (16人接続) 安定性、同期、負荷 | Bランク |
 | [modes.md](./spec/modes.md) | CTF (Capture The Flag)、デスマッチ | A/Bランク |
 | [items.md](./spec/items.md) | アイテム取得/制限、AIMアクション（パス）、特殊フラッグ挙動 | Cランク |
+| [spectator.md](./spec/spectator.md) | 観戦モード（参加・可視性・行動制限・チャット・UI） | Bランク |
 
 ### 実施レポート (Execution Reports)
 - [2026-02-22](./reports/2026-02-22.md): 8v8 負荷試験および最新仕様の再検証結果
+- [spectator_2026-02-22](./reports/spectator_2026-02-22.md): 観戦モード (B-6) 自動テスト結果（14/14 PASS）
 
 ## テストの実行方法
 詳細は各スクリプトのソースファイルを参照してください。
