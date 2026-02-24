@@ -94,8 +94,14 @@ export type BulletPublic = {
   y: number;
   position: Vector2;
   radius: number;
+  startX?: number;
+  startY?: number;
   isBomb?: boolean;
   isRope?: boolean;
+  isAmmoPass?: boolean;
+  isHealPass?: boolean;
+  isFlagPass?: boolean;
+  flagTeam?: Team;
 };
 
 export type RoomState = {
@@ -166,7 +172,7 @@ export type ClientToServerMessage =
   }
   | {
     type: "useItem"; // Phase 4-7: Secondary Aim Action
-    payload: { direction: Vector2 };
+    payload: { item: string; direction: Vector2 };
   }
   | {
     type: "moveCancelOne";

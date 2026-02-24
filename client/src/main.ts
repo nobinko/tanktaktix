@@ -539,6 +539,83 @@ const isMouseOnTank = (point: Vector2, tankPos: Vector2) => {
   return Math.hypot(dx, dy) <= 18;
 };
 
+const drawItemSprite = (ctx: CanvasRenderingContext2D, type: string) => {
+  if (type === "medic") {
+    ctx.fillStyle = "#16a34a";
+    ctx.fillRect(-10, -10, 20, 20);
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(-7, -2, 14, 4);
+    ctx.fillRect(-2, -7, 4, 14);
+  } else if (type === "ammo") {
+    ctx.fillStyle = "#ca8a04";
+    ctx.fillRect(-10, -10, 20, 20);
+    ctx.fillStyle = "#1a1a2e";
+    ctx.fillRect(-7, 2, 8, 5);
+  } else if (type === "heart") {
+    ctx.fillStyle = "#ec4899";
+    ctx.beginPath();
+    ctx.moveTo(0, 4);
+    ctx.bezierCurveTo(-10, -6, -14, 2, 0, 12);
+    ctx.bezierCurveTo(14, 2, 10, -6, 0, 4);
+    ctx.fill();
+  } else if (type === "bomb") {
+    ctx.fillStyle = "#374151";
+    ctx.beginPath();
+    ctx.arc(0, 0, 10, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#f97316";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(5, -8);
+    ctx.lineTo(8, -14);
+    ctx.stroke();
+    ctx.fillStyle = "#fbbf24";
+    ctx.beginPath();
+    ctx.arc(8, -14, 2, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (type === "rope") {
+    ctx.strokeStyle = "#a3752c";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(0, 0, 8, 0, Math.PI * 1.5);
+    ctx.stroke();
+    ctx.fillStyle = "#a3752c";
+    ctx.beginPath();
+    ctx.moveTo(0, -8);
+    ctx.lineTo(4, -4);
+    ctx.lineTo(-4, -4);
+    ctx.closePath();
+    ctx.fill();
+  } else if (type === "boots") {
+    ctx.fillStyle = "#6366f1";
+    ctx.fillRect(-8, -4, 10, 12);
+    ctx.fillRect(-8, 4, 16, 6);
+    ctx.strokeStyle = "#a5b4fc";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(-12, 0); ctx.lineTo(-16, 0);
+    ctx.moveTo(-12, 4); ctx.lineTo(-18, 4);
+    ctx.moveTo(-12, 8); ctx.lineTo(-15, 8);
+    ctx.stroke();
+  }
+};
+
+const drawFlagSprite = (ctx: CanvasRenderingContext2D, team: string) => {
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(-1, -20, 2, 40);
+  ctx.fillStyle = team === "red" ? "#dc2626" : "#2563eb";
+  ctx.beginPath();
+  ctx.moveTo(0, -20);
+  ctx.lineTo(25, -10);
+  ctx.lineTo(0, 0);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = "#fff";
+  ctx.font = "bold 10px Arial";
+  ctx.textAlign = "center";
+  ctx.fillText(team.toUpperCase(), 0, 30);
+};
+
 const draw = () => {
   requestAnimationFrame(draw);
   if (state.phase !== "room") {
@@ -688,19 +765,80 @@ const draw = () => {
   // bullets（サーバ権威の projectile）
   if (state.bullets.length > 0) {
     for (const b of state.bullets) {
-      if ((b as any).isRope) {
-        // Rope projectile: brown wavy line feel
-        ctx.fillStyle = "#a3752c";
-      } else if ((b as any).isBomb) {
-        // Bomb shot: red
+      ctx.save();
+      const bAny = b as any;
+      if (bAny.isRope) {
+        // Rope projectile: brown squiggly line from shooter
+        const sx = bAny.startX ?? b.position.x;
+        const sy = bAny.startY ?? b.position.y;
+
+        ctx.strokeStyle = "#a3752c";
+        ctx.lineWidth = 3;
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.moveTo(sx, sy);
+
+        // Draw wavy line to current pos
+        const dx = b.position.x - sx;
+        const dy = b.position.y - sy;
+        const dist = Math.hypot(dx, dy);
+        const segments = Math.max(1, Math.floor(dist / 10));
+
+        if (dist > 0) {
+          const perpX = -dy / dist;
+          const perpY = dx / dist;
+
+          for (let i = 1; i <= segments; i++) {
+            const t = i / segments;
+            const wave = Math.sin(t * Math.PI * 4) * 4; // wave amplitude
+            ctx.lineTo(sx + dx * t + perpX * wave, sy + dy * t + perpY * wave);
+          }
+        }
+        ctx.stroke();
+
+        // Draw end hook
+        ctx.fillStyle = "#8b5a2b";
+        ctx.beginPath();
+        ctx.arc(b.position.x, b.position.y, 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+        continue;
+      }
+
+      if (bAny.isAmmoPass) {
+        ctx.translate(b.position.x, b.position.y);
+        ctx.rotate(-state.camera.rotation);
+        drawItemSprite(ctx, "ammo");
+        ctx.restore();
+        continue;
+      }
+
+      if (bAny.isHealPass) {
+        ctx.translate(b.position.x, b.position.y);
+        ctx.rotate(-state.camera.rotation);
+        drawItemSprite(ctx, "medic");
+        ctx.restore();
+        continue;
+      }
+
+      if (bAny.isFlagPass) {
+        ctx.translate(b.position.x, b.position.y);
+        ctx.rotate(-state.camera.rotation);
+        drawFlagSprite(ctx, bAny.flagTeam || "red");
+        ctx.restore();
+        continue;
+      }
+
+      // Normal Bullet or Bomb
+      if (bAny.isBomb) {
         ctx.fillStyle = "#ef4444";
       } else {
-        // Normal bullet: yellow
         ctx.fillStyle = "#fde047";
       }
       ctx.beginPath();
       ctx.arc(b.position.x, b.position.y, b.radius, 0, Math.PI * 2);
       ctx.fill();
+      ctx.restore();
     }
   }
 
@@ -757,73 +895,7 @@ const draw = () => {
     ctx.translate(item.x, item.y);
     ctx.rotate(-state.camera.rotation);
 
-    if (item.type === "medic") {
-      // Medic Kit: Green Box with White Plus
-      ctx.fillStyle = "#16a34a";
-      ctx.fillRect(-10, -10, 20, 20);
-      ctx.fillStyle = "#fff";
-      ctx.fillRect(-7, -2, 14, 4);
-      ctx.fillRect(-2, -7, 4, 14);
-    } else if (item.type === "ammo") {
-      // Ammo Box: Brown/Yellow Box with Bullet icon
-      ctx.fillStyle = "#ca8a04";
-      ctx.fillRect(-10, -10, 20, 20);
-      ctx.fillStyle = "#1a1a2e";
-      ctx.fillRect(-7, 2, 8, 5);
-    } else if (item.type === "heart") {
-      // Heart: Pink/Red heart shape
-      ctx.fillStyle = "#ec4899";
-      ctx.beginPath();
-      ctx.moveTo(0, 4);
-      ctx.bezierCurveTo(-10, -6, -14, 2, 0, 12);
-      ctx.bezierCurveTo(14, 2, 10, -6, 0, 4);
-      ctx.fill();
-    } else if (item.type === "bomb") {
-      // Bomb: Dark circle with fuse
-      ctx.fillStyle = "#374151";
-      ctx.beginPath();
-      ctx.arc(0, 0, 10, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = "#f97316";
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(5, -8);
-      ctx.lineTo(8, -14);
-      ctx.stroke();
-      // Spark
-      ctx.fillStyle = "#fbbf24";
-      ctx.beginPath();
-      ctx.arc(8, -14, 2, 0, Math.PI * 2);
-      ctx.fill();
-    } else if (item.type === "rope") {
-      // Rope: Coiled rope icon
-      ctx.strokeStyle = "#a3752c";
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.arc(0, 0, 8, 0, Math.PI * 1.5);
-      ctx.stroke();
-      // Arrow tip
-      ctx.fillStyle = "#a3752c";
-      ctx.beginPath();
-      ctx.moveTo(0, -8);
-      ctx.lineTo(4, -4);
-      ctx.lineTo(-4, -4);
-      ctx.closePath();
-      ctx.fill();
-    } else if (item.type === "boots") {
-      // Boots: Blue boot icon
-      ctx.fillStyle = "#6366f1";
-      ctx.fillRect(-8, -4, 10, 12); // Shaft
-      ctx.fillRect(-8, 4, 16, 6);   // Sole
-      // Speed lines
-      ctx.strokeStyle = "#a5b4fc";
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(-12, 0); ctx.lineTo(-16, 0);
-      ctx.moveTo(-12, 4); ctx.lineTo(-18, 4);
-      ctx.moveTo(-12, 8); ctx.lineTo(-15, 8);
-      ctx.stroke();
-    }
+    drawItemSprite(ctx, item.type);
     ctx.restore();
   });
 
@@ -834,26 +906,8 @@ const draw = () => {
       ctx.translate(f.x, f.y);
       ctx.rotate(-state.camera.rotation);
 
-      // Draw Flag pole
-      ctx.fillStyle = "#fff";
-      ctx.fillRect(-1, -20, 2, 40);
-
-      // Draw Flag fabric
-      const team = f.team;
-      if (team) {
-        ctx.fillStyle = team === "red" ? "#dc2626" : "#2563eb";
-        ctx.beginPath();
-        ctx.moveTo(0, -20);
-        ctx.lineTo(25, -10);
-        ctx.lineTo(0, 0);
-        ctx.closePath();
-        ctx.fill();
-
-        // Label
-        ctx.fillStyle = "#fff";
-        ctx.font = "bold 10px Arial";
-        ctx.textAlign = "center";
-        ctx.fillText(team.toUpperCase(), 0, 30);
+      if (f.team) {
+        drawFlagSprite(ctx, f.team);
       }
 
       ctx.restore();
@@ -1693,8 +1747,9 @@ const setupRoom = () => {
       return;
     }
 
-    // R key — use item (Rope) towards aim or turret direction
-    if (key === "r" && document.activeElement !== chatInput && !state.isSpectator) {
+    // R/A/H/F keys — use item / pass actions
+    const aimKeys = ["r", "a", "h", "f"];
+    if (aimKeys.includes(key) && document.activeElement !== chatInput && !state.isSpectator) {
       event.preventDefault();
       const self = getSelf();
       if (self) {
@@ -1711,8 +1766,13 @@ const setupRoom = () => {
           dirY = Math.sin(ta);
         }
         const len = Math.hypot(dirX, dirY);
+        let itemName = "rope";
+        if (key === "a") itemName = "ammo";
+        if (key === "h") itemName = "heal";
+        if (key === "f") itemName = "flag";
+
         if (len > 0) {
-          sendMessage({ type: "useItem", payload: { direction: { x: dirX / len, y: dirY / len } } });
+          sendMessage({ type: "useItem", payload: { item: itemName, direction: { x: dirX / len, y: dirY / len } } });
         }
       }
       return;

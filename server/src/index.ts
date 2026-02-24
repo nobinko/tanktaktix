@@ -92,6 +92,10 @@ type Bullet = {
   isBomb?: boolean; // Phase 4: bomb shot = 3x explosion radius
   isRope?: boolean; // Phase 4: rope projectile for item/flag pickup
   ropeOwnerId?: string; // Who fired the rope (for item collection)
+  isAmmoPass?: boolean;
+  isHealPass?: boolean;
+  isFlagPass?: boolean;
+  flagTeam?: Team;
 };
 
 type Room = {
@@ -157,7 +161,7 @@ const TANK_SIZE = 18;
 // bullets & explosions
 const BULLET_SPEED = 220;
 const BULLET_RADIUS = 4;
-const BULLET_RANGE = 600;
+const BULLET_RANGE = 99999;
 const BULLET_TTL_MS = Math.ceil((BULLET_RANGE / BULLET_SPEED) * 1000);
 
 const EXPLOSION_RADIUS = 40; // AoE radius
@@ -540,8 +544,14 @@ function toBulletPublic(b: Bullet): BulletPublic {
     y: b.y,
     position: { x: b.x, y: b.y },
     radius: b.radius,
+    startX: b.startX,
+    startY: b.startY,
     isBomb: b.isBomb || false,
     isRope: b.isRope || false,
+    isAmmoPass: b.isAmmoPass || false,
+    isHealPass: b.isHealPass || false,
+    isFlagPass: b.isFlagPass || false,
+    flagTeam: b.flagTeam,
   };
 }
 
@@ -1160,8 +1170,8 @@ function tryShoot(p: PlayerRuntime, dir: Vector2) {
   sendRoomState(p.roomId);
 }
 
-// Phase 4-7: Use Item Action (e.g. Rope)
-function tryUseItem(p: PlayerRuntime, dir: Vector2) {
+// Phase 4-7: Use Item Action (Ammo, Heal, Flag, Rope)
+function tryUseItem(p: PlayerRuntime, item: string, dir: Vector2) {
   if (!p.roomId) return;
   const now = nowMs();
 
@@ -1174,18 +1184,16 @@ function tryUseItem(p: PlayerRuntime, dir: Vector2) {
   const room = rooms.get(p.roomId);
   if (!room) return;
 
-  // Attempt to use Rope if we have one
-  if (p.ropeCount > 0) {
+  const d = norm(dir);
+  if (len(d) === 0) return;
+
+  const bx = p.x + d.x * 20;
+  const by = p.y + d.y * 20;
+
+  if (item === "rope" && p.ropeCount > 0) {
     const ropeRange = p.ropeCount === 2 ? 300 : 200;
-    p.ropeCount -= 1;
-    p.cooldownUntil = now + ACTION_COOLDOWN_MS; // Same cooldown as shooting
+    p.cooldownUntil = now + ACTION_COOLDOWN_MS;
 
-    const d = norm(dir);
-    if (len(d) === 0) return;
-
-    // Fire a rope projectile (same speed as normal bullets)
-    const bx = p.x + d.x * 20;
-    const by = p.y + d.y * 20;
     const ropeBullet: Bullet = {
       id: newId(),
       shooterId: p.id,
@@ -1196,23 +1204,54 @@ function tryUseItem(p: PlayerRuntime, dir: Vector2) {
       radius: 4,
       startX: bx,
       startY: by,
-      expiresAt: now + (ropeRange / BULLET_SPEED) * 1000 + 200, // auto-expire after range
+      expiresAt: now + (ropeRange / BULLET_SPEED) * 1000 + 200,
       isRope: true,
       ropeOwnerId: p.id,
     };
     room.bullets.push(ropeBullet);
 
-    // Lock turret to rope direction
     p.turretAngle = Math.atan2(d.y, d.x);
-
     broadcastRoom(p.roomId, {
-      type: "chat",
-      payload: {
-        from: "SYSTEM",
-        message: `🔗 ${p.name} used a Rope!`,
-        timestamp: now
-      }
+      type: "chat", payload: { from: "SYSTEM", message: `🔗 ${p.name} used a Rope!`, timestamp: now }
     });
+  } else if (item === "ammo" && p.ammo >= 5) {
+    p.ammo -= 5;
+    p.cooldownUntil = now + ACTION_COOLDOWN_MS;
+    const ammoRange = 99999;
+    room.bullets.push({
+      id: newId(), shooterId: p.id, x: bx, y: by, vx: d.x * BULLET_SPEED, vy: d.y * BULLET_SPEED,
+      radius: 6, startX: bx, startY: by, expiresAt: now + (ammoRange / BULLET_SPEED) * 1000,
+      isAmmoPass: true
+    });
+    p.turretAngle = Math.atan2(d.y, d.x);
+  } else if (item === "heal" && p.hp > 20) {
+    p.hp -= 20;
+    p.cooldownUntil = now + ACTION_COOLDOWN_MS;
+    const healRange = 99999;
+    room.bullets.push({
+      id: newId(), shooterId: p.id, x: bx, y: by, vx: d.x * BULLET_SPEED, vy: d.y * BULLET_SPEED,
+      radius: 6, startX: bx, startY: by, expiresAt: now + (healRange / BULLET_SPEED) * 1000,
+      isHealPass: true
+    });
+    p.turretAngle = Math.atan2(d.y, d.x);
+  } else if (item === "flag") {
+    const carriedFlag = room.flags.find(f => f.carrierId === p.id);
+    if (carriedFlag) {
+      carriedFlag.carrierId = null;
+      carriedFlag.droppedById = p.id;
+      p.cooldownUntil = now + ACTION_COOLDOWN_MS;
+      const passRange = 99999;
+      room.bullets.push({
+        id: newId(), shooterId: p.id, x: bx, y: by, vx: d.x * BULLET_SPEED, vy: d.y * BULLET_SPEED,
+        radius: 8, startX: bx, startY: by, expiresAt: now + (passRange / BULLET_SPEED) * 1000,
+        isFlagPass: true,
+        flagTeam: carriedFlag.team
+      });
+      // The flag is technically 'in the air' but we just update its pos to follow the bullet in updateBullets
+      carriedFlag.x = bx;
+      carriedFlag.y = by;
+      p.turretAngle = Math.atan2(d.y, d.x);
+    }
   }
 }
 
@@ -1238,6 +1277,10 @@ function updateCTF(room: Room, now: number) {
   if (room.gameMode !== "ctf") return;
 
   for (const f of room.flags) {
+    // Check if flag is currently flying via a pass action
+    const isFlying = room.bullets.some(b => b.isFlagPass && b.flagTeam === f.team);
+    if (isFlying) continue;
+
     // 1. Follow carrier
     if (f.carrierId) {
       const carrier = players.get(f.carrierId);
@@ -1288,27 +1331,35 @@ function updateCTF(room: Room, now: number) {
         f.carrierId = null;
       }
     } else {
-      // 2. Pickup
+      // NEW LOGIC: Instantly return dropped flag to base
+      const flagSrc = room.mapData.flagPositions ?? room.mapData.spawnPoints;
+      const basePos = flagSrc.find(s => s.team === f.team);
+      if (basePos) {
+        if (Math.abs(f.x - basePos.x) > 1 || Math.abs(f.y - basePos.y) > 1) {
+          f.x = basePos.x;
+          f.y = basePos.y;
+          f.droppedById = undefined;
+          broadcastRoom(room.id, {
+            type: "chat",
+            payload: {
+              from: "SYSTEM",
+              message: `🏠 The ${f.team} flag returned to base.`,
+              timestamp: now
+            }
+          });
+        }
+      }
+
+      // 2. Pickup (Enemy taking flag from base)
       for (const pid of room.playerIds) {
         const p = players.get(pid);
         if (!p || p.hp <= 0 || p.respawnAt || p.respawnCooldownUntil > now) continue;
 
         const dist = Math.hypot(p.x - f.x, p.y - f.y);
 
-        // Phase 4-5: Clear droppedById if the dropper moves away from the flag
-        if (f.droppedById === p.id && dist > FLAG_RADIUS + TANK_SIZE) {
-          f.droppedById = undefined;
-        }
-
         if (dist < FLAG_RADIUS + TANK_SIZE) {
-          // Phase 4-5: Prevent immediate re-pickup by the dropper
-          if (f.droppedById === p.id) {
-            continue; // Cannot pick it up until they move away first
-          }
-
           if (p.team !== f.team) {
             // Enemy touches flag -> Take it
-            // Check if player already carrying a flag? (Usually only 1 flag per team, but safe check)
             const alreadyCarrying = room.flags.some(otherF => otherF.carrierId === p.id);
             if (!alreadyCarrying) {
               f.carrierId = p.id;
@@ -1318,23 +1369,6 @@ function updateCTF(room: Room, now: number) {
                 payload: {
                   from: "SYSTEM",
                   message: `🚩 ${p.name} has the ${f.team} flag!`,
-                  timestamp: now
-                }
-              });
-            }
-          } else {
-            // Friendly touches flag -> Return to base IF it's not at base
-            const flagSrcReturn = room.mapData.flagPositions ?? room.mapData.spawnPoints;
-            const basePos = flagSrcReturn.find(s => s.team === f.team);
-            if (basePos && (Math.abs(f.x - basePos.x) > 1 || Math.abs(f.y - basePos.y) > 1)) {
-              console.log(`[DEBUG] Team ${f.team} flag returned to base by ${p.id}`);
-              f.x = basePos.x;
-              f.y = basePos.y;
-              broadcastRoom(room.id, {
-                type: "chat",
-                payload: {
-                  from: "SYSTEM",
-                  message: `🏠 The ${f.team} flag was returned to base.`,
                   timestamp: now
                 }
               });
@@ -1353,19 +1387,34 @@ function updateBullets(room: Room, dtSec: number, now: number) {
 
   for (const b of room.bullets) {
     let exploded = false;
+    let passFinished = false;
 
     // 1. Timeout -> Explode (rope projectiles just disappear)
     if (now >= b.expiresAt) {
-      if (!b.isRope) {
+      if (b.isAmmoPass || b.isHealPass || b.isFlagPass) {
+        passFinished = true;
+      } else if (!b.isRope) {
         triggerExplosion(room, b.x, b.y, b.shooterId, b.isBomb);
       }
       exploded = true;
     }
 
-    if (exploded) continue;
+    if (exploded && !passFinished) continue;
 
     const prev = { x: b.x, y: b.y };
-    const curr = { x: b.x + b.vx * dtSec, y: b.y + b.vy * dtSec };
+    const curr = {
+      x: passFinished ? Math.max(0, Math.min(room.mapData.width, b.x + b.vx * dtSec)) : b.x + b.vx * dtSec,
+      y: passFinished ? Math.max(0, Math.min(room.mapData.height, b.y + b.vy * dtSec)) : b.y + b.vy * dtSec
+    };
+
+    // Move flag with flag pass
+    if (b.isFlagPass && b.flagTeam) {
+      const f = room.flags.find(fl => fl.team === b.flagTeam);
+      if (f) {
+        f.x = curr.x;
+        f.y = curr.y;
+      }
+    }
 
     // Rope bullet: Check item/flag collision FIRST
     if (b.isRope && !exploded) {
@@ -1414,22 +1463,28 @@ function updateBullets(room: Room, dtSec: number, now: number) {
     }
 
     // 2. Wall Collision -> Explode (rope just disappears)
-    if (isBulletBlockedByWall(curr.x, curr.y, room.mapData.walls)) {
-      if (!b.isRope) {
+    if (!exploded && isBulletBlockedByWall(curr.x, curr.y, room.mapData.walls)) {
+      if (b.isAmmoPass || b.isHealPass || b.isFlagPass) {
+        passFinished = true;
+      } else if (!b.isRope) {
         triggerExplosion(room, curr.x, curr.y, b.shooterId, b.isBomb);
       }
       exploded = true;
     }
 
-    // 3. Out of bounds -> Explode (rope just disappears)
+    // 3. Out of bounds -> Explode
     if (!exploded && (curr.x < 0 || curr.x > room.mapData.width || curr.y < 0 || curr.y > room.mapData.height)) {
-      if (!b.isRope) {
-        triggerExplosion(room, curr.x, curr.y, b.shooterId, b.isBomb);
+      if (b.isAmmoPass || b.isHealPass || b.isFlagPass) {
+        passFinished = true;
+      } else if (!b.isRope) {
+        triggerExplosion(room, Math.max(0, Math.min(curr.x, room.mapData.width)), Math.max(0, Math.min(curr.y, room.mapData.height)), b.shooterId, b.isBomb);
       }
       exploded = true;
     }
 
-    if (exploded) continue;
+    if (exploded && !passFinished) continue;
+
+    if (passFinished) continue;
 
     // 4. Player Collision -> Explode (Direct hit)
     // Note: Direct hit also triggers explosion logic for damage
@@ -1464,16 +1519,35 @@ function updateBullets(room: Room, dtSec: number, now: number) {
       );
 
       if (hit) {
+        if (b.isAmmoPass || b.isHealPass || b.isFlagPass) {
+          if (b.isAmmoPass && t.ammo < 40) {
+            t.ammo = Math.min(40, t.ammo + 5);
+          } else if (b.isHealPass && t.hp < 100) {
+            t.hp = Math.min(100, t.hp + 20);
+          } else if (b.isFlagPass && b.flagTeam) {
+            const alreadyCarrying = room.flags.some(fl => fl.carrierId === t.id);
+            if (!alreadyCarrying) {
+              const fl = room.flags.find(fl => fl.team === b.flagTeam);
+              if (fl) {
+                fl.carrierId = t.id;
+                fl.droppedById = undefined;
+                broadcastRoom(room.id, {
+                  type: "chat", payload: { from: "SYSTEM", message: `🚩 ${t.name} caught the ${fl.team} flag!`, timestamp: now }
+                });
+              }
+            }
+          }
+          exploded = true;
+          break;
+        }
+
         // Stats: Hit
-        const shooter = players.get(b.shooterId);
         if (shooter) {
           shooter.hits++;
 
           // Sync history
           const h = room.history.get(shooter.id);
           if (h) h.hits = shooter.hits;
-
-          // Score for hit matches team mode logic (0)
         }
 
         triggerExplosion(room, curr.x, curr.y, b.shooterId, b.isBomb);
@@ -1485,7 +1559,7 @@ function updateBullets(room: Room, dtSec: number, now: number) {
     if (exploded) continue;
 
     // 5. Phase 4-2: Item Collision — bullet destroys items, same-type respawns
-    {
+    if (!b.isAmmoPass && !b.isHealPass && !b.isFlagPass && !b.isRope) {
       const hitIdx = room.items.findIndex(item =>
         Math.hypot(curr.x - item.x, curr.y - item.y) < b.radius + ITEM_RADIUS
       );
@@ -1501,7 +1575,7 @@ function updateBullets(room: Room, dtSec: number, now: number) {
     if (exploded) continue;
 
     // 6. Phase 4-5: Flag Collision — bullet hits dropped flag → reset to base
-    if (room.gameMode === "ctf") {
+    if (room.gameMode === "ctf" && !b.isAmmoPass && !b.isHealPass && !b.isFlagPass && !b.isRope) {
       for (const f of room.flags) {
         if (f.carrierId) continue; // Carried flags can't be hit
         const flagSrc = room.mapData.flagPositions ?? room.mapData.spawnPoints;
@@ -1737,9 +1811,33 @@ function tick() {
         }
 
         if (!hitWall && !hitPlayer) {
-          p.x = nextX;
-          p.y = nextY;
-          p.isMoving = true;
+          let hitOwnDroppedFlag = false;
+          if (room.gameMode === "ctf") {
+            for (const f of room.flags) {
+              if (f.droppedById === p.id && Math.hypot(nextX - f.x, nextY - f.y) < 25 + TANK_SIZE) {
+                hitOwnDroppedFlag = true;
+                f.carrierId = p.id;
+                f.droppedById = undefined;
+                broadcastRoom(room.id, {
+                  type: "chat", payload: { from: "SYSTEM", message: `🚩 ${p.name} picked up the ${f.team} flag!`, timestamp: now }
+                });
+                break;
+              }
+            }
+          }
+
+          if (hitOwnDroppedFlag) {
+            // Cancel movement and trigger cooldown as per standstill flag pickup rule
+            p.pendingMove = null;
+            if (p.moveQueue.length > 0) p.moveQueue.shift();
+            p.isMoving = false;
+            p.isRotating = false;
+            p.cooldownUntil = now + Math.min(ACTION_COOLDOWN_MS, 300);
+          } else {
+            p.x = nextX;
+            p.y = nextY;
+            p.isMoving = true;
+          }
         } else {
           // Hit wall or player — consume target, trigger cooldown
           p.pendingMove = null;
@@ -2077,6 +2175,15 @@ wss.on("connection", (socket) => {
           shootDir = pickVector2(pld, player.aimDir);
         }
         if (shootDir) tryShoot(player, shootDir);
+        break;
+      }
+      case "useItem": {
+        // Spectators cannot use items
+        if (player.roomId && rooms.get(player.roomId)?.spectatorIds.has(player.id)) break;
+        const pld = isRecord(payload) ? payload : {};
+        const item = pickString(pld.item, "rope");
+        const shootDir = pickVector2(pld.direction, player.aimDir);
+        tryUseItem(player, item, shootDir);
         break;
       }
       case "chat": {
