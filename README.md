@@ -59,7 +59,7 @@ npm run start
 
 ## 現在の進捗状況 (2026-02-24 更新)
 
-詳細なロードマップは [docs/ROADMAP.md](./docs/ROADMAP.md) を、受入条件は [docs/ACCEPTANCE.md](./docs/ACCEPTANCE.md) を参照してください。
+詳細なロードマップは [docs/ROADMAP.md](./docs/ROADMAP.md) を、受入条件は [docs/ACCEPTANCE.md](./docs/ACCEPTANCE.md) を、スケール方針は [docs/SCALE.md](./docs/SCALE.md) を参照してください。
 
 **Phase 1〜4 完了。** 基本システム、ゲームプレイ、追加機能、アイテムシステム刷新まで実装済み。
 
