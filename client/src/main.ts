@@ -22,9 +22,9 @@ app.innerHTML = `
   <section id="login-screen" class="screen active">
     <div class="panel">
       <h1>Tank Taktix</h1>
-      <p class="notice">Enter a commander name or roll a random 4-digit callsign.</p>
+      <p class="notice">Enter a player name or roll a random 4-digit callsign.</p>
       <div class="grid two">
-        <input id="name-input" placeholder="Commander name" maxlength="16" />
+        <input id="name-input" placeholder="Player name" maxlength="16" />
         <button id="random-name">Random 4-digit</button>
       </div>
       <div style="margin-top: 16px; display: flex; gap: 12px;">
@@ -74,7 +74,7 @@ app.innerHTML = `
           <div id="lobby-chat-log" style="height: 200px; overflow-y: auto; background: rgba(0,0,0,0.3); border: 1px solid #444; padding: 4px; margin-bottom: 8px; font-size: 0.9em; font-family: monospace;"></div>
           <input id="lobby-chat-input" placeholder="Type here..." style="width: 100%; box-sizing: border-box;" />
           
-          <h3 style="margin-top: 12px;">Commanders</h3>
+          <h3 style="margin-top: 12px;">Players</h3>
           <ul id="lobby-player-list" style="height: 120px; overflow-y: auto; list-style: none; padding: 0; background: rgba(0,0,0,0.2);"></ul>
         </div>
       </div>
@@ -1474,16 +1474,20 @@ const setupLogin = () => {
   const loginBtn = document.querySelector("#login-btn") as HTMLButtonElement;
 
   // UX: Restore last used name
-  const savedName = localStorage.getItem("tt_name");
+  let savedName = localStorage.getItem("tt_name");
+  if (savedName && savedName.startsWith("Cmdr-")) {
+    savedName = savedName.replace("Cmdr-", "GP-");
+    localStorage.setItem("tt_name", savedName);
+  }
   if (savedName) nameInput.value = savedName;
 
   randomBtn.addEventListener("click", () => {
     const random = Math.floor(1000 + Math.random() * 9000);
-    nameInput.value = `Cmdr-${random}`;
+    nameInput.value = `GP-${random}`;
   });
 
   loginBtn.addEventListener("click", () => {
-    const name = nameInput.value.trim() || `Cmdr-${Math.floor(1000 + Math.random() * 9000)}`;
+    const name = nameInput.value.trim() || `GP-${Math.floor(1000 + Math.random() * 9000)}`;
     state.name = name;
     localStorage.setItem("tt_name", name); // UX
 
