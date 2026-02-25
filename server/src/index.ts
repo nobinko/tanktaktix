@@ -1841,10 +1841,14 @@ function tick() {
         } else {
           // Hit wall or player — consume target, trigger cooldown
           p.pendingMove = null;
-          if (p.moveQueue.length > 0) p.moveQueue.shift();
+          let collidedCost = COOLDOWN_SHORT_MS;
+          if (p.moveQueue.length > 0) {
+            const currentTarget = p.moveQueue.shift();
+            if (currentTarget?.cost) collidedCost = currentTarget.cost;
+          }
           p.isMoving = false;
           p.isRotating = false;
-          p.cooldownUntil = now + Math.min(ACTION_COOLDOWN_MS, 300); // Back to normal penalty for bumping walls
+          p.cooldownUntil = now + collidedCost;
         }
       }
 

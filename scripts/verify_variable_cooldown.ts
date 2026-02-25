@@ -70,6 +70,9 @@ async function runTest() {
         };
         ws.on('message', handler);
         ws.send(JSON.stringify({ type: "createRoom", payload: { roomId: "var_cd_test", name: "Var CD Test" } }));
+        setTimeout(() => {
+            ws.send(JSON.stringify({ type: "joinRoom", payload: { roomId: "var_cd_test" } }));
+        }, 200);
     });
     await roomPromise;
 
