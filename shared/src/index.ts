@@ -5,7 +5,7 @@ export type Vector2 = {
 
 export type Team = "red" | "blue" | null;
 export type ItemType = "medic" | "ammo" | "heart" | "bomb" | "rope" | "boots";
-export type WallType = "wall" | "bush" | "water";
+export type WallType = "wall" | "bush" | "water" | "house" | "oneway";
 
 export type Item = {
   id: string;
@@ -21,6 +21,7 @@ export type Wall = {
   width: number;
   height: number;
   type?: WallType;
+  direction?: "up" | "down" | "left" | "right";
 };
 
 export type MapData = {

@@ -292,6 +292,94 @@ const MAP_DELTA: MapData = {
   ],
 };
 
+function createBase(x: number, y: number, size: number, entranceType: "top-bottom" | "1-way" | "adjacent" | "3-way" | "open-right" | "open-left" | "open-top" | "open-bottom", thickness: number = 40, type: WallType = "wall"): Wall[] {
+  const walls: Wall[] = [];
+  const g = 100; // Entrance gap size
+  const s2 = size / 2;
+  const hg = g / 2; // half gap
+
+  const addWall = (wx: number, wy: number, w: number, h: number) => walls.push({ x: wx, y: wy, width: w, height: h, type });
+
+  // Top
+  if (entranceType !== "open-top") {
+    if (entranceType === "top-bottom" || entranceType === "3-way") {
+      addWall(x, y, s2 - hg, thickness);
+      addWall(x + s2 + hg, y, s2 - hg, thickness);
+    } else {
+      addWall(x, y, size, thickness);
+    }
+  }
+
+  // Bottom
+  if (entranceType !== "open-bottom") {
+    if (entranceType === "top-bottom" || entranceType === "1-way" || entranceType === "adjacent" || entranceType === "3-way") {
+      addWall(x, y + size - thickness, s2 - hg, thickness);
+      addWall(x + s2 + hg, y + size - thickness, s2 - hg, thickness);
+    } else {
+      addWall(x, y + size - thickness, size, thickness);
+    }
+  }
+
+  // Left
+  if (entranceType !== "open-left") {
+    if (entranceType === "3-way") {
+      addWall(x, y + thickness, thickness, s2 - hg - thickness);
+      addWall(x, y + s2 + hg, thickness, s2 - hg - thickness);
+    } else {
+      addWall(x, y + thickness, thickness, size - thickness * 2);
+    }
+  }
+
+  // Right
+  if (entranceType !== "open-right") {
+    if (entranceType === "adjacent") {
+      addWall(x + size - thickness, y + thickness, thickness, s2 - hg - thickness);
+      addWall(x + size - thickness, y + s2 + hg, thickness, s2 - hg - thickness);
+    } else {
+      addWall(x + size - thickness, y + thickness, thickness, size - thickness * 2);
+    }
+  }
+
+  return walls;
+}
+
+/** epsilon — テスト: 障害物検証用マップ (Playable & Symmetric) */
+const MAP_EPSILON: MapData = {
+  id: "epsilon",
+  width: 1800,
+  height: 1040,
+  walls: [
+    // Red Base Protections ( [ shaped )
+    ...createBase(25, 420, 200, "open-right", 30, "house"),
+
+    // Blue Base Protections (Point Symmetric to Red, ] shaped )
+    ...createBase(1575, 420, 200, "open-left", 30, "house"),
+
+    // Central One-Way Corridors
+    { x: 800, y: 300, width: 20, height: 150, type: "oneway", direction: "right" },
+    { x: 980, y: 590, width: 20, height: 150, type: "oneway", direction: "left" },
+    { x: 800, y: 700, width: 150, height: 20, type: "oneway", direction: "up" },
+    { x: 850, y: 320, width: 150, height: 20, type: "oneway", direction: "down" },
+
+    // Obstacles
+    { x: 860, y: 480, width: 80, height: 80, type: "house" }, // Center block
+    { x: 350, y: 150, width: 200, height: 60, type: "wall" }, // Top structure
+    { x: 1250, y: 830, width: 200, height: 60, type: "wall" }, // Bottom structure
+
+    // Additional symmetry covers
+    { x: 450, y: 750, width: 60, height: 150, type: "bush" },
+    { x: 1290, y: 140, width: 60, height: 150, type: "bush" },
+  ],
+  spawnPoints: [
+    { team: "red", x: 125, y: 520 },
+    { team: "blue", x: 1675, y: 520 },
+  ],
+  flagPositions: [
+    { team: "red", x: 100, y: 520 },
+    { team: "blue", x: 1700, y: 520 },
+  ],
+};
+
 const DEFAULT_MAP = MAP_ALPHA;
 
 const MAPS: Record<string, MapData> = {
@@ -299,6 +387,7 @@ const MAPS: Record<string, MapData> = {
   beta: MAP_BETA,
   gamma: MAP_GAMMA,
   delta: MAP_DELTA,
+  epsilon: MAP_EPSILON,
 };
 
 // --- utils ---
@@ -329,9 +418,9 @@ function normalizeAngle(a: number): number {
 
 function checkWallCollision(x: number, y: number, r: number, walls: Wall[]): boolean {
   for (const w of walls) {
-    // Tank is blocked by regular walls and water
+    // Tank is blocked by regular walls and water, plus house and oneway
     const type = w.type || "wall";
-    if (type === "wall" || type === "water") {
+    if (type === "wall" || type === "water" || type === "house" || type === "oneway") {
       if (
         x + r > w.x &&
         x - r < w.x + w.width &&
@@ -348,7 +437,7 @@ function checkWallCollision(x: number, y: number, r: number, walls: Wall[]): boo
 function checkPointInWall(x: number, y: number, walls: Wall[]): boolean {
   for (const w of walls) {
     const type = w.type || "wall";
-    if (type === "wall" || type === "water") {
+    if (type === "wall" || type === "water" || type === "house" || type === "oneway") {
       if (x >= w.x && x <= w.x + w.width && y >= w.y && y <= w.y + w.height) {
         return true;
       }
@@ -380,11 +469,21 @@ function distPointToSegment(
   return Math.hypot(p.x - (v.x + t * (w.x - v.x)), p.y - (v.y + t * (w.y - v.y)));
 }
 
-function isBulletBlockedByWall(x: number, y: number, walls: Wall[]): boolean {
+function isBulletBlockedByWall(x: number, y: number, vx: number, vy: number, walls: Wall[]): boolean {
   for (const w of walls) {
     const type = w.type || "wall";
-    if (type === "wall") {
+    if (type === "wall" || type === "house") {
       if (x >= w.x && x <= w.x + w.width && y >= w.y && y <= w.y + w.height) {
+        return true;
+      }
+    } else if (type === "oneway") {
+      if (x >= w.x && x <= w.x + w.width && y >= w.y && y <= w.y + w.height) {
+        // Allow passing if bullet direction matches oneway permeable direction
+        if (w.direction === "up" && vy < 0) continue;
+        if (w.direction === "down" && vy > 0) continue;
+        if (w.direction === "left" && vx < 0) continue;
+        if (w.direction === "right" && vx > 0) continue;
+
         return true;
       }
     }
@@ -1463,7 +1562,7 @@ function updateBullets(room: Room, dtSec: number, now: number) {
     }
 
     // 2. Wall Collision -> Explode (rope just disappears)
-    if (!exploded && isBulletBlockedByWall(curr.x, curr.y, room.mapData.walls)) {
+    if (!exploded && isBulletBlockedByWall(curr.x, curr.y, b.vx, b.vy, room.mapData.walls)) {
       if (b.isAmmoPass || b.isHealPass || b.isFlagPass) {
         passFinished = true;
       } else if (!b.isRope) {

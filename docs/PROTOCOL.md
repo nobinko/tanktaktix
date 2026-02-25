@@ -43,7 +43,7 @@
 {
   roomId: string;        // ルームID（空白時はサーバが自動生成）
   name: string;          // 表示名
-  mapId: string;         // "alpha" | "beta" | "gamma" | "delta"
+  mapId: string;         // "alpha" | "beta" | "gamma" | "delta" | "epsilon"
   maxPlayers: number;    // 2〜16（clamp される）
   timeLimitSec: number;  // 5〜3600（clamp される）
   gameMode?: "deathmatch" | "ctf";  // 省略時は "ctf"
@@ -83,7 +83,7 @@ type Team = "red" | "blue" | null;
 ### ItemType / WallType
 ```typescript
 type ItemType = "medic" | "ammo" | "heart" | "bomb" | "rope" | "boots";
-type WallType = "wall" | "bush" | "water";
+type WallType = "wall" | "bush" | "water" | "house" | "oneway";
 ```
 
 ### Item
@@ -105,6 +105,7 @@ type Wall = {
   width: number;
   height: number;
   type?: WallType;       // 省略時は "wall"
+  direction?: "up" | "down" | "left" | "right"; // onewayの場合のみ使用
 };
 ```
 

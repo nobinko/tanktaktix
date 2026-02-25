@@ -63,6 +63,7 @@ app.innerHTML = `
               <option value="beta">Beta (Urban)</option>
               <option value="gamma">Gamma (Fort)</option>
               <option value="delta">Delta (Nature)</option>
+              <option value="epsilon">Epsilon (Obstacles)</option>
             </select>
             <input id="room-password" placeholder="Password (optional)" />
             <button id="create-room">Create</button>
@@ -684,6 +685,10 @@ const draw = () => {
         ctx.fillStyle = "rgba(34, 197, 94, 0.4)"; // Greenish bush
       } else if (type === "water") {
         ctx.fillStyle = "rgba(59, 130, 246, 0.4)"; // Bluish water
+      } else if (type === "house") {
+        ctx.fillStyle = "#8b4513"; // SaddleBrown
+      } else if (type === "oneway") {
+        ctx.fillStyle = "rgba(255, 140, 0, 0.4)"; // Orange
       } else {
         ctx.fillStyle = "#4a5568"; // Default wall
       }
@@ -695,6 +700,35 @@ const draw = () => {
         ctx.strokeStyle = "#718096";
         ctx.lineWidth = 2;
         ctx.strokeRect(w.x, w.y, w.width, w.height);
+      } else if (type === "house") {
+        ctx.strokeStyle = "#5c2e0b";
+        ctx.lineWidth = 4;
+        ctx.strokeRect(w.x, w.y, w.width, w.height);
+        ctx.beginPath();
+        ctx.moveTo(w.x, w.y);
+        ctx.lineTo(w.x + w.width, w.y + w.height);
+        ctx.moveTo(w.x + w.width, w.y);
+        ctx.lineTo(w.x, w.y + w.height);
+        ctx.stroke();
+      } else if (type === "oneway") {
+        ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
+        const dir = (w as any).direction;
+        const cx = w.x + w.width / 2;
+        const cy = w.y + w.height / 2;
+
+        ctx.save();
+        ctx.translate(cx, cy);
+        if (dir === "up") ctx.rotate(-Math.PI / 2);
+        else if (dir === "down") ctx.rotate(Math.PI / 2);
+        else if (dir === "left") ctx.rotate(Math.PI);
+        // "right" is 0 rad
+
+        ctx.beginPath();
+        ctx.moveTo(-10, -10);
+        ctx.lineTo(10, 0);
+        ctx.lineTo(-10, 10);
+        ctx.fill();
+        ctx.restore();
       }
     }
   }
@@ -1334,6 +1368,8 @@ const drawMinimap = (ctx: CanvasRenderingContext2D) => {
       const type = w.type || "wall";
       if (type === "bush") ctx.fillStyle = "rgba(34, 197, 94, 0.6)";
       else if (type === "water") ctx.fillStyle = "rgba(59, 130, 246, 0.6)";
+      else if (type === "house") ctx.fillStyle = "#8b4513";
+      else if (type === "oneway") ctx.fillStyle = "rgba(255, 140, 0, 0.6)";
       else ctx.fillStyle = "rgba(100, 120, 140, 0.6)";
 
       ctx.fillRect(

@@ -197,7 +197,7 @@ type Room = {
 
 ```typescript
 type ItemType = "medic" | "ammo";
-type WallType = "wall" | "bush" | "water";
+type WallType = "wall" | "bush" | "water" | "house" | "oneway";
 
 type Item = {
   id: string; x: number; y: number;
@@ -207,6 +207,7 @@ type Item = {
 type Wall = {
   x: number; y: number; width: number; height: number;
   type?: WallType;  // 省略時は "wall"
+  direction?: "up" | "down" | "left" | "right"; // oneway用
 };
 
 type Flag = {
