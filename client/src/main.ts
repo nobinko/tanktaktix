@@ -421,42 +421,54 @@ const handleServerMessage = (message: ServerToClientMessage) => {
 };
 
 const renderRooms = () => {
-  roomList.innerHTML = "";
-  if (state.rooms.length === 0) {
-    roomList.innerHTML = `<li class="room empty">No rooms yet. Create one!</li>`;
-    return;
+  // Clear previous timer to prevent multiple loops
+  if ((window as any)._lobbyTimer) {
+    clearInterval((window as any)._lobbyTimer);
   }
-  state.rooms.forEach((room) => {
-    const li = document.createElement("li");
-    li.className = "room";
-    const spectCount = (room as any).spectatorCount ?? 0;
-    const spectLabel = spectCount > 0 ? ` • 👁 ${spectCount}` : "";
-    li.innerHTML = `
-      <div class="room-row">
-        <div>
-          <strong>${room.name ?? (room as any).roomName ?? room.id}</strong>
-          <div class="meta">${(room as any).players?.length ?? (room as any).playerCount ?? 0}/${room.maxPlayers} players${spectLabel} • ${room.timeLimitSec}s (Left: ${Math.max(0, Math.ceil(((room as any).endsAt - Date.now()) / 1000))}s)</div>
+
+  const renderRoomsInternal = () => {
+    roomList.innerHTML = "";
+    if (state.rooms.length === 0) {
+      roomList.innerHTML = `<li class="room empty">No rooms yet. Create one!</li>`;
+      return;
+    }
+    state.rooms.forEach((room) => {
+      const li = document.createElement("li");
+      li.className = "room";
+      const spectCount = (room as any).spectatorCount ?? 0;
+      const spectLabel = spectCount > 0 ? ` • 👁 ${spectCount}` : "";
+      const timeLeft = Math.max(0, Math.ceil(((room as any).endsAt - Date.now()) / 1000));
+      li.innerHTML = `
+        <div class="room-row">
+          <div>
+            <strong>${room.name ?? (room as any).roomName ?? room.id}</strong>
+            <div class="meta">${(room as any).players?.length ?? (room as any).playerCount ?? 0}/${room.maxPlayers} players${spectLabel} • ${room.timeLimitSec}s (Left: ${timeLeft}s)</div>
+          </div>
+          <div style="display: flex; gap: 4px;">
+            <button class="join">Join</button>
+            <button class="watch" style="background: #6b7280; color: #fff; border: none; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 0.85em;">Watch</button>
+          </div>
         </div>
-        <div style="display: flex; gap: 4px;">
-          <button class="join">Join</button>
-          <button class="watch" style="background: #6b7280; color: #fff; border: none; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 0.85em;">Watch</button>
-        </div>
-      </div>
-    `;
-    const joinBtn = li.querySelector(".join") as HTMLButtonElement;
-    joinBtn.addEventListener("click", () => {
-      const pw = room.passwordProtected ? prompt("Password?") ?? "" : "";
-      state.isSpectator = false;
-      sendMessage({ type: "joinRoom", payload: { roomId: room.id, password: pw } });
+      `;
+      const joinBtn = li.querySelector(".join") as HTMLButtonElement;
+      joinBtn.addEventListener("click", () => {
+        const pw = room.passwordProtected ? prompt("Password?") ?? "" : "";
+        state.isSpectator = false;
+        sendMessage({ type: "joinRoom", payload: { roomId: room.id, password: pw } });
+      });
+      const watchBtn = li.querySelector(".watch") as HTMLButtonElement;
+      watchBtn.addEventListener("click", () => {
+        const pw = room.passwordProtected ? prompt("Password?") ?? "" : "";
+        state.isSpectator = true;
+        sendMessage({ type: "spectateRoom" as any, payload: { roomId: room.id, password: pw } });
+      });
+      roomList.appendChild(li);
     });
-    const watchBtn = li.querySelector(".watch") as HTMLButtonElement;
-    watchBtn.addEventListener("click", () => {
-      const pw = room.passwordProtected ? prompt("Password?") ?? "" : "";
-      state.isSpectator = true;
-      sendMessage({ type: "spectateRoom" as any, payload: { roomId: room.id, password: pw } });
-    });
-    roomList.appendChild(li);
-  });
+  };
+
+  renderRoomsInternal();
+  // Start ticking every second
+  (window as any)._lobbyTimer = setInterval(renderRoomsInternal, 1000);
 };
 
 const renderLobbyPlayers = () => {
@@ -1349,12 +1361,22 @@ function drawHUD(ctx: CanvasRenderingContext2D) {
 
 /** Draw a minimap in the bottom-right corner. */
 const drawMinimap = (ctx: CanvasRenderingContext2D) => {
-  const mmW = 160;
-  const mmH = 92;
+  const maxMboxW = 160;
+  const maxMboxH = 160;
+  // Calculate aspect ratio keeping max box bounding
+  const mapWidth = mapSize.width;
+  const mapHeight = mapSize.height;
+  let mmW = maxMboxW;
+  let mmH = (maxMboxW / mapWidth) * mapHeight;
+  if (mmH > maxMboxH) {
+    mmH = maxMboxH;
+    mmW = (maxMboxH / mapHeight) * mapWidth;
+  }
+
   const mmX = canvas.width - mmW - 8;  // screen-space: canvas intrinsic width
   const mmY = canvas.height - mmH - 8; // screen-space: canvas intrinsic height
-  const scaleX = mmW / mapSize.width;
-  const scaleY = mmH / mapSize.height;
+  const scaleX = mmW / mapWidth;
+  const scaleY = mmH / mapHeight;
 
   // Background
   ctx.fillStyle = "rgba(10, 20, 40, 0.75)";
