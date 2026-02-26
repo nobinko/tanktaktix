@@ -226,3 +226,5 @@ export type ServerToClientMessage =
       results: PlayerSummary[];
     };
   };
+
+export * from "./maps";
