@@ -380,6 +380,51 @@ const MAP_EPSILON: MapData = {
   ],
 };
 
+const MAP_TEST_S: MapData = {
+  id: "test-s",
+  width: 1000,
+  height: 1000,
+  walls: [],
+  spawnPoints: [
+    { team: "red", x: 100, y: 500 },
+    { team: "blue", x: 900, y: 500 },
+  ],
+  flagPositions: [
+    { team: "red", x: 100, y: 500 },
+    { team: "blue", x: 900, y: 500 },
+  ],
+};
+
+const MAP_TEST_M: MapData = {
+  id: "test-m",
+  width: 1200,
+  height: 1200,
+  walls: [],
+  spawnPoints: [
+    { team: "red", x: 100, y: 600 },
+    { team: "blue", x: 1100, y: 600 },
+  ],
+  flagPositions: [
+    { team: "red", x: 100, y: 600 },
+    { team: "blue", x: 1100, y: 600 },
+  ],
+};
+
+const MAP_TEST_L: MapData = {
+  id: "test-l",
+  width: 1500,
+  height: 1500,
+  walls: [],
+  spawnPoints: [
+    { team: "red", x: 100, y: 750 },
+    { team: "blue", x: 1400, y: 750 },
+  ],
+  flagPositions: [
+    { team: "red", x: 100, y: 750 },
+    { team: "blue", x: 1400, y: 750 },
+  ],
+};
+
 const DEFAULT_MAP = MAP_ALPHA;
 
 const MAPS: Record<string, MapData> = {
@@ -388,6 +433,9 @@ const MAPS: Record<string, MapData> = {
   gamma: MAP_GAMMA,
   delta: MAP_DELTA,
   epsilon: MAP_EPSILON,
+  "test-s": MAP_TEST_S,
+  "test-m": MAP_TEST_M,
+  "test-l": MAP_TEST_L,
 };
 
 // --- utils ---

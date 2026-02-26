@@ -64,6 +64,9 @@ app.innerHTML = `
               <option value="gamma">Gamma (Fort)</option>
               <option value="delta">Delta (Nature)</option>
               <option value="epsilon">Epsilon (Obstacles)</option>
+              <option value="test-s">Test Map S (1000x1000)</option>
+              <option value="test-m">Test Map M (1200x1200)</option>
+              <option value="test-l">Test Map L (1500x1500)</option>
             </select>
             <input id="room-password" placeholder="Password (optional)" />
             <button id="create-room">Create</button>
@@ -432,7 +435,7 @@ const renderRooms = () => {
       <div class="room-row">
         <div>
           <strong>${room.name ?? (room as any).roomName ?? room.id}</strong>
-          <div class="meta">${(room as any).players?.length ?? (room as any).playerCount ?? 0}/${room.maxPlayers} players${spectLabel} • ${room.timeLimitSec}s</div>
+          <div class="meta">${(room as any).players?.length ?? (room as any).playerCount ?? 0}/${room.maxPlayers} players${spectLabel} • ${room.timeLimitSec}s (Left: ${Math.max(0, Math.ceil(((room as any).endsAt - Date.now()) / 1000))}s)</div>
         </div>
         <div style="display: flex; gap: 4px;">
           <button class="join">Join</button>
@@ -1064,8 +1067,6 @@ const draw = () => {
     ctx.fillText(player.name, 24, 4);
     ctx.fillStyle = "#22c55e";
     ctx.fillRect(-20, -28, ((player as any).hp / 100) * 40, 4);
-    ctx.fillStyle = "#f97316";
-    ctx.fillRect(-20, -22, ((player as any).ammo / 20) * 40, 4);
 
     // Action lock countdown (5→0) above tank — self only
     const lockStep = (player as any).actionLockStep ?? 0;
