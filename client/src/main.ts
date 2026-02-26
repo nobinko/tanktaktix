@@ -12,6 +12,7 @@ import type {
   Vector2,
   Flag
 } from "@tanktaktix/shared";
+import { MAPS } from "@tanktaktix/shared";
 
 const app = document.querySelector<HTMLDivElement>("#app");
 if (!app) {
@@ -439,8 +440,9 @@ const renderRooms = () => {
       const spectLabel = spectCount > 0 ? ` • 👁 ${spectCount}` : "";
       const timeLeft = Math.max(0, Math.ceil(((room as any).endsAt - Date.now()) / 1000));
       li.innerHTML = `
-        <div class="room-row">
-          <div>
+        <div class="room-row" style="display: flex; gap: 12px; align-items: center;">
+          <canvas class="room-thumbnail" width="80" height="auto" style="border-radius: 4px; border: 1px solid #444; flex-shrink: 0;"></canvas>
+          <div style="flex-grow: 1;">
             <strong>${room.name ?? (room as any).roomName ?? room.id}</strong>
             <div class="meta">${(room as any).players?.length ?? (room as any).playerCount ?? 0}/${room.maxPlayers} players${spectLabel} • ${room.timeLimitSec}s (Left: ${timeLeft}s)</div>
           </div>
@@ -450,6 +452,13 @@ const renderRooms = () => {
           </div>
         </div>
       `;
+
+      // Draw thumbnail
+      const thumbCanvas = li.querySelector(".room-thumbnail") as HTMLCanvasElement;
+      const mapMeta = room.mapData || MAPS[(room as any).mapId];
+      if (thumbCanvas && mapMeta) {
+        drawMapDataThumbnail(thumbCanvas, mapMeta as any);
+      }
       const joinBtn = li.querySelector(".join") as HTMLButtonElement;
       joinBtn.addEventListener("click", () => {
         const pw = room.passwordProtected ? prompt("Password?") ?? "" : "";
@@ -1357,6 +1366,64 @@ function drawHUD(ctx: CanvasRenderingContext2D) {
 
   // Reset text alignment
   ctx.textAlign = "start";
+};
+
+/** Render a tiny map thumbnail for a given map data onto a specific canvas */
+const drawMapDataThumbnail = (canvas: HTMLCanvasElement, mapData: { width: number, height: number, walls: any[], spawnPoints: any[] }) => {
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+
+  const maxW = 80;
+  const maxH = 80;
+  const mapW = mapData.width || 1800;
+  const mapH = mapData.height || 1040;
+
+  // Keep aspect ratio
+  let w = maxW;
+  let h = (maxW / mapW) * mapH;
+  if (h > maxH) {
+    h = maxH;
+    w = (maxH / mapH) * mapW;
+  }
+
+  canvas.width = w;
+  canvas.height = h;
+
+  const scaleX = w / mapW;
+  const scaleY = h / mapH;
+
+  // Background
+  ctx.fillStyle = "rgba(10, 20, 40, 0.9)";
+  ctx.fillRect(0, 0, w, h);
+
+  // Walls
+  if (mapData.walls) {
+    for (const wall of mapData.walls) {
+      const type = wall.type || "wall";
+      if (type === "bush") ctx.fillStyle = "rgba(34, 197, 94, 0.6)";
+      else if (type === "water") ctx.fillStyle = "rgba(59, 130, 246, 0.6)";
+      else if (type === "house") ctx.fillStyle = "#8b4513";
+      else if (type === "oneway") ctx.fillStyle = "rgba(255, 140, 0, 0.6)";
+      else ctx.fillStyle = "rgba(100, 120, 140, 0.6)";
+
+      ctx.fillRect(
+        wall.x * scaleX,
+        wall.y * scaleY,
+        Math.max(1, wall.width * scaleX),
+        Math.max(1, wall.height * scaleY)
+      );
+    }
+  }
+
+  // Spawn Zones
+  if (mapData.spawnPoints) {
+    for (const sp of mapData.spawnPoints) {
+      ctx.fillStyle = sp.team === "red" ? "rgba(239, 68, 68, 0.6)" : "rgba(59, 130, 246, 0.6)";
+      ctx.beginPath();
+      ctx.arc(sp.x * scaleX, sp.y * scaleY, 4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
 };
 
 /** Draw a minimap in the bottom-right corner. */
