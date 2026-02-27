@@ -202,6 +202,9 @@ const state = {
 
   // Phase 4-8: Hit Particles
   particles: [] as { x: number, y: number, vx: number, vy: number, life: number, maxLife: number, color: string }[],
+
+  // Track left room ID for discarding late room packets (K-4)
+  leavingRoomId: "",
 };
 
 let ws: WebSocket | null = null;
@@ -231,6 +234,9 @@ const setScreen = (phase: "login" | "lobby" | "room") => {
   }
 
   state.phase = phase;
+  if (phase === "lobby") {
+    state.chat = []; // K-3: Clear chat log when returning to lobby
+  }
   loginScreen.classList.toggle("active", phase === "login");
   lobbyScreen.classList.toggle("active", phase === "lobby");
   roomScreen.classList.toggle("active", phase === "room");
@@ -291,6 +297,10 @@ const handleServerMessage = (message: ServerToClientMessage) => {
       break;
     case "room": {
       const payload = message.payload;
+      if (payload.roomId === state.leavingRoomId) {
+        return; // Ignore stale payload from the room we just left (K-4)
+      }
+
       const isFirstRoomMessage = !state.roomId; // check before state.roomId is set
 
       // Update map size first (needed for camera init calculation below)
@@ -327,6 +337,12 @@ const handleServerMessage = (message: ServerToClientMessage) => {
       // Phase 4-6: Check for HP drops to trigger damage flashes
       const now = Date.now();
       for (const p of payload.players) {
+        if (isFirstRoomMessage) {
+          // Initialize lastHp quietly on first sighting (K-1)
+          state.lastHpMap[p.id] = p.hp;
+          continue;
+        }
+
         const lastHp = state.lastHpMap[p.id];
         if (lastHp !== undefined) {
           if (p.hp < lastHp && p.hp > 0) {
@@ -465,12 +481,14 @@ const renderRooms = () => {
       joinBtn.addEventListener("click", () => {
         const pw = room.passwordProtected ? prompt("Password?") ?? "" : "";
         state.isSpectator = false;
+        state.leavingRoomId = ""; // Reset leaving ID (K-4)
         sendMessage({ type: "joinRoom", payload: { roomId: room.id, password: pw } });
       });
       const watchBtn = li.querySelector(".watch") as HTMLButtonElement;
       watchBtn.addEventListener("click", () => {
         const pw = room.passwordProtected ? prompt("Password?") ?? "" : "";
         state.isSpectator = true;
+        state.leavingRoomId = ""; // Reset leaving ID (K-4)
         sendMessage({ type: "spectateRoom" as any, payload: { roomId: room.id, password: pw } });
       });
       roomList.appendChild(li);
@@ -1182,11 +1200,11 @@ const draw = () => {
         ctx.stroke();
         ctx.setLineDash([]);
 
-        // Arrow head at end of guide
+        // Arrow head at end of guide (K-2 removed arc)
         ctx.fillStyle = "rgba(76, 201, 240, 0.8)";
         ctx.beginPath();
-        ctx.arc(gx, gy, 4, 0, Math.PI * 2);
-        ctx.fill();
+        // ctx.arc(gx, gy, 4, 0, Math.PI * 2); 
+        // ctx.fill();
 
         // Show "Crosshair" at max range? Or just the arrow?
         // User requested "Show launch guide in the direction of fire".
@@ -1701,6 +1719,7 @@ const setupRoom = () => {
 
   // Leave Room Logic
   const handleLeave = () => {
+    state.leavingRoomId = state.roomId; // Keep track of room we left (K-4)
     sendMessage({ type: "leaveRoom" });
     sendMessage({ type: "requestLobby" });
     state.roomId = "";

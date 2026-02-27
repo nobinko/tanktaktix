@@ -517,8 +517,8 @@ function roomStatePayloadForPlayer(roomId: string, recipient: PlayerRuntime) {
     roomId: room.id,
     roomName: room.name,
     mapId: room.mapId,
+    room: toRoomSummary(room), // add K-5 room reference
     timeLeftSec,
-    room: toRoomSummary(room),
     players: ps,
     bullets: bs,
     projectiles: bs,
@@ -551,8 +551,8 @@ function roomStatePayloadForSpectator(roomId: string) {
     roomId: room.id,
     roomName: room.name,
     mapId: room.mapId,
+    room: toRoomSummary(room), // add K-5 room reference
     timeLeftSec,
-    room: toRoomSummary(room),
     players: ps,
     bullets: bs,
     projectiles: bs,

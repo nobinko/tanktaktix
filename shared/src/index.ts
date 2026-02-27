@@ -64,6 +64,7 @@ export type PlayerSummary = {
 export type RoomSummary = {
   id: string;
   name: string;
+  roomName: string;
   gameMode: "deathmatch" | "ctf";
   mapId: string;
   mapData?: MapData; // simple way to sync map for now
@@ -72,12 +73,15 @@ export type RoomSummary = {
   passwordProtected: boolean;
   createdAt: number;
   endsAt: number;
+  ended: boolean;
   players: string[];
+  playerCount: number;
   spectatorCount?: number; // Number of spectators watching
 };
 
 export type LobbyState = {
   rooms: RoomSummary[];
+  onlinePlayers: { id: string; name: string }[];
 };
 
 export type Explosion = {
@@ -107,8 +111,12 @@ export type BulletPublic = {
 
 export type RoomState = {
   roomId: string;
+  roomName: string;
+  mapId: string;
+  room: RoomSummary;
   players: PlayerSummary[];
   bullets: BulletPublic[];
+  projectiles: BulletPublic[];
   explosions: Explosion[];
   timeLeftSec: number;
   gameMode: "deathmatch" | "ctf";
@@ -222,6 +230,7 @@ export type ServerToClientMessage =
   | {
     type: "gameEnd";
     payload: {
+      roomId: string; // Add roomId
       winners: Team | "draw";
       results: PlayerSummary[];
     };

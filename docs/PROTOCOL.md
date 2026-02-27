@@ -62,7 +62,7 @@
 | `room` | `RoomState` | ゲーム状態。20Hz(50ms)ごとにブロードキャスト |
 | `explosion` | `Explosion` | 爆発イベント（即時配信、VFX用） |
 | `chat` | `ChatMessage` | チャットメッセージ |
-| `gameEnd` | `{ winners, results }` | ゲーム終了。winners は `"red" \| "blue" \| "draw"` |
+| `gameEnd` | `{ roomId: string, winners, results }` | ゲーム終了。winners は `"red" | "blue" | "draw"` |
 | `leaderboard` | `{ players: PlayerSummary[] }` | リーダーボード（将来用途） |
 | `error` | `{ message: string }` | エラー通知（Room not found / Invalid password / Room is full など） |
 
@@ -136,6 +136,7 @@ type MapData = {
 ```typescript
 type LobbyState = {
   rooms: RoomSummary[];
+  onlinePlayers: { id: string; name: string }[];
 };
 ```
 
@@ -144,6 +145,7 @@ type LobbyState = {
 type RoomSummary = {
   id: string;
   name: string;
+  roomName: string;
   gameMode: "deathmatch" | "ctf";
   mapId: string;
   mapData?: MapData;       // マップ同期用（現在は全量送信）
@@ -152,7 +154,9 @@ type RoomSummary = {
   passwordProtected: boolean;
   createdAt: number;       // Unix ms
   endsAt: number;          // Unix ms
+  ended: boolean;
   players: string[];       // プレイヤーID一覧
+  playerCount: number;
   spectatorCount?: number; // 観戦者数
 };
 ```
@@ -161,8 +165,12 @@ type RoomSummary = {
 ```typescript
 type RoomState = {
   roomId: string;
+  roomName: string;
+  mapId: string;
+  room: RoomSummary;
   players: PlayerSummary[];
   bullets: BulletPublic[];
+  projectiles: BulletPublic[];
   explosions: Explosion[];
   timeLeftSec: number;
   gameMode: "deathmatch" | "ctf";
