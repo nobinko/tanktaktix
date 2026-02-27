@@ -439,6 +439,8 @@ const renderRooms = () => {
       const spectCount = (room as any).spectatorCount ?? 0;
       const spectLabel = spectCount > 0 ? ` • 👁 ${spectCount}` : "";
       const timeLeft = Math.max(0, Math.ceil(((room as any).endsAt - Date.now()) / 1000));
+      if (timeLeft <= 0) return; // Hide expired rooms
+
       li.innerHTML = `
         <div class="room-row" style="display: flex; gap: 12px; align-items: center;">
           <canvas class="room-thumbnail" style="border-radius: 4px; border: 1px solid #444; flex-shrink: 0;"></canvas>
