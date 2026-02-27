@@ -58,7 +58,7 @@
 | type | payload | 説明 |
 |---|---|---|
 | `welcome` | `{ id: string }` | 接続時 + ログイン成功時に送信。id はプレイヤーID |
-| `lobby` | `LobbyState` | ロビー状態。ルーム一覧 + ロビー内オンラインプレイヤー一覧 |
+| `lobby` | `LobbyState` | ロビー状態。ルーム一覧 |
 | `room` | `RoomState` | ゲーム状態。20Hz(50ms)ごとにブロードキャスト |
 | `explosion` | `Explosion` | 爆発イベント（即時配信、VFX用） |
 | `chat` | `ChatMessage` | チャットメッセージ |
@@ -136,7 +136,6 @@ type MapData = {
 ```typescript
 type LobbyState = {
   rooms: RoomSummary[];
-  onlinePlayers: { id: string; name: string }[]; // ロビー在室中のプレイヤー
 };
 ```
 
