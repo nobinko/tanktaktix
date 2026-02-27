@@ -16,6 +16,7 @@
 | K-2 | **AIM線の先端に不要な丸が表示される**: AIMドラッグ中のガイドライン先端にある円形マーカーが不要 | AIMドラッグ中に確認 | 低 |
 | K-3 | **部屋を移動しても、前の部屋のシステムログ/チャット表示がゲーム部屋のチャット欄に残る**: 新しい部屋に入ったらその部屋のログだけを表示すること。内部のイベントログ記録自体はチート検知や監査用途として残してよい | 1. 部屋Aでゲーム/ログを発生させる → 2. 部屋を退出 → 3. 部屋Bに参加 → 4. 部屋A由来のシステムログが部屋Bのチャット欄に残って見える | 中〜高 |
 | K-4 | **リザルト画面で Leave を押しても、ロビーへ戻らずゲーム画面側に取り残されることがある**: Leave 押下で即座にロビーへ戻り、試合インスタンスからの離脱、観戦/チャット状態の解除などを行い、UI もロビー画面へ遷移させること | 1. 試合終了 → 2. リザルト画面表示 → 3. Leave を押下 → 4. ロビーへ即時復帰せず、ゲーム状態に残留する | 高 |
+| K-5 | **shared 型定義とサーバ送信ペイロードの不一致**: サーバが `shared/src/index.ts` の型に定義されていないフィールドを送信している。対象: `LobbyState.onlinePlayers`、`RoomSummary` の `roomName`/`ended`/`playerCount`、`RoomState` の `roomName`/`mapId`/`room`/`projectiles`、`gameEnd` の `roomId`。shared 型を実装に合わせて更新し、PROTOCOL.md も同期すること | サーバの `lobbyStatePayload()` / `toRoomSummary()` / `roomStatePayloadForPlayer()` を確認 | 中 |
 
 ---
 
@@ -203,17 +204,17 @@ grep -r "REVEAL_DURATION_MS" server/
 - 所持上限: 2本
 
 #### boots（ブーツ）※オリジナルアイテム
-- 効果: 移動速度が **1.2倍** になる
-- 持続: **5回移動**まで（5回消費後に効果終了）
+- 効果: 移動速度が **1.5倍** になる
+- 持続: **3回移動到着**まで（3回消費後に効果終了）
 - 所持上限: 1個
 
 **実装詳細（AIへ）:**
-- **速度倍率**: `MOVE_SPEED`（通常 6 px/tick）を boots 効果中は **7.2 px/tick** に変更する（`MOVE_SPEED * 1.2`）
+- **速度倍率**: `MOVE_SPEED`（通常 6 px/tick）を boots 効果中は **9 px/tick** に変更する（`MOVE_SPEED * 1.5`）
   - boots 効果中のプレイヤーのみ速度を上げる。グローバル定数は変えない
-  - 実装例: `const effectiveSpeed = p.bootsCharges > 0 ? MOVE_SPEED * 1.2 : MOVE_SPEED;`
-- **カウント方法**: 「5回移動」は**目的地に到着した回数**でカウントする（moveQueue からの消化1件ごとに +1）
+  - 実装例: `const effectiveSpeed = p.bootsCharges > 0 ? MOVE_SPEED * 1.5 : MOVE_SPEED;`
+- **カウント方法**: 「3回移動」は**目的地に到着した回数**でカウントする（moveQueue からの消化1件ごとに +1）
   - 移動中断（壁衝突など）は到着扱いにしない
-  - 到着カウントが 5 に達した時点で `bootsCharges = 0` にし、速度を元に戻す
+  - 到着カウントが 3 に達した時点で `bootsCharges = 0` にし、速度を元に戻す
 
 ### 4-5. フラッグ挙動改善
 

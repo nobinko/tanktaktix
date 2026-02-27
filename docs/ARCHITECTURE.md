@@ -31,7 +31,8 @@ tanktaktix/
 │
 ├── shared/                  # クライアント/サーバ共通の型定義
 │   └── src/
-│       └── index.ts         # 型定義のみ（ロジックなし）
+│       ├── index.ts         # 型定義のみ（ロジックなし）
+│       └── maps.ts          # マップ定義（5マップ + テストマップ）
 │
 ├── scripts/                 # 検証・テストスクリプト（ts-node で実行）
 │   ├── verify_*.ts          # 機能別検証スクリプト
@@ -75,7 +76,9 @@ tanktaktix/
 - ゲームループ: `setInterval(tick, 50ms)` = 20Hz
 - 物理計算（移動・弾道・衝突）はすべてサーバが計算
 - アイテムスポーン・拾得判定、CTF フラッグ判定
-- 隠密（bush）状態管理、再接続セッション保持
+- 隠密（bush）状態管理（ブッシュに完全侵入で常時隠密、射撃しても解除されない）
+- 再接続セッション保持（PlayerRuntime.disconnectedAt で管理、60s タイムアウト）
+- 観戦モード（B-6）: spectatorIds で管理、隠密フィルタなしで全プレイヤー表示
 - クライアントからの入力を検証し、不正なら拒否する
 - Express で静的ファイル（client/dist）を配信
 
@@ -93,25 +96,30 @@ tanktaktix/
 Server (20Hz = 50ms ごと):
   tick() {
     各ルームについて:
-      1. 死亡プレイヤーのリスポーン処理
-      2. 移動フェーズ（ピボットターン → 前進）
-      3. 弾丸の飛翔・衝突・爆発処理
-      4. アイテムスポーン・拾得判定（B-1）
-      5. 隠密状態更新（bush 内判定 / 射撃後の可視化）（B-5）
-      6. CTF フラッグ判定（取得・帰還・完全停止スコア）（B-4）
-      7. ゲーム終了判定（endsAt 超過）
-      8. sendRoomState() で全員に状態をブロードキャスト
+      1. 切断プレイヤーのクリーンアップ（60s タイムアウト超過で削除）
+      2. 爆発配列のクリア（前tick分を破棄）
+      3. ゲーム終了判定（endsAt 超過）
+      4. 各プレイヤーについて:
+         a. リスポーン処理（死亡中なら復活判定）
+         b. 隠密状態更新（bush 完全侵入で isHidden = true）（B-5）
+         c. 移動フェーズ（ピボットターン → 前進、boots 速度補正あり）
+         d. アイテム拾得判定（タンク半径内、所持上限チェック）
+      5. CTF フラッグ判定（取得・帰還・完全停止スコア）（B-4）
+      6. 弾丸の飛翔・衝突・爆発処理（特殊弾: bomb/rope/ammoPass/healPass/flagPass）
+      7. sendRoomState() で全員に状態をブロードキャスト
+         - プレイヤー向け: 敵の隠密プレイヤーをフィルタリング
+         - 観戦者向け: 全プレイヤー表示（隠密フィルタなし）
   }
 
 Client (60fps rAF):
   draw() {
     カメラ変換（zoom / rotation / pan）
-    ← 地形（壁・bush・water・グリッド）を描画
-    ← 弾丸を描画
+    ← 地形（壁・bush・water・house・oneway・グリッド）を描画
+    ← 弾丸を描画（通常弾 / bomb / rope / ammoPass / healPass / flagPass）
     ← 爆発エフェクト（VFX、ローカル管理）
-    ← アイテム（medic / ammo ボックス）を描画
+    ← アイテム（medic / ammo / heart / bomb / rope / boots）を描画
     ← フラッグ（CTF の旗）を描画
-    ← 各プレイヤー（ハル + 砲塔 + HP/弾薬バー + ロックカウント + 旗インジケーター）を描画
+    ← 各プレイヤー（ハル + 砲塔 + HPバー + ロックカウント + 旗インジケーター + ダメージ表現）を描画
     ← 移動予約マーカーを描画
     ← AIMガイドライン（射撃ドラッグ中）を描画
     HUD描画（スクリーン空間）
@@ -149,6 +157,7 @@ type PlayerRuntime = {
 
   // アクション制御
   cooldownUntil: number;        // クールダウン終了 Unix ms
+  respawnAt: number | null;     // リスポーン予定時刻（インスタントリスポーン時は即時設定）
   respawnCooldownUntil: number; // 無敵期間終了 Unix ms
 
   // ステータス
@@ -161,10 +170,19 @@ type PlayerRuntime = {
   fired: number;
 
   // 隠密・可視性（B-5）
-  isHidden: boolean;     // bush 内で隠密中
-  lastFiredAt: number;   // 射撃後の一時可視化用
+  isHidden: boolean;     // bush 内で隠密中（ブッシュ完全侵入で常時隠密）
 
-  socket: WebSocket; // 接続ソケット（クライアントには非公開）
+  // Phase 4: アイテム所持状態
+  hasBomb: boolean;      // bomb 所持中（次の1発がボムショットになる）
+  ropeCount: number;     // rope 所持本数（0〜2）
+  bootsCharges: number;  // boots 残り回数（0 = 未所持, 1〜3 = 残り）
+
+  // AIM
+  aimDir: Vector2;       // AIMモード中の砲塔方向
+
+  // 接続
+  socket: WebSocket | null; // 接続ソケット（切断時は null、再接続待機）
+  disconnectedAt: number | null; // 切断時刻（再接続タイムアウト判定用）
 };
 ```
 
@@ -181,22 +199,29 @@ type Room = {
   endsAt: number;           // ゲーム終了時刻 Unix ms
   ended: boolean;
 
+  mapId: string;            // マップID（"alpha" | "beta" | ... ）
+  passwordProtected: boolean;
+  password?: string;
+  createdAt: number;        // ルーム作成時刻 Unix ms
+
   playerIds: Set<string>;
+  spectatorIds: Set<string>; // 観戦者（B-6）
   bullets: Bullet[];
   explosions: Explosion[];  // 1tick だけ保持してブロードキャスト後クリア
-  items: Item[];            // マップ上のアイテム（B-1）
+  items: Item[];            // マップ上のアイテム（B-1、12個固定プール）
   flags: Flag[];            // CTF の旗（B-4）
   scoreRed: number;
   scoreBlue: number;
-  history: Map<string, PlayerHistory>;       // 退出後もスコアを保持
-  disconnectedPlayers: Map<string, { ... }>; // 再接続用セッション保持（B-3）
+  history: Map<string, PlayerHistory>;  // 退出後もスコアを保持
+  lastItemSpawnAt: number;  // 最後のアイテムスポーン時刻
+  // ※再接続セッションはグローバルな players Map 内の PlayerRuntime.disconnectedAt で管理
 };
 ```
 
 ### 新規型（Phase 3 追加）
 
 ```typescript
-type ItemType = "medic" | "ammo";
+type ItemType = "medic" | "ammo" | "heart" | "bomb" | "rope" | "boots";
 type WallType = "wall" | "bush" | "water" | "house" | "oneway";
 
 type Item = {
