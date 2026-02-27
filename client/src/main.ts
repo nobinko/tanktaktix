@@ -441,7 +441,7 @@ const renderRooms = () => {
       const timeLeft = Math.max(0, Math.ceil(((room as any).endsAt - Date.now()) / 1000));
       li.innerHTML = `
         <div class="room-row" style="display: flex; gap: 12px; align-items: center;">
-          <canvas class="room-thumbnail" width="48" height="auto" style="border-radius: 4px; border: 1px solid #444; flex-shrink: 0;"></canvas>
+          <canvas class="room-thumbnail" style="border-radius: 4px; border: 1px solid #444; flex-shrink: 0;"></canvas>
           <div style="flex-grow: 1;">
             <strong>${room.name ?? (room as any).roomName ?? room.id}</strong>
             <div class="meta">${(room as any).players?.length ?? (room as any).playerCount ?? 0}/${room.maxPlayers} players${spectLabel} • ${room.timeLimitSec}s (Left: ${timeLeft}s)</div>
