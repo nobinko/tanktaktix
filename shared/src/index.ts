@@ -1,3 +1,5 @@
+import { MAPS } from "./maps";
+export { MAPS };
 export type Vector2 = {
   x: number;
   y: number;
@@ -236,4 +238,3 @@ export type ServerToClientMessage =
     };
   };
 
-export * from "./maps";

@@ -10,6 +10,7 @@
     "start": "node dist/index.js"
   },
   "dependencies": {
+    "@tanktaktix/shared": "0.1.0",
     "express": "4.19.2",
     "ws": "8.17.0"
   },

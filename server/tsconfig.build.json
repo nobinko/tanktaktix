@@ -4,8 +4,9 @@
     "noEmit": false,
     "rootDir": "src",
     "outDir": "dist",
-    "baseUrl": ".",
-    "paths": {}
+    "baseUrl": "."
   },
-  "include": ["src"]
+  "include": [
+    "src"
+  ]
 }
