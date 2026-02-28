@@ -7,9 +7,9 @@ export const drawEffects = (ctx: CanvasRenderingContext2D) => {
     const progress = (now - e.startedAt) / 500;
     if (progress > 1) continue;
     const r = e.radius || 40;
-    ctx.fillStyle = `rgba(255, 165, 0, ${1 - progress})`;
+    ctx.fillStyle = `rgba(212, 168, 67, ${1 - progress})`;
     ctx.beginPath(); ctx.arc(e.x, e.y, r * (0.5 + progress * 0.5), 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = `rgba(255, 69, 0, ${1 - progress})`;
+    ctx.strokeStyle = `rgba(184, 80, 30, ${1 - progress})`;
     ctx.lineWidth = 4 * (1 - progress); ctx.stroke();
   }
 
@@ -37,7 +37,7 @@ export const drawEffects = (ctx: CanvasRenderingContext2D) => {
     ctx.save();
     ctx.translate(ft.x, currentY); ctx.rotate(-state.camera.rotation);
     ctx.globalAlpha = 1 - Math.pow(progress, 1.5);
-    ctx.font = "bold 16px 'Segoe UI', Arial, sans-serif"; ctx.textAlign = "center";
+    ctx.font = "bold 16px 'Bitter', serif"; ctx.textAlign = "center";
     ctx.lineWidth = 3; ctx.strokeStyle = "#000"; ctx.strokeText(ft.text, 0, 0);
     ctx.fillStyle = ft.color; ctx.fillText(ft.text, 0, 0);
     ctx.restore();

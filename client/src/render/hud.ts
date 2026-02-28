@@ -17,26 +17,26 @@ const drawMinimap = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) =
   const scaleX = mmW / mapWidth;
   const scaleY = mmH / mapHeight;
 
-  ctx.fillStyle = "rgba(10, 20, 40, 0.75)";
+  ctx.fillStyle = "rgba(229, 220, 208, 0.80)";
   ctx.fillRect(mmX, mmY, mmW, mmH);
-  ctx.strokeStyle = "rgba(120, 150, 255, 0.4)";
+  ctx.strokeStyle = "rgba(168, 148, 104, 0.4)";
   ctx.lineWidth = 1;
   ctx.strokeRect(mmX, mmY, mmW, mmH);
 
   if (state.mapData && state.mapData.walls) {
     for (const w of state.mapData.walls) {
       const type = (w as any).type || "wall";
-      if (type === "bush") ctx.fillStyle = "rgba(34, 197, 94, 0.6)";
-      else if (type === "water") ctx.fillStyle = "rgba(59, 130, 246, 0.6)";
-      else if (type === "house") ctx.fillStyle = "#8b4513";
-      else if (type === "oneway") ctx.fillStyle = "rgba(255, 140, 0, 0.6)";
-      else ctx.fillStyle = "rgba(100, 120, 140, 0.6)";
+      if (type === "bush") ctx.fillStyle = "rgba(90, 120, 50, 0.6)";
+      else if (type === "water") ctx.fillStyle = "rgba(70, 100, 120, 0.6)";
+      else if (type === "house") ctx.fillStyle = "#c4a070";
+      else if (type === "oneway") ctx.fillStyle = "rgba(180, 140, 40, 0.6)";
+      else ctx.fillStyle = "rgba(180, 160, 140, 0.6)";
       ctx.fillRect(mmX + w.x * scaleX, mmY + w.y * scaleY, Math.max(1, w.width * scaleX), Math.max(1, w.height * scaleY));
     }
   }
 
   const bullets = (state as any).bullets ?? [];
-  ctx.fillStyle = "#fde047";
+  ctx.fillStyle = "#c4843a";
   for (const b of bullets) {
     const bx = b.x ?? (b.position?.x ?? 0);
     const by = b.y ?? (b.position?.y ?? 0);
@@ -44,17 +44,17 @@ const drawMinimap = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) =
   }
 
   const itemColors: Record<string, string> = {
-    medic: "#22c55e", ammo: "#facc15", heart: "#ec4899",
-    bomb: "#6b7280", rope: "#a3752c", boots: "#818cf8",
+    medic: "#5c8a3a", ammo: "#c49832", heart: "#ec4899",
+    bomb: "#6b5d4a", rope: "#a3752c", boots: "#7a7aad",
   };
   for (const item of state.items) {
-    ctx.fillStyle = itemColors[item.type] ?? "#fff";
+    ctx.fillStyle = itemColors[item.type] ?? "#e8e0d4";
     ctx.fillRect(mmX + item.x * scaleX - 1, mmY + item.y * scaleY - 1, 3, 3);
   }
 
   if (state.flags) {
     for (const f of state.flags) {
-      ctx.fillStyle = f.team === "red" ? "#ef4444" : "#3b82f6";
+      ctx.fillStyle = f.team === "red" ? "#c44040" : "#4a6a8a";
       ctx.beginPath(); ctx.arc(mmX + f.x * scaleX, mmY + f.y * scaleY, 3, 0, Math.PI * 2); ctx.fill();
     }
   }
@@ -65,14 +65,14 @@ const drawMinimap = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) =
     const py = (p as any).position?.y ?? (p as any).y ?? 0;
     const isSelf = p.id === state.selfId;
     const team = (p as any).team;
-    if (team === "red") ctx.fillStyle = isSelf ? "#ff6b6b" : "#dc2626";
-    else if (team === "blue") ctx.fillStyle = isSelf ? "#60a5fa" : "#2563eb";
-    else ctx.fillStyle = isSelf ? "#4cc9f0" : "#9ca3af";
+    if (team === "red") ctx.fillStyle = isSelf ? "#ff5555" : "#c44040";
+    else if (team === "blue") ctx.fillStyle = isSelf ? "#6a92c8" : "#4a6a8a";
+    else ctx.fillStyle = isSelf ? "#8a6a2a" : "#7a6a5a";
     const dotSize = isSelf ? 4 : 2;
     ctx.fillRect(mmX + px * scaleX - dotSize / 2, mmY + py * scaleY - dotSize / 2, dotSize, dotSize);
   }
 
-  ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
+  ctx.strokeStyle = "rgba(100, 90, 80, 0.4)";
   ctx.lineWidth = 1;
   const vpX = mmX + state.camera.x * scaleX;
   const vpY = mmY + state.camera.y * scaleY;
@@ -86,15 +86,15 @@ const drawChat = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => {
   const lineHeight = 16;
   const bottomY = canvas.height - 40;
   const startX = 10;
-  ctx.font = "12px 'Segoe UI', Arial, sans-serif";
+  ctx.font = "12px 'Share Tech Mono', monospace";
   ctx.textAlign = "left"; ctx.textBaseline = "bottom";
   messages.forEach((msg, i) => {
     const y = bottomY - ((messages.length - 1 - i) * lineHeight);
     const text = `${msg.from}: ${msg.message}`;
     const width = ctx.measureText(text).width;
-    ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+    ctx.fillStyle = "rgba(229, 220, 208, 0.85)";
     ctx.fillRect(startX - 2, y - lineHeight + 2, width + 4, lineHeight);
-    ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+    ctx.fillStyle = "#3a2a1a";
     ctx.fillText(text, startX, y);
   });
   ctx.textBaseline = "alphabetic";
@@ -109,58 +109,56 @@ export const drawHud = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement
 
   const now = Date.now();
   const respawnCD = self ? (self as any).respawnCooldownUntil ?? 0 : 0;
-  ctx.fillStyle = respawnCD > now ? "rgba(100, 200, 255, 0.85)" : "rgba(200, 200, 200, 0.85)";
+  ctx.fillStyle = respawnCD > now ? "rgba(196, 200, 180, 0.90)" : "rgba(229, 220, 208, 0.90)";
   ctx.fillRect(0, 0, W, barH);
-  ctx.strokeStyle = "rgba(160, 160, 160, 0.6)"; ctx.lineWidth = 1;
+  ctx.strokeStyle = "rgba(168, 148, 104, 0.4)"; ctx.lineWidth = 1;
   ctx.beginPath(); ctx.moveTo(0, barH); ctx.lineTo(W, barH); ctx.stroke();
 
-  ctx.font = "bold 13px 'Segoe UI', Arial, sans-serif";
+  ctx.font = "bold 13px 'Share Tech Mono', monospace";
   const hp = self ? (self as any).hp ?? 0 : 0;
-  const hpColor = hp > 60 ? "#16a34a" : hp > 20 ? "#d97706" : "#dc2626";
-  ctx.fillStyle = "#333"; ctx.textAlign = "left"; ctx.fillText("❤️", 12, 19);
+  const hpColor = hp > 60 ? "#5c8a3a" : hp > 20 ? "#d4a832" : "#c83a2e";
+  ctx.fillStyle = "#3a2a1a"; ctx.textAlign = "left"; ctx.fillText("\u2764\ufe0f", 12, 19);
   ctx.fillStyle = hpColor; ctx.fillText(`${hp}%`, 32, 19);
 
   const ammo = self ? (self as any).ammo ?? 0 : 0;
-  ctx.fillStyle = "#333"; ctx.fillText("🔫", 88, 19);
-  ctx.fillStyle = ammo > 5 ? "#333" : "#dc2626"; ctx.fillText(`${ammo}`, 108, 19);
+  ctx.fillStyle = "#3a2a1a"; ctx.fillText("\ud83d\udd2b", 88, 19);
+  ctx.fillStyle = ammo > 5 ? "#3a2a1a" : "#c83a2e"; ctx.fillText(`${ammo}`, 108, 19);
 
   if (self && (self as any).isHidden) {
-    ctx.fillStyle = "#16a34a"; ctx.font = "bold 12px 'Segoe UI', Arial, sans-serif";
+    ctx.fillStyle = "#5c8a3a"; ctx.font = "bold 12px 'Share Tech Mono', monospace";
     ctx.textAlign = "left";
-    ctx.fillText("🕵️ HIDDEN", 140, 19);
+    ctx.fillText("\ud83d\udd75\ufe0f HIDDEN", 140, 19);
   }
 
   if (self && !state.isSpectator) {
     let itemX = 240; const iy = 19;
-    ctx.font = "bold 11px 'Segoe UI', Arial, sans-serif"; ctx.textAlign = "left";
-    if ((self as any).hasBomb) { ctx.fillStyle = "#f97316"; ctx.fillText("💣BOMB", itemX, iy); itemX += 58; }
-    if ((self as any).ropeCount > 0) { ctx.fillStyle = "#a3752c"; ctx.fillText(`🪢×${(self as any).ropeCount}`, itemX, iy); itemX += 42; }
-    if ((self as any).bootsCharges > 0) { ctx.fillStyle = "#818cf8"; ctx.fillText(`👢×${(self as any).bootsCharges}`, itemX, iy); itemX += 42; }
+    ctx.font = "bold 11px 'Share Tech Mono', monospace"; ctx.textAlign = "left";
+    if ((self as any).hasBomb) { ctx.fillStyle = "#c47030"; ctx.fillText("\ud83d\udca3BOMB", itemX, iy); itemX += 58; }
+    if ((self as any).ropeCount > 0) { ctx.fillStyle = "#a3752c"; ctx.fillText(`\ud83e\udea2\u00d7${(self as any).ropeCount}`, itemX, iy); itemX += 42; }
+    if ((self as any).bootsCharges > 0) { ctx.fillStyle = "#7a7aad"; ctx.fillText(`\ud83d\udc62\u00d7${(self as any).bootsCharges}`, itemX, iy); itemX += 42; }
   }
-
-  // Lock timer removed as requested
 
   // Draw timer in exact center
   const mins = Math.floor(state.timeLeftSec / 60).toString().padStart(2, "0");
   const secs = (state.timeLeftSec % 60).toString().padStart(2, "0");
-  ctx.fillStyle = "#111"; ctx.textAlign = "center"; ctx.font = "bold 15px 'Segoe UI', Arial, sans-serif";
+  ctx.fillStyle = "#3a2a1a"; ctx.textAlign = "center"; ctx.font = "bold 15px 'Share Tech Mono', monospace";
   ctx.fillText(`${mins}:${secs}`, W / 2, 19);
 
   // Restore and emphasize Team Scores around center
   const isTeamMode = state.players.some((p) => (p as any).team != null);
   if (isTeamMode) {
     const scores = state.teamScores;
-    ctx.font = "bold 14px 'Segoe UI', Arial, sans-serif";
-    ctx.textAlign = "right"; ctx.fillStyle = "#e11d48"; ctx.fillText(`RED: ${scores.red}`, W / 2 - 60, 19);
-    ctx.textAlign = "left"; ctx.fillStyle = "#2563eb"; ctx.fillText(`${scores.blue} :BLUE`, W / 2 + 60, 19);
+    ctx.font = "bold 14px 'Share Tech Mono', monospace";
+    ctx.textAlign = "right"; ctx.fillStyle = "#c44040"; ctx.fillText(`RED: ${scores.red}`, W / 2 - 60, 19);
+    ctx.textAlign = "left"; ctx.fillStyle = "#4a6a8a"; ctx.fillText(`${scores.blue} :BLUE`, W / 2 + 60, 19);
   } else {
     const myScore = self ? (self as any).score ?? 0 : 0;
-    ctx.font = "bold 13px 'Segoe UI', Arial, sans-serif";
-    ctx.textAlign = "left"; ctx.fillStyle = "#444"; ctx.fillText(`Score: ${myScore}`, W / 2 + 60, 19);
+    ctx.font = "bold 13px 'Share Tech Mono', monospace";
+    ctx.textAlign = "left"; ctx.fillStyle = "#7a6a5a"; ctx.fillText(`Score: ${myScore}`, W / 2 + 60, 19);
   }
 
   // Draw Room Info - Shifted left to avoid LEAVE button overlap
-  ctx.fillStyle = "#666"; ctx.textAlign = "right"; ctx.font = "bold 12px 'Segoe UI', Arial, sans-serif";
+  ctx.fillStyle = "#7a6a5a"; ctx.textAlign = "right"; ctx.font = "bold 12px 'Share Tech Mono', monospace";
   const roomName = (state.mapData as any)?.roomName || state.roomId;
   ctx.fillText(`Room: ${state.roomId}${roomName ? ` (${roomName})` : ""}`, W - 140, 19);
 
