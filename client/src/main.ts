@@ -57,7 +57,7 @@ const setupRoom = () => {
   attachMouseInput({ canvas, chatInput, getSelf, sendMessage: sendWsMessage });
 };
 
-connectWs((message) => handleServerMessage(message, {
+const handleServerMsg = (message: any) => handleServerMessage(message, {
   setScreen,
   renderRooms: () => renderRooms(state.rooms, sendWsMessage),
   renderLobbyPlayers,
@@ -65,16 +65,27 @@ connectWs((message) => handleServerMessage(message, {
   renderRoomMeta,
   setupRoom,
   showGameResult: () => undefined,
-}));
+});
 
 attachKeyboardInput({ chatInput, sendMessage: sendWsMessage });
 
+const nameInput = document.querySelector("#name-input") as HTMLInputElement;
+let savedName = localStorage.getItem("tt_name");
+if (!savedName) {
+  savedName = `GP-${Math.floor(1000 + Math.random() * 9000)}`;
+}
+nameInput.value = savedName;
+
+(document.querySelector("#random-name") as HTMLButtonElement).addEventListener("click", () => {
+  nameInput.value = `GP-${Math.floor(1000 + Math.random() * 9000)}`;
+});
+
 (document.querySelector("#login-btn") as HTMLButtonElement).addEventListener("click", () => {
-  const nameInput = document.querySelector("#name-input") as HTMLInputElement;
   const name = nameInput.value.trim() || `GP-${Math.floor(1000 + Math.random() * 9000)}`;
   state.name = name;
   localStorage.setItem("tt_name", name);
   const savedId = localStorage.getItem("tt_id");
+  connectWs(handleServerMsg); // Re-connect if disconnected
   waitForWsOpen(() => {
     sendWsMessage({ type: "login", payload: { name, id: savedId ?? undefined } });
     sendWsMessage({ type: "requestLobby" });
@@ -82,6 +93,7 @@ attachKeyboardInput({ chatInput, sendMessage: sendWsMessage });
 });
 
 (document.querySelector("#create-room") as HTMLButtonElement).addEventListener("click", () => {
+  state.leavingRoomId = ""; // Fix: Reset leavingRoomId when creating a new room
   const id = (document.querySelector("#room-id") as HTMLInputElement).value.trim() || Math.floor(Math.random() * 10000).toString().padStart(4, "0");
   const name = (document.querySelector("#room-name") as HTMLInputElement).value.trim();
   const mapId = (document.querySelector("#map-select") as HTMLSelectElement)?.value || "alpha";
@@ -94,5 +106,24 @@ attachKeyboardInput({ chatInput, sendMessage: sendWsMessage });
     setScreen("login");
   }
 });
+
+const handleLeave = (requireConfirm = true) => {
+  if (requireConfirm && !confirm("Leave this room?")) return;
+  if (!state.roomId) return;
+  state.leavingRoomId = state.roomId;
+  sendWsMessage({ type: "leaveRoom" });
+  sendWsMessage({ type: "requestLobby" });
+  state.roomId = "";
+  state.players = [];
+  state.bullets = [];
+  state.explosions = [];
+  state.isSpectator = false;
+  document.querySelector("#result-overlay")?.classList.add("hidden");
+  setScreen("lobby");
+};
+
+(document.querySelector("#leave-room") as HTMLButtonElement)?.addEventListener("click", () => handleLeave(true));
+(document.querySelector("#game-leave-btn") as HTMLButtonElement)?.addEventListener("click", () => handleLeave(true));
+(document.querySelector("#close-result") as HTMLButtonElement)?.addEventListener("click", () => handleLeave(false));
 
 createRenderer({ canvas, ctx, chatInput }).render();

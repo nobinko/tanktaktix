@@ -61,6 +61,26 @@ export const handleServerMessage = (message: ServerToClientMessage, deps: Handle
       state.teamScores = payload.teamScores;
       state.items = payload.items;
       state.flags = payload.flags || [];
+
+      // Phase 4-6: Check for HP drops to trigger damage flashes
+      const now = Date.now();
+      for (const p of payload.players) {
+        if (isFirstRoomMessage) {
+          state.lastHpMap[p.id] = p.hp;
+          continue;
+        }
+        const lastHp = state.lastHpMap[p.id];
+        if (lastHp !== undefined) {
+          if (p.hp < lastHp && p.hp > 0) {
+            state.hitFlashes[p.id] = now + 150;
+            state.floatingTexts.push({ id: Math.random().toString(), text: `-${lastHp - p.hp}`, color: "#ff6b6b", x: p.position.x, y: p.position.y - 25, startedAt: now });
+          } else if (p.hp > lastHp) {
+            state.floatingTexts.push({ id: Math.random().toString(), text: `+${p.hp - lastHp}`, color: "#4ade80", x: p.position.x, y: p.position.y - 25, startedAt: now });
+          }
+        }
+        state.lastHpMap[p.id] = p.hp;
+      }
+
       if (state.phase !== "room") {
         deps.setScreen("room");
         deps.setupRoom();
@@ -84,9 +104,24 @@ export const handleServerMessage = (message: ServerToClientMessage, deps: Handle
     case "error":
       alert(message.payload.message);
       break;
-    case "explosion":
+    case "explosion": {
       state.explosions.push({ ...message.payload, startedAt: Date.now() });
+      const numParticles = message.payload.radius > 30 ? 12 : 6;
+      for (let i = 0; i < numParticles; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = Math.random() * 4 + 2;
+        state.particles.push({
+          x: message.payload.x,
+          y: message.payload.y,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          life: 1.0,
+          maxLife: Math.random() * 0.5 + 0.3,
+          color: Math.random() > 0.5 ? "#fde047" : "#f97316"
+        });
+      }
       break;
+    }
     default:
       break;
   }
