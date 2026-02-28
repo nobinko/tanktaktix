@@ -1,0 +1,90 @@
+import { WebSocket } from "ws";
+import type { Explosion, Flag, Item, MapData, Team, Vector2 } from "@tanktaktix/shared";
+
+export type ClientMsg = { type: string; payload?: unknown };
+export type ServerMsg = { type: string; payload?: unknown };
+
+export type PlayerRuntime = {
+  id: string;
+  name: string;
+  team: Team;
+  x: number;
+  y: number;
+  hp: number;
+  ammo: number;
+  roomId: string | null;
+  aimDir: Vector2;
+  pendingMove: Vector2 | null;
+  moveQueue: { x: number; y: number; cost: number }[];
+  hullAngle: number;
+  turretAngle: number;
+  isRotating: boolean;
+  isMoving: boolean;
+  score: number;
+  kills: number;
+  deaths: number;
+  hits: number;
+  fired: number;
+  cooldownUntil: number;
+  respawnAt: number | null;
+  respawnCooldownUntil: number;
+  isHidden: boolean;
+  hasBomb: boolean;
+  ropeCount: number;
+  bootsCharges: number;
+  socket: WebSocket | null;
+  disconnectedAt: number | null;
+};
+
+export type Bullet = {
+  id: string;
+  shooterId: string;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  radius: number;
+  startX: number;
+  startY: number;
+  expiresAt: number;
+  isBomb?: boolean;
+  isRope?: boolean;
+  ropeOwnerId?: string;
+  isAmmoPass?: boolean;
+  isHealPass?: boolean;
+  isFlagPass?: boolean;
+  flagTeam?: Team;
+};
+
+export type Room = {
+  id: string;
+  name: string;
+  mapId: string;
+  mapData: MapData;
+  passwordProtected: boolean;
+  password?: string;
+  maxPlayers: number;
+  timeLimitSec: number;
+  createdAt: number;
+  endsAt: number;
+  ended: boolean;
+  gameMode: "deathmatch" | "ctf";
+  playerIds: Set<string>;
+  spectatorIds: Set<string>;
+  bullets: Bullet[];
+  explosions: Explosion[];
+  items: Item[];
+  lastItemSpawnAt: number;
+  flags: Flag[];
+  scoreRed: number;
+  scoreBlue: number;
+  history: Map<string, {
+    name: string;
+    team: Team;
+    kills: number;
+    deaths: number;
+    score: number;
+    fired: number;
+    hits: number;
+  }>;
+};
