@@ -9,6 +9,7 @@ export type HandlerDeps = {
   renderRoomMeta: () => void;
   setupRoom: () => void;
   showGameResult: (payload: any) => void;
+  showError: (message: string) => void;
 };
 
 export const handleServerMessage = (message: ServerToClientMessage, deps: HandlerDeps) => {
@@ -102,7 +103,7 @@ export const handleServerMessage = (message: ServerToClientMessage, deps: Handle
       deps.showGameResult(message.payload);
       break;
     case "error":
-      alert(message.payload.message);
+      deps.showError(message.payload.message);
       break;
     case "explosion": {
       state.explosions.push({ ...message.payload, startedAt: Date.now() });

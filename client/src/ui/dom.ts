@@ -21,7 +21,7 @@ export const initAppHtml = () => {
   </section>
   <section id="lobby-screen" class="screen"><div class="panel"><div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;"><h2 id="lobby-header" style="margin: 0;">Lobby</h2><div style="display: flex; gap: 8px;"><button id="lobby-help" class="secondary" style="padding: 4px 12px; font-size: 0.9em;">Help</button><button id="lobby-setting" class="secondary" style="padding: 4px 12px; font-size: 0.9em;">Setting</button><button id="lobby-exit" class="secondary" style="padding: 4px 12px; font-size: 0.9em;">Exit</button></div></div><div class="grid three" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;"><div><h3>Rooms</h3><ul id="room-list" class="room-list"></ul></div><div><h3>Create Room</h3><div class="grid"><input id="room-id" placeholder="Room ID" /><input id="room-name" placeholder="Room name (optional)" /><input id="max-players" placeholder="Max players" value="4" /><input id="time-limit" placeholder="Time limit (sec)" value="240" /><select id="game-mode"><option value="ctf" selected>Flag (CTF)</option><option value="deathmatch">Deathmatch</option></select><select id="map-select"><option value="alpha">Alpha (Classic)</option><option value="beta">Beta (Urban)</option><option value="gamma">Gamma (Fort)</option><option value="delta">Delta (Nature)</option><option value="epsilon">Epsilon (Obstacles)</option><option value="test-s">Test Map S (1000x1000)</option><option value="test-m">Test Map M (1200x1200)</option><option value="test-l">Test Map L (1500x1500)</option></select><input id="room-password" placeholder="Password (optional)" /><button id="create-room">Create</button></div></div><div><h3>Lobby Chat</h3><div id="lobby-chat-log" style="height: 200px; overflow-y: auto; background: rgba(0,0,0,0.3); border: 1px solid #444; padding: 4px; margin-bottom: 8px; font-size: 0.9em; font-family: monospace;"></div><input id="lobby-chat-input" placeholder="Type here..." style="width: 100%; box-sizing: border-box;" /><h3 style="margin-top: 12px;">Players</h3><ul id="lobby-player-list" style="height: 120px; overflow-y: auto; list-style: none; padding: 0; background: rgba(0,0,0,0.2);"></ul></div></div></div>
   </section>
-  <section id="room-screen" class="screen"><div class="panel relative-panel"><div id="result-overlay" class="result-overlay hidden"><div class="result-content"><h2>Game Result</h2><h3 id="result-winner">Winner: ---</h3><div class="table-container"><table id="result-table"><thead><tr><th>Name</th><th>Score</th><th>K / D</th><th>Acc %</th></tr></thead><tbody id="result-body"></tbody></table></div><div class="actions"><button id="copy-result" class="secondary">Copy Result</button><button id="close-result">Leave Room</button></div></div></div><button id="game-leave-btn" class="overlay-btn top-right">Leave</button><div class="room-header"><div><h2 id="room-title">Room</h2><p id="room-meta">Time left: --, Players: --</p></div><div class="room-actions"><span id="cooldown">Ready</span><button id="leave-room">Leave Room</button></div></div><canvas id="map" width="1200" height="675"></canvas><div class="hud"><div><h3>Scores</h3><ul id="score-list" class="score-list"></ul></div><div><h3>Chat</h3><div class="chat"><input id="chat-input" placeholder="Press T to chat" /><div id="chat-log" class="chat-log"></div></div></div></div></div></section>`;
+  <section id="room-screen" class="screen"><div class="panel relative-panel"><div id="result-overlay" class="result-overlay hidden"><div class="result-content"><h2>Game Result</h2><h3 id="result-winner">Winner: ---</h3><div class="table-container"><table id="result-table"><thead><tr><th>Name</th><th>Score</th><th>K / D</th><th>Acc %</th></tr></thead><tbody id="result-body"></tbody></table></div><div class="actions"><button id="copy-result" class="secondary">Copy Result</button><button id="close-result">Leave Room</button></div></div></div><button id="game-leave-btn" class="overlay-btn top-right">Leave</button><div class="room-header"><div><h2 id="room-title">Room</h2><p id="room-meta">Time left: --, Players: --</p></div><div class="room-actions"><span id="cooldown">Ready</span><button id="leave-room">Leave Room</button></div></div><canvas id="map" width="1200" height="675"></canvas><div class="hud"><div><h3>Scores</h3><ul id="score-list" class="score-list"></ul></div><div><h3>Chat</h3><div class="chat"><input id="chat-input" placeholder="Press T to chat" /><div id="chat-log" class="chat-log"></div></div></div></div></div></section><div id="app-modal" class="app-modal hidden"><div class="app-modal-card"><h3 id="app-modal-title">Modal</h3><div id="app-modal-body" class="app-modal-body"></div><input id="app-modal-input" class="hidden" /><div class="app-modal-actions"><button id="app-modal-cancel" class="secondary">Cancel</button><button id="app-modal-confirm">OK</button></div></div></div>`;
 };
 
 export const dom = {
@@ -90,7 +90,7 @@ export const drawMapDataThumbnail = (canvas: HTMLCanvasElement, mapData: { width
   }
 };
 
-export const renderRooms = (rooms: RoomSummary[], sendMessage: (msg: any) => void) => {
+export const renderRooms = (rooms: RoomSummary[], sendMessage: (msg: any) => void, requestPassword: () => Promise<string | null>) => {
   const roomList = dom.roomList();
   roomList.innerHTML = "";
   if (rooms.length === 0) {
@@ -108,14 +108,16 @@ export const renderRooms = (rooms: RoomSummary[], sendMessage: (msg: any) => voi
     const thumbCanvas = li.querySelector(".room-thumbnail") as HTMLCanvasElement;
     const mapMeta = room.mapData || MAPS[(room as any).mapId];
     if (thumbCanvas && mapMeta) drawMapDataThumbnail(thumbCanvas, mapMeta as any);
-    (li.querySelector(".join") as HTMLButtonElement).addEventListener("click", () => {
-      const pw = room.passwordProtected ? prompt("Password?") ?? "" : "";
+    (li.querySelector(".join") as HTMLButtonElement).addEventListener("click", async () => {
+      const pw = room.passwordProtected ? await requestPassword() : "";
+      if (pw === null) return;
       state.isSpectator = false;
       state.leavingRoomId = "";
       sendMessage({ type: "joinRoom", payload: { roomId: room.id, password: pw } });
     });
-    (li.querySelector(".watch") as HTMLButtonElement).addEventListener("click", () => {
-      const pw = room.passwordProtected ? prompt("Password?") ?? "" : "";
+    (li.querySelector(".watch") as HTMLButtonElement).addEventListener("click", async () => {
+      const pw = room.passwordProtected ? await requestPassword() : "";
+      if (pw === null) return;
       state.isSpectator = true;
       state.leavingRoomId = "";
       sendMessage({ type: "spectateRoom", payload: { roomId: room.id, password: pw } });
