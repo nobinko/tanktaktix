@@ -1,8 +1,8 @@
 import type { BulletPublic } from "@tanktaktix/shared";
-import { ACTION_LOCK_STEP_MS } from "../constants";
-import { nowMs } from "../utils/math";
-import { players, rooms, send } from "../state";
-import type { Bullet, PlayerRuntime, Room, ServerMsg } from "../types";
+import { ACTION_LOCK_STEP_MS } from "../constants.js";
+import { nowMs } from "../utils/math.js";
+import { players, rooms, send } from "../state.js";
+import type { Bullet, PlayerRuntime, Room, ServerMsg } from "../types.js";
 
 export function toPlayerPublic(p: PlayerRuntime) {
   return {

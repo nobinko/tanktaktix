@@ -1,12 +1,12 @@
 import type { Item, ItemType } from "@tanktaktix/shared";
-import { ACTION_COOLDOWN_MS, AMMO_REFILL_AMOUNT, COOLDOWN_LONG_MS, COOLDOWN_SHORT_MS, HULL_ROTATION_SPEED, ITEM_RADIUS, MEDIC_HEAL_AMOUNT, MOVE_SPEED, RECONNECT_TIMEOUT_MS, RESPAWN_MS, TANK_SIZE, TURRET_ROTATION_SPEED } from "./constants";
-import { players, rooms } from "./state";
-import { detachFromRoom, respawnItem, spawnPlayer } from "./room";
-import { broadcastRoom, sendRoomState } from "./network/broadcast";
-import { updateBullets } from "./systems/projectiles";
-import { updateCTF } from "./systems/ctf";
-import { clamp, len, norm, normalizeAngle, nowMs } from "./utils/math";
-import { checkWallCollision, isPointInBush } from "./utils/collision";
+import { ACTION_COOLDOWN_MS, AMMO_REFILL_AMOUNT, COOLDOWN_LONG_MS, COOLDOWN_SHORT_MS, HULL_ROTATION_SPEED, ITEM_RADIUS, MEDIC_HEAL_AMOUNT, MOVE_SPEED, RECONNECT_TIMEOUT_MS, RESPAWN_MS, TANK_SIZE, TURRET_ROTATION_SPEED } from "./constants.js";
+import { players, rooms } from "./state.js";
+import { detachFromRoom, respawnItem, spawnPlayer } from "./room.js";
+import { broadcastRoom, sendRoomState } from "./network/broadcast.js";
+import { updateBullets } from "./systems/projectiles.js";
+import { updateCTF } from "./systems/ctf.js";
+import { clamp, len, norm, normalizeAngle, nowMs } from "./utils/math.js";
+import { checkWallCollision, isPointInBush } from "./utils/collision.js";
 
 let lastTickAt = nowMs();
 export function tick() {

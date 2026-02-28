@@ -3,7 +3,7 @@ import { WebSocket } from 'ws';
 
 type ServerMsg = { type: string; payload?: any };
 
-const PORT = 3001;
+const PORT = 3000;
 const WS_URL = `ws://localhost:${PORT}/ws`;
 const ROOM_ID = "spec_test_room";
 

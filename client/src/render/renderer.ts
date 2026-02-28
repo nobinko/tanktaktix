@@ -6,9 +6,25 @@ import { drawWorld, finishWorld } from "./world";
 
 export const createRenderer = (deps: { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D; chatInput: HTMLInputElement }) => {
   const { canvas, ctx, chatInput } = deps;
+
+  const resize = () => {
+    const parent = canvas.parentElement;
+    if (parent) {
+      canvas.width = parent.clientWidth;
+      canvas.height = parent.clientHeight;
+    }
+  };
+  window.addEventListener("resize", resize);
+  resize();
+
   const render = () => {
     requestAnimationFrame(render);
     if (state.phase !== "room") return;
+
+    // Ensure canvas matches its container
+    if (canvas.parentElement && (canvas.width !== canvas.parentElement.clientWidth || canvas.height !== canvas.parentElement.clientHeight)) {
+      resize();
+    }
 
     const camCos = Math.cos(state.camera.rotation);
     const camSin = Math.sin(state.camera.rotation);
@@ -21,6 +37,16 @@ export const createRenderer = (deps: { canvas: HTMLCanvasElement; ctx: CanvasRen
     if (keysDown.has("arrowdown") && !chatActive) camDy += spd;
     state.camera.x += camDx * camCos + camDy * camSin;
     state.camera.y += -camDx * camSin + camDy * camCos;
+
+    // Clamp camera within map boundaries (account for zoom and viewport size)
+    const vw = canvas.width / state.camera.zoom;
+    const vh = canvas.height / state.camera.zoom;
+    const limitX = Math.max(0, (state.mapSize.width - vw) / 2);
+    const limitY = Math.max(0, (state.mapSize.height - vh) / 2);
+
+    state.camera.x = Math.max(-limitX, Math.min(limitX, state.camera.x));
+    state.camera.y = Math.max(-limitY, Math.min(limitY, state.camera.y));
+
     if (keysDown.has("=") || keysDown.has("+")) state.camera.zoom = Math.min(ZOOM_MAX, state.camera.zoom + ZOOM_STEP * 0.3);
     if (keysDown.has("-")) state.camera.zoom = Math.max(ZOOM_MIN, state.camera.zoom - ZOOM_STEP * 0.3);
     if (keysDown.has("q") && !chatActive) state.camera.rotation -= ROTATION_STEP * 0.3;

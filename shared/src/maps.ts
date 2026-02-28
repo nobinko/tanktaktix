@@ -1,4 +1,4 @@
-import type { MapData, WallType, Wall } from "./index";
+import type { MapData, WallType, Wall } from "./index.js";
 
 function createBase(x: number, y: number, size: number, entranceType: "top-bottom" | "1-way" | "adjacent" | "3-way" | "open-right" | "open-left" | "open-top" | "open-bottom", thickness: number = 40, type: WallType = "wall"): Wall[] {
     const walls: Wall[] = [];

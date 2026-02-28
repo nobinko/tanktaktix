@@ -1,11 +1,11 @@
-import type { ItemType, MapData, Team } from "@tanktaktix/shared";
-import { DEFAULT_MAP, ITEM_POOL, ITEM_RADIUS, MOVE_QUEUE_MAX, TANK_SIZE } from "./constants";
-import { players, rooms, send } from "./state";
-import type { PlayerRuntime, Room } from "./types";
-import { clamp, nowMs } from "./utils/math";
-import { checkWallCollision } from "./utils/collision";
-import { newId } from "./utils/id";
-import { broadcastLobby, lobbyStatePayload, sendRoomState } from "./network/broadcast";
+import type { Item, ItemType, MapData, Team } from "@tanktaktix/shared";
+import { ACTION_COOLDOWN_MS, AMMO_REFILL_AMOUNT, COOLDOWN_LONG_MS, COOLDOWN_SHORT_MS, HULL_ROTATION_SPEED, ITEM_RADIUS, MEDIC_HEAL_AMOUNT, MOVE_SPEED, RECONNECT_TIMEOUT_MS, RESPAWN_MS, TANK_SIZE, TURRET_ROTATION_SPEED, DEFAULT_MAP, ITEM_POOL, MOVE_QUEUE_MAX } from "./constants.js";
+import { players, rooms, send } from "./state.js";
+import type { PlayerRuntime, Room } from "./types.js";
+import { clamp, nowMs } from "./utils/math.js";
+import { checkWallCollision } from "./utils/collision.js";
+import { newId } from "./utils/id.js";
+import { broadcastLobby, lobbyStatePayload, sendRoomState } from "./network/broadcast.js";
 
 export function detachFromRoom(p: PlayerRuntime) {
   if (!p.roomId) return;
@@ -146,10 +146,12 @@ export function joinRoom(p: PlayerRuntime, roomId: string, password?: string) {
   broadcastLobby();
 }
 
+import { MAPS } from "@tanktaktix/shared";
+
 export function createRoom(roomData: { roomName: string; roomId: string; mapId: string; passwordProtected: boolean; password?: string; maxPlayers: number; timeLimitSec: number; gameMode: "deathmatch" | "ctf"; }) {
   const createdAt = nowMs();
   const endsAt = createdAt + roomData.timeLimitSec * 1000;
-  const mapData = DEFAULT_MAP;
+  const mapData = MAPS[roomData.mapId] || DEFAULT_MAP;
   const flagSrc = mapData.flagPositions ?? mapData.spawnPoints;
   const flags = roomData.gameMode === "ctf" ? [{ team: "red" as const, x: flagSrc.find(s => s.team === "red")?.x ?? 100, y: flagSrc.find(s => s.team === "red")?.y ?? 100, carrierId: null }, { team: "blue" as const, x: flagSrc.find(s => s.team === "blue")?.x ?? 1700, y: flagSrc.find(s => s.team === "blue")?.y ?? 900, carrierId: null }] : [];
   const room: Room = { id: roomData.roomId, name: roomData.roomName, mapId: roomData.mapId, mapData, passwordProtected: roomData.passwordProtected, password: roomData.password, maxPlayers: roomData.maxPlayers, timeLimitSec: roomData.timeLimitSec, createdAt, endsAt, ended: false, gameMode: roomData.gameMode, playerIds: new Set(), spectatorIds: new Set(), bullets: [], explosions: [], items: [], lastItemSpawnAt: createdAt, flags, scoreRed: 0, scoreBlue: 0, history: new Map() };

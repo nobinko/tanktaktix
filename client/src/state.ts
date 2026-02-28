@@ -9,6 +9,7 @@ import type {
   RoomSummary,
   Vector2,
 } from "@tanktaktix/shared";
+import type { ServerToClientMessage } from "@tanktaktix/shared";
 
 export type Phase = "login" | "lobby" | "room";
 
@@ -38,6 +39,7 @@ export const state = {
   floatingTexts: [] as { id: string; text: string; color: string; x: number; y: number; startedAt: number }[],
   particles: [] as { x: number; y: number; vx: number; vy: number; life: number; maxLife: number; color: string }[],
   leavingRoomId: "",
+  mapSize: { width: 1800, height: 1040 },
 };
 
 export const keysDown = new Set<string>();
@@ -46,5 +48,3 @@ export const ZOOM_STEP = 0.1;
 export const ZOOM_MIN = 0.3;
 export const ZOOM_MAX = 3.0;
 export const ROTATION_STEP = Math.PI / 36;
-
-export const mapSize = { width: 1800, height: 1040 };

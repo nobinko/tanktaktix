@@ -1,9 +1,9 @@
 import type { MapData, Team } from "@tanktaktix/shared";
-import { FLAG_RADIUS, FLAG_SCORE, SPAWN_ZONE_HALF, TANK_SIZE } from "../constants";
-import { players } from "../state";
-import type { Room } from "../types";
-import { broadcastRoom } from "../network/broadcast";
-import { dropFlag } from "./combat";
+import { FLAG_RADIUS, FLAG_SCORE, SPAWN_ZONE_HALF, TANK_SIZE } from "../constants.js";
+import { players } from "../state.js";
+import type { Room } from "../types.js";
+import { broadcastRoom } from "../network/broadcast.js";
+import { dropFlag } from "./combat.js";
 
 export function isInSpawnZone(x: number, y: number, team: Team, mapData: MapData): boolean {
   const sp = mapData.spawnPoints.find(s => s.team === team);

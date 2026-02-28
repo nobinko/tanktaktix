@@ -1,13 +1,13 @@
 import type { Vector2, Explosion } from "@tanktaktix/shared";
-import { ACTION_COOLDOWN_MS, AMMO_REFILL_AMOUNT, BULLET_RADIUS, BULLET_SPEED, BULLET_TTL_MS, EXPLOSION_DAMAGE, EXPLOSION_RADIUS, HIT_RADIUS, ITEM_RADIUS, MEDIC_HEAL_AMOUNT, RESPAWN_COOLDOWN_MS, TANK_SIZE } from "../constants";
-import { players, rooms } from "../state";
-import type { Bullet, Room } from "../types";
-import { broadcastRoom, sendRoomState } from "../network/broadcast";
-import { clamp, len, norm, nowMs } from "../utils/math";
-import { checkPointInWall, checkRayRotatedRect, isBulletBlockedByWall } from "../utils/collision";
-import { newId } from "../utils/id";
-import { respawnItem } from "../room";
-import { triggerExplosion } from "./combat";
+import { ACTION_COOLDOWN_MS, AMMO_REFILL_AMOUNT, BULLET_RADIUS, BULLET_SPEED, BULLET_TTL_MS, EXPLOSION_DAMAGE, EXPLOSION_RADIUS, HIT_RADIUS, ITEM_RADIUS, MEDIC_HEAL_AMOUNT, RESPAWN_COOLDOWN_MS, TANK_SIZE } from "../constants.js";
+import { players, rooms } from "../state.js";
+import type { Bullet, Room } from "../types.js";
+import { broadcastRoom, sendRoomState } from "../network/broadcast.js";
+import { clamp, len, norm, nowMs } from "../utils/math.js";
+import { checkPointInWall, checkRayRotatedRect, isBulletBlockedByWall } from "../utils/collision.js";
+import { newId } from "../utils/id.js";
+import { respawnItem } from "../room.js";
+import { triggerExplosion } from "./combat.js";
 
 
 export function updateBullets(room: Room, dtSec: number, now: number) {

@@ -1,5 +1,5 @@
 import type { ClientToServerMessage, Vector2 } from "@tanktaktix/shared";
-import { mapSize, state } from "../state";
+import { state } from "../state.js";
 
 const isMouseOnTank = (point: Vector2, tankPos: Vector2) => Math.hypot(point.x - tankPos.x, point.y - tankPos.y) <= 18;
 
@@ -13,7 +13,7 @@ export const getCanvasPoint = (event: MouseEvent, canvas: HTMLCanvasElement): Ve
   const sin = Math.sin(-state.camera.rotation);
   const rx = sx * cos - sy * sin;
   const ry = sx * sin + sy * cos;
-  return { x: rx + state.camera.x + mapSize.width / 2, y: ry + state.camera.y + mapSize.height / 2 };
+  return { x: rx + state.camera.x + state.mapSize.width / 2, y: ry + state.camera.y + state.mapSize.height / 2 };
 };
 
 export const attachMouseInput = (deps: {

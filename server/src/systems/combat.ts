@@ -1,12 +1,12 @@
 import type { Vector2, Explosion } from "@tanktaktix/shared";
-import { ACTION_COOLDOWN_MS, AMMO_REFILL_AMOUNT, BULLET_RADIUS, BULLET_SPEED, BULLET_TTL_MS, EXPLOSION_DAMAGE, EXPLOSION_RADIUS, HIT_RADIUS, ITEM_RADIUS, MEDIC_HEAL_AMOUNT, RESPAWN_COOLDOWN_MS, TANK_SIZE } from "../constants";
-import { players, rooms } from "../state";
-import type { Bullet, PlayerRuntime, Room } from "../types";
-import { broadcastRoom, sendRoomState } from "../network/broadcast";
-import { clamp, len, norm, nowMs } from "../utils/math";
-import { checkPointInWall, checkRayRotatedRect, isBulletBlockedByWall } from "../utils/collision";
-import { newId } from "../utils/id";
-import { respawnItem, spawnPlayer } from "../room";
+import { ACTION_COOLDOWN_MS, AMMO_REFILL_AMOUNT, BULLET_RADIUS, BULLET_SPEED, BULLET_TTL_MS, EXPLOSION_DAMAGE, EXPLOSION_RADIUS, HIT_RADIUS, ITEM_RADIUS, MEDIC_HEAL_AMOUNT, RESPAWN_COOLDOWN_MS, TANK_SIZE } from "../constants.js";
+import { players, rooms } from "../state.js";
+import type { Bullet, PlayerRuntime, Room } from "../types.js";
+import { broadcastRoom, sendRoomState } from "../network/broadcast.js";
+import { clamp, len, norm, nowMs } from "../utils/math.js";
+import { checkPointInWall, checkRayRotatedRect, isBulletBlockedByWall } from "../utils/collision.js";
+import { newId } from "../utils/id.js";
+import { respawnItem, spawnPlayer } from "../room.js";
 
 export function triggerExplosion(room: Room, x: number, y: number, shooterId: string, isBomb = false) {
   // Phase 4: bomb = 3x explosion radius
@@ -66,11 +66,6 @@ export function triggerExplosion(room: Room, x: number, y: number, shooterId: st
           dropFlag(target.id, room);
         }
 
-        // Scoring: Hit (None for Team Mode "Kill is 1 point. That's it.")
-        // if (shooter && shooter.id !== target.id) {
-        //   shooter.score += 1; 
-        // }
-
         if (target.hp === 0) {
           // Kill credit
           if (shooter && shooter.id !== target.id) {
@@ -80,9 +75,6 @@ export function triggerExplosion(room: Room, x: number, y: number, shooterId: st
             // Updating Room Team Score
             if (shooter.team === "red") room.scoreRed += 1;
             if (shooter.team === "blue") room.scoreBlue += 1;
-          } else if (shooter && shooter.id === target.id) {
-            // Suicide: No penalty mentioned? Usually -1 but user said "Death score doesn't change".
-            // Let's keep 0 change for suicide to be safe with "That's it".
           }
 
           // Update history for shooter
@@ -91,12 +83,10 @@ export function triggerExplosion(room: Room, x: number, y: number, shooterId: st
             if (h) {
               h.kills = shooter.kills;
               h.score = shooter.score;
-              // h.hits updated below?
             }
           }
 
           target.deaths += 1;
-          // target.score -= 5; // Team Mode: No death penalty
 
           // Update history for target
           const th = room.history.get(target.id);
@@ -112,9 +102,7 @@ export function triggerExplosion(room: Room, x: number, y: number, shooterId: st
 
           // Instant Respawn Logic
           spawnPlayer(target, room);
-          // Instead of delayed respawn, apply instant respawn with cooldown
           target.respawnCooldownUntil = nowMs() + RESPAWN_COOLDOWN_MS;
-          // Note: spawnPlayer already clears moveQueue, pendingMove, and cooldownUntil (set to 0)
         }
       }
     }
@@ -126,18 +114,16 @@ export function tryShoot(p: PlayerRuntime, dir: Vector2) {
   const now = nowMs();
 
   if (p.respawnAt && p.respawnAt > now) return;
-  if (p.respawnCooldownUntil > now) return; // Cannot shoot during respawn CD
+  if (p.respawnCooldownUntil > now) return;
 
-  // Cooldown Check
   if (now < p.cooldownUntil) return;
-  if (p.isMoving) return; // Cannot shoot while moving
+  if (p.isMoving) return;
 
   if (p.ammo <= 0) return;
 
   p.ammo -= 1;
-  p.fired += 1; // Increment fired count
+  p.fired += 1;
 
-  // Sync to history
   if (p.roomId) {
     const r = rooms.get(p.roomId);
     if (r) {
@@ -146,15 +132,11 @@ export function tryShoot(p: PlayerRuntime, dir: Vector2) {
     }
   }
 
-
-
-  // Phase 4: Check if this is a bomb shot
   const isBombShot = p.hasBomb;
   if (isBombShot) {
-    p.hasBomb = false; // Consume bomb on use
+    p.hasBomb = false;
   }
 
-  // Trigger Cooldown immediately
   p.cooldownUntil = now + ACTION_COOLDOWN_MS;
 
   const room = rooms.get(p.roomId);
@@ -167,8 +149,7 @@ export function tryShoot(p: PlayerRuntime, dir: Vector2) {
   const bx = clamp(p.x + d.x * spawnOffset, 0, room.mapData.width);
   const by = clamp(p.y + d.y * spawnOffset, 0, room.mapData.height);
 
-  // Phase 4: Bomb shot has 3x explosion radius
-  const bulletRadius = isBombShot ? BULLET_RADIUS * 1.5 : BULLET_RADIUS; // slightly larger visual
+  const bulletRadius = isBombShot ? BULLET_RADIUS * 1.5 : BULLET_RADIUS;
 
   const bullet: Bullet = {
     id: newId(),
@@ -181,25 +162,20 @@ export function tryShoot(p: PlayerRuntime, dir: Vector2) {
     startX: bx,
     startY: by,
     expiresAt: now + BULLET_TTL_MS,
-    isBomb: isBombShot, // Tag for explosion handler
+    isBomb: isBombShot,
   };
 
   room.bullets.push(bullet);
-
-  // Lock turret to shot direction
   p.turretAngle = Math.atan2(d.y, d.x);
   sendRoomState(p.roomId);
 }
 
-// Phase 4-7: Use Item Action (Ammo, Heal, Flag, Rope)
 export function tryUseItem(p: PlayerRuntime, item: string, dir: Vector2) {
   if (!p.roomId) return;
   const now = nowMs();
 
   if (p.respawnAt && p.respawnAt > now) return;
   if (p.respawnCooldownUntil > now) return;
-
-  // Actions share cooldown
   if (now < p.cooldownUntil) return;
 
   const room = rooms.get(p.roomId);
@@ -268,20 +244,19 @@ export function tryUseItem(p: PlayerRuntime, item: string, dir: Vector2) {
         isFlagPass: true,
         flagTeam: carriedFlag.team
       });
-      // The flag is technically 'in the air' but we just update its pos to follow the bullet in updateBullets
       carriedFlag.x = bx;
       carriedFlag.y = by;
       p.turretAngle = Math.atan2(d.y, d.x);
     }
   }
 }
+
 export function dropFlag(carrierId: string, room: Room) {
   for (const f of room.flags) {
     if (f.carrierId === carrierId) {
       console.log(`[DEBUG] Flag ${f.team} dropped by ${carrierId} at (${f.x}, ${f.y})`);
       f.carrierId = null;
-      f.droppedById = carrierId; // Phase 4-5: mark who dropped it to prevent instant re-pickup
-      // Phase 4-5: flag stays exactly where dropped, do not return to base
+      f.droppedById = carrierId;
     }
   }
 }

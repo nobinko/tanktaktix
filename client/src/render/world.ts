@@ -1,4 +1,4 @@
-import { mapSize, state } from "../state";
+import { state } from "../state.js";
 
 export const drawWorld = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -8,14 +8,14 @@ export const drawWorld = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasEleme
   ctx.translate(canvas.width / 2, canvas.height / 2);
   ctx.rotate(state.camera.rotation);
   ctx.scale(state.camera.zoom, state.camera.zoom);
-  ctx.translate(-state.camera.x - mapSize.width / 2, -state.camera.y - mapSize.height / 2);
+  ctx.translate(-state.camera.x - state.mapSize.width / 2, -state.camera.y - state.mapSize.height / 2);
 
   ctx.strokeStyle = "rgba(255,255,255,0.05)";
-  for (let x = 0; x < mapSize.width; x += 60) {
-    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, mapSize.height); ctx.stroke();
+  for (let x = 0; x < state.mapSize.width; x += 60) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, state.mapSize.height); ctx.stroke();
   }
-  for (let y = 0; y < mapSize.height; y += 60) {
-    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(mapSize.width, y); ctx.stroke();
+  for (let y = 0; y < state.mapSize.height; y += 60) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(state.mapSize.width, y); ctx.stroke();
   }
 
   if (state.mapData && state.mapData.walls) {

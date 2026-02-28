@@ -1,5 +1,6 @@
 import type { ClientToServerMessage } from "@tanktaktix/shared";
-import { keysDown, mapSize, state, ZOOM_MAX, ZOOM_MIN, ZOOM_STEP } from "../state";
+import { keysDown, state, ZOOM_MAX, ZOOM_MIN, ZOOM_STEP } from "../state.js";
+import { dom } from "../ui/dom.js";
 
 export const attachKeyboardInput = (deps: {
   chatInput: HTMLInputElement;
@@ -10,25 +11,78 @@ export const attachKeyboardInput = (deps: {
   window.addEventListener("keydown", (event) => {
     keysDown.add(event.key.toLowerCase());
     if (state.phase !== "room") return;
+
     const key = event.key.toLowerCase();
-    if (key === "t" && document.activeElement !== chatInput) {
-      chatInput.classList.add("active");
+    const isChatActive = document.activeElement === chatInput;
+
+    // Chat Focus
+    if (key === "t" && !isChatActive) {
+      dom.chatContainer().classList.add("active");
       chatInput.focus();
       event.preventDefault();
       return;
     }
-    if (key === "z" && document.activeElement !== chatInput && !state.isSpectator) {
+
+    if (isChatActive) {
+      if (key === "enter") {
+        const message = chatInput.value.trim();
+        const channel = dom.chatChannel().value as "global" | "team";
+        if (message) sendMessage({ type: "chat", payload: { message, channel: (channel as any) } });
+        chatInput.value = "";
+        dom.chatContainer().classList.remove("active");
+        chatInput.blur();
+      } else if (key === "escape") {
+        chatInput.value = "";
+        dom.chatContainer().classList.remove("active");
+        chatInput.blur();
+      }
+      return;
+    }
+
+    // Move Cancel
+    if (key === "z" && !state.isSpectator) {
       sendMessage({ type: "moveCancelOne" });
       return;
     }
-    if (key === " " && document.activeElement !== chatInput) {
+
+    // Item / Flag Actions (R, A, H, F)
+    const aimKeys = ["r", "a", "h", "f"];
+    if (aimKeys.includes(key) && !state.isSpectator) {
+      event.preventDefault();
       const me = state.players.find((p) => p.id === state.selfId);
       if (me) {
-        state.camera.x = me.position.x - mapSize.width / 2;
-        state.camera.y = me.position.y - mapSize.height / 2;
+        let dirX = 0, dirY = 0;
+        if (state.aiming && state.aimPoint) {
+          // Slingshot: Opposite of drag vector
+          dirX = -(state.aimPoint.x - me.position.x);
+          dirY = -(state.aimPoint.y - me.position.y);
+        } else {
+          // Regular: Turret direction
+          const ta = (me as any).turretAngle || 0;
+          dirX = Math.cos(ta);
+          dirY = Math.sin(ta);
+        }
+        const len = Math.hypot(dirX, dirY);
+        let itemName = "rope";
+        if (key === "a") itemName = "ammo";
+        if (key === "h") itemName = "heal";
+        if (key === "f") itemName = "flag";
+
+        if (len > 0) {
+          sendMessage({ type: "useItem", payload: { item: itemName, direction: { x: dirX / len, y: dirY / len } } });
+        }
+      }
+      return;
+    }
+
+    // Snap Camera
+    if (key === " ") {
+      const me = state.players.find((p) => p.id === state.selfId);
+      if (me) {
+        state.camera.x = me.position.x - state.mapSize.width / 2;
+        state.camera.y = me.position.y - state.mapSize.height / 2;
       } else {
-        state.camera.x = 0;
-        state.camera.y = 0;
+        state.camera.x = 0; state.camera.y = 0;
       }
       state.camera.zoom = 1;
       state.camera.rotation = 0;
@@ -37,18 +91,7 @@ export const attachKeyboardInput = (deps: {
   });
 
   window.addEventListener("keyup", (event) => keysDown.delete(event.key.toLowerCase()));
-  chatInput.addEventListener("keydown", (event) => {
-    if (event.key === "Enter") {
-      const message = chatInput.value.trim();
-      if (message) sendMessage({ type: "chat", payload: { message } });
-      chatInput.value = "";
-      chatInput.classList.remove("active");
-    }
-    if (event.key === "Escape") {
-      chatInput.value = "";
-      chatInput.classList.remove("active");
-    }
-  });
+
   const canvas = document.querySelector("#map") as HTMLCanvasElement;
   canvas.addEventListener("wheel", (event) => {
     event.preventDefault();

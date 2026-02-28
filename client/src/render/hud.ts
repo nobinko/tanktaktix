@@ -1,10 +1,10 @@
-import { mapSize, state } from "../state";
+import { state } from "../state.js";
 
 const drawMinimap = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => {
   const maxMboxW = 160;
   const maxMboxH = 160;
-  const mapWidth = mapSize.width;
-  const mapHeight = mapSize.height;
+  const mapWidth = state.mapSize.width;
+  const mapHeight = state.mapSize.height;
   let mmW = maxMboxW;
   let mmH = (maxMboxW / mapWidth) * mapHeight;
   if (mmH > maxMboxH) {
@@ -126,7 +126,8 @@ export const drawHud = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement
 
   if (self && (self as any).isHidden) {
     ctx.fillStyle = "#16a34a"; ctx.font = "bold 12px 'Segoe UI', Arial, sans-serif";
-    ctx.fillText("🕵️ HIDDEN", 138, 19);
+    ctx.textAlign = "left";
+    ctx.fillText("🕵️ HIDDEN", 140, 19);
   }
 
   if (self && !state.isSpectator) {
@@ -137,37 +138,31 @@ export const drawHud = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement
     if ((self as any).bootsCharges > 0) { ctx.fillStyle = "#818cf8"; ctx.fillText(`👢×${(self as any).bootsCharges}`, itemX, iy); itemX += 42; }
   }
 
-  if (state.isSpectator) {
-    ctx.fillStyle = "#a855f7"; ctx.font = "bold 12px 'Segoe UI', Arial, sans-serif"; ctx.textAlign = "left";
-    ctx.fillText("📺 SPECTATING", 138, 19);
-  }
+  // Lock timer removed as requested
 
+  // Draw timer in exact center
   const mins = Math.floor(state.timeLeftSec / 60).toString().padStart(2, "0");
   const secs = (state.timeLeftSec % 60).toString().padStart(2, "0");
-  ctx.fillStyle = "#111"; ctx.textAlign = "center"; ctx.font = "bold 14px 'Segoe UI', Arial, sans-serif";
+  ctx.fillStyle = "#111"; ctx.textAlign = "center"; ctx.font = "bold 15px 'Segoe UI', Arial, sans-serif";
   ctx.fillText(`${mins}:${secs}`, W / 2, 19);
 
+  // Restore and emphasize Team Scores around center
   const isTeamMode = state.players.some((p) => (p as any).team != null);
-  ctx.font = "bold 12px 'Segoe UI', Arial, sans-serif";
   if (isTeamMode) {
     const scores = state.teamScores;
-    ctx.textAlign = "right";
-    ctx.fillStyle = "#dc2626"; ctx.fillText(`Red:${scores.red}`, W / 2 + 120, 19);
-    ctx.fillStyle = "#2563eb"; ctx.fillText(`Blue:${scores.blue}`, W / 2 + 200, 19);
+    ctx.font = "bold 14px 'Segoe UI', Arial, sans-serif";
+    ctx.textAlign = "right"; ctx.fillStyle = "#e11d48"; ctx.fillText(`RED: ${scores.red}`, W / 2 - 60, 19);
+    ctx.textAlign = "left"; ctx.fillStyle = "#2563eb"; ctx.fillText(`${scores.blue} :BLUE`, W / 2 + 60, 19);
   } else {
     const myScore = self ? (self as any).score ?? 0 : 0;
-    ctx.textAlign = "right"; ctx.fillStyle = "#333"; ctx.fillText(`Score:${myScore}`, W / 2 + 140, 19);
+    ctx.font = "bold 13px 'Segoe UI', Arial, sans-serif";
+    ctx.textAlign = "left"; ctx.fillStyle = "#444"; ctx.fillText(`Score: ${myScore}`, W / 2 + 60, 19);
   }
 
-  if (!state.isSpectator) {
-    const lockStep = self ? ((self as any).actionLockStep ?? 0) : 0;
-    ctx.textAlign = "right";
-    if (lockStep > 0) {
-      ctx.fillStyle = "#f97316"; ctx.fillText(`LOCK ${lockStep}`, W - 12, 19);
-    } else {
-      ctx.fillStyle = "#16a34a"; ctx.fillText("READY", W - 12, 19);
-    }
-  }
+  // Draw Room Info - Shifted left to avoid LEAVE button overlap
+  ctx.fillStyle = "#666"; ctx.textAlign = "right"; ctx.font = "bold 12px 'Segoe UI', Arial, sans-serif";
+  const roomName = (state.mapData as any)?.roomName || state.roomId;
+  ctx.fillText(`Room: ${state.roomId}${roomName ? ` (${roomName})` : ""}`, W - 140, 19);
 
   drawMinimap(ctx, canvas);
   drawChat(ctx, canvas);

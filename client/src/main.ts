@@ -12,12 +12,26 @@ initAppHtml();
 initModalHandlers();
 
 const { canvas, ctx } = getCanvasAndCtx();
-const resizeCanvasToViewport = () => {
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
-};
-window.addEventListener("resize", resizeCanvasToViewport);
-resizeCanvasToViewport();
+const leaveBtn = document.querySelector("#game-leave-btn") as HTMLButtonElement;
+if (leaveBtn) {
+  leaveBtn.onclick = () => {
+    // Instant leave as requested by user
+    handleLeave(false);
+  };
+}
+
+const resizeObserver = new ResizeObserver(() => {
+  canvas.width = canvas.clientWidth;
+  canvas.height = canvas.clientHeight;
+});
+resizeObserver.observe(canvas);
+
+// Real-time lobby room list timer
+setInterval(() => {
+  if (state.phase === "lobby") {
+    renderRooms(state.rooms, sendWsMessage, () => showPromptDialog("Room Password", "パスワード付きルームです。", "Password"));
+  }
+}, 1000);
 
 const chatInput = dom.chatInput();
 const getSelf = () => state.players.find((p) => p.id === state.selfId);
@@ -50,18 +64,6 @@ const renderLobbyChat = () => {
   log.scrollTop = log.scrollHeight;
 };
 
-const renderRoomMeta = () => {
-  dom.roomTitle().textContent = `Room ${state.roomId}`;
-  dom.roomMeta().textContent = `Time left: ${state.timeLeftSec}s, Players: ${state.players.length}`;
-  const scoreList = dom.scoreList();
-  scoreList.innerHTML = "";
-  [...state.players].sort((a, b) => (b.score ?? 0) - (a.score ?? 0)).forEach((p) => {
-    const li = document.createElement("li");
-    li.textContent = `${p.name}: ${p.score ?? 0}`;
-    scoreList.appendChild(li);
-  });
-};
-
 const setupRoom = () => {
   // Mouse input is now attached once globally
 };
@@ -70,7 +72,7 @@ const showHelp = () => showModal({
   title: "Help",
   bodyHtml: `
     <p><strong>操作:</strong> 左クリック移動、右クリックAIM、Tでチャット、矢印キーでカメラ、+/-でズーム</p>
-    <p><strong>AIM派生:</strong> R=ロープ / G=アモ投擲 / H=ヘルス投擲 / F=フラッグ投げ</p>
+    <p><strong>AIM派生:</strong> R=ロープ / A=アモ投擲 / H=ヘルス投擲 / F=フラッグ投げ</p>
     <p><strong>アイテム:</strong> heart(全回復), bomb(次弾強化), rope(遠隔取得), boots(3回移動加速)</p>
     <p><strong>CTF:</strong> 敵旗を持ち帰ると得点。落ちた旗は接触で回収。</p>
     <p><strong>キーバインド:</strong> Q/E 回転, Esc でキャンセル系操作（環境依存）</p>
@@ -102,12 +104,13 @@ const handleServerMsg = (message: any) => handleServerMessage(message, {
   renderRooms: () => renderRooms(state.rooms, sendWsMessage, () => showPromptDialog("Room Password", "パスワード付きルームです。", "Password")),
   renderLobbyPlayers,
   renderLobbyChat,
-  renderRoomMeta,
+  renderRoomMeta: () => undefined, // Info moved to HUD
   setupRoom,
   showGameResult: () => undefined,
   showError: (msg: string) => showInfoDialog("Error", msg),
 });
 
+// Keyboard and Mouse input are attached here once
 attachKeyboardInput({ chatInput, sendMessage: sendWsMessage });
 attachMouseInput({ canvas, chatInput, getSelf, sendMessage: sendWsMessage });
 
@@ -167,8 +170,8 @@ const handleLeave = async (requireConfirm = true) => {
   setScreen("lobby");
 };
 
-(document.querySelector("#leave-room") as HTMLButtonElement)?.addEventListener("click", () => void handleLeave(true));
-(document.querySelector("#game-leave-btn") as HTMLButtonElement)?.addEventListener("click", () => void handleLeave(true));
+(document.querySelector("#leave-room") as HTMLButtonElement)?.addEventListener("click", () => void handleLeave(false));
+(document.querySelector("#game-leave-btn") as HTMLButtonElement)?.addEventListener("click", () => void handleLeave(false));
 (document.querySelector("#close-result") as HTMLButtonElement)?.addEventListener("click", () => void handleLeave(false));
 
 createRenderer({ canvas, ctx, chatInput }).render();

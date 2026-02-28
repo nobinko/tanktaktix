@@ -1,4 +1,4 @@
-import { MAPS } from "./maps";
+import { MAPS } from "./maps.js";
 export { MAPS };
 export type Vector2 = {
   x: number;
@@ -140,6 +140,7 @@ export type ChatMessage = {
   from: string;
   message: string;
   timestamp: number;
+  channel?: "global" | "team";
 };
 
 export type ClientToServerMessage =
@@ -171,7 +172,7 @@ export type ClientToServerMessage =
   }
   | {
     type: "chat";
-    payload: { message: string };
+    payload: { message: string; channel?: "global" | "team" };
   }
   | {
     type: "move";

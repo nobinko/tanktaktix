@@ -1,10 +1,10 @@
 # TankTaktix Project Roadmap
 
-## Current Project Status (2026-02-27)
-**State:** Phase 1, 2, 3 COMPLETE. Phase 4 IN PROGRESS.
+## Current Project Status (2026-02-28)
+**State:** Phase 1, 2, 3, 4 COMPLETE. Phase 5 IN PROGRESS.
 **Latest Changes:**
-- **Phase 4 In Progress**: Implemented Map-based Item Pool max logic, new AIM actions (Rope, Ammo, Heal, Flag), standstill flag pickup, and Spectator Mode. (Visual Damage and UI Overhaul are pending).
-**Next Action:** Complete Phase 4 remaining task (4-6) before moving fully to Phase 5.
+- **Phase 4 Complete**: Implemented Damage Flash, Item UI/Input restoration (R, A, H, F), HUD layout refinement (centered timer/scores, embedded leave button), and Camera clamping/scrolling fixes.
+**Next Action:** Continue with Phase 5 new features (SE, Sound, etc.).
 
 ---
 
@@ -226,7 +226,7 @@ grep -r "REVEAL_DURATION_MS" server/
 #### フラッグへの当たり判定（4-2 と連動）
 - 弾丸がフラッグに命中すると旗がベース位置にリセットされる（キャリー中の旗は除く）
 
-### 4-6. ダメージ表現（Canvas描画でHP段階を視覚化） - **[ ] 未実装**
+### 4-6. ダメージ表現（Canvas描画でHP段階を視覚化） - **[x] 完了**
 
 > **設計意図**: 現行は HUD の数字でしか HP を確認できず、遠くの敵の状態が直感的に把握しにくい。車体の見た目を HP に応じて変えることで「あの戦車はボロボロだから今が攻め時」という視覚的な状況判断を可能にする。砲台は HP によらず固定し、戦術的な向き判断を妨げない。
 

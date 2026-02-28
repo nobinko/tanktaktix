@@ -1,9 +1,9 @@
 import type { Vector2 } from "@tanktaktix/shared";
-import { ACTION_COOLDOWN_MS, COOLDOWN_LONG_MS, COOLDOWN_SHORT_MS, COOLDOWN_THRESHOLD, HULL_ROTATION_SPEED, MAX_MOVE_DIST, MOVE_QUEUE_MAX, MOVE_SPEED, TANK_SIZE, TURRET_ROTATION_SPEED } from "../constants";
-import { players } from "../state";
-import type { PlayerRuntime, Room } from "../types";
-import { clamp, len, norm, normalizeAngle } from "../utils/math";
-import { checkWallCollision, isPointInBush } from "../utils/collision";
+import { ACTION_COOLDOWN_MS, COOLDOWN_LONG_MS, COOLDOWN_SHORT_MS, COOLDOWN_THRESHOLD, HULL_ROTATION_SPEED, MAX_MOVE_DIST, MOVE_QUEUE_MAX, MOVE_SPEED, TANK_SIZE, TURRET_ROTATION_SPEED } from "../constants.js";
+import { players } from "../state.js";
+import type { PlayerRuntime, Room } from "../types.js";
+import { clamp, len, norm, normalizeAngle } from "../utils/math.js";
+import { checkWallCollision, isPointInBush } from "../utils/collision.js";
 
 export function setMoveDir(p: PlayerRuntime, dir: Vector2) {
   if (Date.now() < p.cooldownUntil) return;

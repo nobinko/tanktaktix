@@ -1,14 +1,14 @@
 import { WebSocketServer } from "ws";
 import type { Vector2 } from "@tanktaktix/shared";
-import { clamp } from "../utils/math";
-import { players, rooms, send } from "../state";
-import type { ClientMsg, PlayerRuntime } from "../types";
-import { nowMs } from "../utils/math";
-import { newId } from "../utils/id";
-import { createRoom, detachFromRoom, joinLobby, joinRoom } from "../room";
-import { broadcastLobby, broadcastRoom, lobbyStatePayload, roomStatePayloadForSpectator, sendRoomState } from "./broadcast";
-import { setAimDir, setMoveDir, setMoveTarget, stopMove } from "../systems/movement";
-import { tryShoot, tryUseItem } from "../systems/combat";
+import { clamp } from "../utils/math.js";
+import { players, rooms, send } from "../state.js";
+import type { ClientMsg, PlayerRuntime } from "../types.js";
+import { nowMs } from "../utils/math.js";
+import { newId } from "../utils/id.js";
+import { createRoom, detachFromRoom, joinLobby, joinRoom } from "../room.js";
+import { broadcastLobby, broadcastRoom, lobbyStatePayload, roomStatePayloadForSpectator, sendRoomState } from "./broadcast.js";
+import { setAimDir, setMoveDir, setMoveTarget, stopMove } from "../systems/movement.js";
+import { tryShoot, tryUseItem } from "../systems/combat.js";
 
 function safeJsonParse(input: string): unknown {
   try { return JSON.parse(input); } catch { return null; }
@@ -234,19 +234,32 @@ export function registerWsHandlers(wss: WebSocketServer) {
         case "chat": {
           const pld = isRecord(payload) ? payload : {};
           const message = pickString(pld.message, "").trim();
+          const channel = pickString(pld.channel, "global") as "global" | "team";
           if (!message) break;
           // Spectators can chat but with a distinguishing prefix
           const isSpectatorChat = player.roomId && rooms.get(player.roomId)?.spectatorIds.has(player.id);
           const chatName = isSpectatorChat ? `👁 ${player.name}` : player.name;
           if (player.roomId) {
-            broadcastRoom(player.roomId, {
+            const chatMsg = {
               type: "chat",
               payload: {
                 from: chatName,
                 message: message.slice(0, 120),
                 timestamp: nowMs(),
+                channel,
               },
-            });
+            };
+            if (channel === "team" && player.team) {
+              // Send only to team members in the same room
+              for (const pid of players.keys()) {
+                const target = players.get(pid);
+                if (target && target.roomId === player.roomId && target.team === player.team) {
+                  send(target.socket, chatMsg);
+                }
+              }
+            } else {
+              broadcastRoom(player.roomId, chatMsg);
+            }
           } else {
             // Lobby Chat
             const chatMsg = {

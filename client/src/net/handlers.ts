@@ -1,5 +1,5 @@
 import type { ServerToClientMessage } from "@tanktaktix/shared";
-import { mapSize, state } from "../state";
+import { state } from "../state.js";
 
 export type HandlerDeps = {
   setScreen: (phase: "login" | "lobby" | "room") => void;
@@ -38,16 +38,16 @@ export const handleServerMessage = (message: ServerToClientMessage, deps: Handle
       const payload = message.payload;
       if (payload.roomId === state.leavingRoomId) return;
       const isFirstRoomMessage = !state.roomId;
-      mapSize.width = payload.mapData.width;
-      mapSize.height = payload.mapData.height;
+      state.mapSize.width = payload.mapData.width;
+      state.mapSize.height = payload.mapData.height;
       if (isFirstRoomMessage) {
         if (state.isSpectator) {
           state.camera.x = 0; state.camera.y = 0;
         } else {
           const me = payload.players.find((p) => p.id === state.selfId);
           if (me) {
-            state.camera.x = me.position.x - mapSize.width / 2;
-            state.camera.y = me.position.y - mapSize.height / 2;
+            state.camera.x = me.position.x - state.mapSize.width / 2;
+            state.camera.y = me.position.y - state.mapSize.height / 2;
           }
         }
         state.camera.zoom = 1;

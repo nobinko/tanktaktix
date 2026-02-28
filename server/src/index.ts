@@ -1,9 +1,9 @@
 import http from "http";
 import { WebSocketServer } from "ws";
-import { PORT, TICK_MS } from "./constants";
-import { createHttpApp } from "./network/httpApp";
-import { registerWsHandlers } from "./network/handlers";
-import { tick } from "./tick";
+import { PORT, TICK_MS } from "./constants.js";
+import { createHttpApp } from "./network/httpApp.js";
+import { registerWsHandlers } from "./network/handlers.js";
+import { tick } from "./tick.js";
 
 process.on("uncaughtException", (err) => {
   console.error("Uncaught Exception:", err);

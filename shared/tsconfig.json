@@ -3,8 +3,15 @@
     "declaration": true,
     "outDir": "dist",
     "rootDir": "src",
+    "paths": {
+      "@tanktaktix/shared": [
+        "../shared/dist/index.d.ts"
+      ]
+    },
     "strict": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext"
   },
   "include": [
     "src"
