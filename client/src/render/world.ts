@@ -2,7 +2,7 @@ import { state } from "../state.js";
 
 export const drawWorld = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = "#1e1a14";
+  ctx.fillStyle = "#e8e0d4";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.save();
   ctx.translate(canvas.width / 2, canvas.height / 2);
@@ -10,7 +10,7 @@ export const drawWorld = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasEleme
   ctx.scale(state.camera.zoom, state.camera.zoom);
   ctx.translate(-state.camera.x - state.mapSize.width / 2, -state.camera.y - state.mapSize.height / 2);
 
-  ctx.strokeStyle = "rgba(184, 150, 62, 0.06)";
+  ctx.strokeStyle = "rgba(160, 130, 80, 0.08)";
   for (let x = 0; x < state.mapSize.width; x += 60) {
     ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, state.mapSize.height); ctx.stroke();
   }
@@ -21,22 +21,22 @@ export const drawWorld = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasEleme
   if (state.mapData && state.mapData.walls) {
     for (const w of state.mapData.walls) {
       const type = (w as any).type || "wall";
-      if (type === "bush") ctx.fillStyle = "rgba(90, 120, 50, 0.4)";
-      else if (type === "water") ctx.fillStyle = "rgba(70, 100, 120, 0.4)";
-      else if (type === "house") ctx.fillStyle = "#6b4420";
-      else if (type === "oneway") ctx.fillStyle = "rgba(200, 160, 60, 0.4)";
-      else ctx.fillStyle = "#4a4035";
+      if (type === "bush") ctx.fillStyle = "rgba(90, 120, 50, 0.5)";
+      else if (type === "water") ctx.fillStyle = "rgba(70, 100, 120, 0.5)";
+      else if (type === "house") ctx.fillStyle = "#c4a070";
+      else if (type === "oneway") ctx.fillStyle = "rgba(180, 140, 40, 0.5)";
+      else ctx.fillStyle = "#c4b4a0";
 
       ctx.fillRect(w.x, w.y, w.width, w.height);
 
       if (type === "wall") {
-        ctx.strokeStyle = "#6b5d4a"; ctx.lineWidth = 2; ctx.strokeRect(w.x, w.y, w.width, w.height);
+        ctx.strokeStyle = "#8a7a68"; ctx.lineWidth = 2; ctx.strokeRect(w.x, w.y, w.width, w.height);
       } else if (type === "house") {
-        ctx.strokeStyle = "#4a2e10"; ctx.lineWidth = 4; ctx.strokeRect(w.x, w.y, w.width, w.height);
+        ctx.strokeStyle = "#6b5a48"; ctx.lineWidth = 4; ctx.strokeRect(w.x, w.y, w.width, w.height);
         ctx.beginPath(); ctx.moveTo(w.x, w.y); ctx.lineTo(w.x + w.width, w.y + w.height);
         ctx.moveTo(w.x + w.width, w.y); ctx.lineTo(w.x, w.y + w.height); ctx.stroke();
       } else if (type === "oneway") {
-        ctx.fillStyle = "rgba(232, 220, 200, 0.8)";
+        ctx.fillStyle = "rgba(100, 80, 40, 0.8)";
         const dir = (w as any).direction;
         const cx = w.x + w.width / 2; const cy = w.y + w.height / 2;
         ctx.save(); ctx.translate(cx, cy);
@@ -54,8 +54,8 @@ export const drawWorld = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasEleme
     const pulse = Math.sin(now * 0.004) * 0.5 + 0.5;
     const ZONE_W = 200, ZONE_H = 200;
     for (const sp of state.mapData.spawnPoints) {
-      const spColor = sp.team === "red" ? "#c44040" : sp.team === "blue" ? "#4a6a8a" : "#a89878";
-      const spColorRgb = sp.team === "red" ? "196,64,64" : sp.team === "blue" ? "74,106,138" : "168,152,120";
+      const spColor = sp.team === "red" ? "#c44040" : sp.team === "blue" ? "#4a6a8a" : "#7a6a5a";
+      const spColorRgb = sp.team === "red" ? "196,64,64" : sp.team === "blue" ? "74,106,138" : "122,106,90";
       const zx = sp.x - ZONE_W / 2; const zy = sp.y - ZONE_H / 2;
 
       ctx.save(); ctx.strokeStyle = `rgba(${spColorRgb}, ${0.15 + pulse * 0.25})`; ctx.lineWidth = 2;
