@@ -2,7 +2,7 @@ import type { ClientToServerMessage, ServerToClientMessage } from "@tanktaktix/s
 
 let ws: WebSocket | null = null;
 
-export const connectWs = (onMessage: (message: ServerToClientMessage) => void) => {
+export const connectWs = (onMessage: (message: ServerToClientMessage) => void, onClose: (message: string) => void) => {
   if (ws) return;
   const protocol = window.location.protocol === "https:" ? "wss" : "ws";
   ws = new WebSocket(`${protocol}://${window.location.host}/ws`);
@@ -11,7 +11,7 @@ export const connectWs = (onMessage: (message: ServerToClientMessage) => void) =
   });
   ws.addEventListener("close", () => {
     ws = null;
-    alert("Connection closed. Refresh to reconnect.");
+    onClose("Connection closed. Refresh to reconnect.");
   });
 };
 
