@@ -193,7 +193,11 @@ export function registerWsHandlers(wss: WebSocketServer) {
           break;
         }
         case "moveCancelOne": {
-          if (player.moveQueue.length > 0) player.moveQueue.pop();
+          if (player.moveQueue.length > 1) {
+            player.moveQueue.pop();
+          } else if (player.moveQueue.length === 1 && player.cooldownUntil > nowMs()) {
+            player.moveQueue.pop();
+          }
           break;
         }
         case "aim": {

@@ -152,7 +152,12 @@ export const drawEntities = (ctx: CanvasRenderingContext2D) => {
   if (selfPlayer) {
     const queue = (selfPlayer as any).moveQueue ?? [];
     queue.forEach((pt: any, i: number) => {
-      const alpha = 0.3 + (i === 0 ? 0.4 : 0);
+      let alpha = 0.8; // default opaque for locked/immediate move
+      if (i > 0) {
+        alpha = 0.3; // future moves are always cancellable
+      } else if ((selfPlayer as any).nextActionAt > Date.now()) {
+        alpha = 0.3; // current move is cancellable if we are on cooldown and haven't started
+      }
       ctx.strokeStyle = `rgba(76, 201, 240, ${alpha})`; ctx.lineWidth = 2;
       const sz = 8;
       ctx.beginPath(); ctx.moveTo(pt.x - sz, pt.y); ctx.lineTo(pt.x + sz, pt.y);

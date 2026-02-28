@@ -54,7 +54,7 @@ const renderRoomMeta = () => {
 };
 
 const setupRoom = () => {
-  attachMouseInput({ canvas, chatInput, getSelf, sendMessage: sendWsMessage });
+  // Mouse input is now attached once globally
 };
 
 const handleServerMsg = (message: any) => handleServerMessage(message, {
@@ -68,6 +68,7 @@ const handleServerMsg = (message: any) => handleServerMessage(message, {
 });
 
 attachKeyboardInput({ chatInput, sendMessage: sendWsMessage });
+attachMouseInput({ canvas, chatInput, getSelf, sendMessage: sendWsMessage });
 
 const nameInput = document.querySelector("#name-input") as HTMLInputElement;
 let savedName = localStorage.getItem("tt_name");
