@@ -2,36 +2,36 @@ import { state } from "../state";
 
 const drawItemSprite = (ctx: CanvasRenderingContext2D, type: string) => {
   if (type === "medic") {
-    ctx.fillStyle = "#16a34a"; ctx.fillRect(-10, -10, 20, 20);
+    ctx.fillStyle = "#5c8a3a"; ctx.fillRect(-10, -10, 20, 20);
     ctx.fillStyle = "#fff"; ctx.fillRect(-7, -2, 14, 4); ctx.fillRect(-2, -7, 4, 14);
   } else if (type === "ammo") {
-    ctx.fillStyle = "#ca8a04"; ctx.fillRect(-10, -10, 20, 20);
-    ctx.fillStyle = "#1a1a2e"; ctx.fillRect(-7, 2, 8, 5);
+    ctx.fillStyle = "#c49832"; ctx.fillRect(-10, -10, 20, 20);
+    ctx.fillStyle = "#1a1510"; ctx.fillRect(-7, 2, 8, 5);
   } else if (type === "heart") {
     ctx.fillStyle = "#ec4899";
     ctx.beginPath(); ctx.moveTo(0, 4);
     ctx.bezierCurveTo(-10, -6, -14, 2, 0, 12);
     ctx.bezierCurveTo(14, 2, 10, -6, 0, 4); ctx.fill();
   } else if (type === "bomb") {
-    ctx.fillStyle = "#374151"; ctx.beginPath(); ctx.arc(0, 0, 10, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = "#f97316"; ctx.lineWidth = 2;
+    ctx.fillStyle = "#3a3228"; ctx.beginPath(); ctx.arc(0, 0, 10, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "#c47030"; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(5, -8); ctx.lineTo(8, -14); ctx.stroke();
-    ctx.fillStyle = "#fbbf24"; ctx.beginPath(); ctx.arc(8, -14, 2, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#d4a843"; ctx.beginPath(); ctx.arc(8, -14, 2, 0, Math.PI * 2); ctx.fill();
   } else if (type === "rope") {
     ctx.strokeStyle = "#a3752c"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, 8, 0, Math.PI * 1.5); ctx.stroke();
     ctx.fillStyle = "#a3752c"; ctx.beginPath(); ctx.moveTo(0, -8); ctx.lineTo(4, -4); ctx.lineTo(-4, -4); ctx.closePath(); ctx.fill();
   } else if (type === "boots") {
-    ctx.fillStyle = "#6366f1"; ctx.fillRect(-8, -4, 10, 12); ctx.fillRect(-8, 4, 16, 6);
-    ctx.strokeStyle = "#a5b4fc"; ctx.lineWidth = 1; ctx.beginPath();
+    ctx.fillStyle = "#6b6b9a"; ctx.fillRect(-8, -4, 10, 12); ctx.fillRect(-8, 4, 16, 6);
+    ctx.strokeStyle = "#8a8ab5"; ctx.lineWidth = 1; ctx.beginPath();
     ctx.moveTo(-12, 0); ctx.lineTo(-16, 0); ctx.moveTo(-12, 4); ctx.lineTo(-18, 4); ctx.moveTo(-12, 8); ctx.lineTo(-15, 8); ctx.stroke();
   }
 };
 
 const drawFlagSprite = (ctx: CanvasRenderingContext2D, team: string) => {
-  ctx.fillStyle = "#fff"; ctx.fillRect(-1, -20, 2, 40);
-  ctx.fillStyle = team === "red" ? "#dc2626" : "#2563eb";
+  ctx.fillStyle = "#e8dcc8"; ctx.fillRect(-1, -20, 2, 40);
+  ctx.fillStyle = team === "red" ? "#c44040" : "#4a6a8a";
   ctx.beginPath(); ctx.moveTo(0, -20); ctx.lineTo(25, -10); ctx.lineTo(0, 0); ctx.closePath(); ctx.fill();
-  ctx.fillStyle = "#fff"; ctx.font = "bold 10px Arial"; ctx.textAlign = "center"; ctx.fillText(team.toUpperCase(), 0, 30);
+  ctx.fillStyle = "#e8dcc8"; ctx.font = "bold 10px 'Share Tech Mono', monospace"; ctx.textAlign = "center"; ctx.fillText(team.toUpperCase(), 0, 30);
 };
 
 export const drawEntities = (ctx: CanvasRenderingContext2D) => {
@@ -64,7 +64,7 @@ export const drawEntities = (ctx: CanvasRenderingContext2D) => {
       if (bAny.isHealPass) { ctx.translate(b.position.x, b.position.y); ctx.rotate(-state.camera.rotation); drawItemSprite(ctx, "medic"); ctx.restore(); continue; }
       if (bAny.isFlagPass) { ctx.translate(b.position.x, b.position.y); ctx.rotate(-state.camera.rotation); drawFlagSprite(ctx, bAny.flagTeam || "red"); ctx.restore(); continue; }
 
-      ctx.fillStyle = bAny.isBomb ? "#ef4444" : "#fde047";
+      ctx.fillStyle = bAny.isBomb ? "#c44040" : "#d4a843";
       ctx.beginPath(); ctx.arc(b.position.x, b.position.y, b.radius, 0, Math.PI * 2); ctx.fill();
       ctx.restore();
     }
@@ -88,11 +88,11 @@ export const drawEntities = (ctx: CanvasRenderingContext2D) => {
 
   state.players.forEach((player) => {
     const { x, y } = (player as any).position ?? { x: (player as any).x, y: (player as any).y };
-    let color = "#f72585";
+    let color = "#c47030";
     const pTeam = (player as any).team;
-    if (pTeam === "red") color = "#ef4444";
-    else if (pTeam === "blue") color = "#3b82f6";
-    else if (player.id === state.selfId) color = "#4cc9f0";
+    if (pTeam === "red") color = "#c44040";
+    else if (pTeam === "blue") color = "#4a6a8a";
+    else if (player.id === state.selfId) color = "#d4a843";
 
     const isFlashing = state.hitFlashes[player.id] && state.hitFlashes[player.id] > now;
     if (isFlashing) color = "#ffffff";
@@ -104,16 +104,16 @@ export const drawEntities = (ctx: CanvasRenderingContext2D) => {
     ctx.save();
     if (isInvincible) ctx.globalAlpha = 0.5;
     ctx.translate(x, y); ctx.rotate(hullAngle);
-    ctx.fillStyle = isFlashing ? "#ffffff" : "#1a1a2e"; ctx.fillRect(-13, -10, 26, 20);
+    ctx.fillStyle = isFlashing ? "#ffffff" : "#1a1510"; ctx.fillRect(-13, -10, 26, 20);
     ctx.fillStyle = color; ctx.fillRect(-11, -8, 22, 16);
-    ctx.fillStyle = isFlashing ? "#ff0000" : "#fff"; ctx.globalAlpha = isInvincible ? 0.35 : 0.7;
+    ctx.fillStyle = isFlashing ? "#ff0000" : "#e8dcc8"; ctx.globalAlpha = isInvincible ? 0.35 : 0.7;
     ctx.beginPath(); ctx.moveTo(11, -3); ctx.lineTo(15, 0); ctx.lineTo(11, 3); ctx.closePath(); ctx.fill();
     ctx.globalAlpha = isInvincible ? 0.5 : 1.0;
 
     if ((player as any).hasBomb) {
-      ctx.fillStyle = "#1a1a2e"; ctx.beginPath(); ctx.arc(-8, 0, 5, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = "#f97316"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(-8, -5); ctx.lineTo(-6, -8); ctx.stroke();
-      ctx.fillStyle = "#fde047"; ctx.beginPath(); ctx.arc(-6, -8, 1.5, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#1a1510"; ctx.beginPath(); ctx.arc(-8, 0, 5, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = "#c47030"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(-8, -5); ctx.lineTo(-6, -8); ctx.stroke();
+      ctx.fillStyle = "#d4a843"; ctx.beginPath(); ctx.arc(-6, -8, 1.5, 0, Math.PI * 2); ctx.fill();
     }
     ctx.restore();
 
@@ -124,26 +124,26 @@ export const drawEntities = (ctx: CanvasRenderingContext2D) => {
       const aimAngle = Math.atan2(y - state.aimPoint.y, x - state.aimPoint.x);
       ctx.rotate(aimAngle);
     } else ctx.rotate(turretAngle);
-    ctx.fillStyle = "#ffffff"; ctx.beginPath(); ctx.arc(0, 0, 5, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = "#1a1a2e"; ctx.fillRect(5, -1.5, 14, 3);
+    ctx.fillStyle = "#e8dcc8"; ctx.beginPath(); ctx.arc(0, 0, 5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#1a1510"; ctx.fillRect(5, -1.5, 14, 3);
     ctx.restore();
 
     ctx.save();
     if (isInvincible) ctx.globalAlpha = 0.5;
     ctx.translate(x, y); ctx.rotate(-state.camera.rotation);
-    ctx.fillStyle = "#e8f1ff"; ctx.fillText(player.name, 24, 4);
-    ctx.fillStyle = "#22c55e"; ctx.fillRect(-20, -28, ((player as any).hp / 100) * 40, 4);
+    ctx.fillStyle = "#e8dcc8"; ctx.fillText(player.name, 24, 4);
+    ctx.fillStyle = "#5c8a3a"; ctx.fillRect(-20, -28, ((player as any).hp / 100) * 40, 4);
 
     const lockStep = (player as any).actionLockStep ?? 0;
     if (lockStep > 0 && player.id === state.selfId) {
-      ctx.font = "bold 16px monospace"; ctx.fillStyle = "#f97316"; ctx.textAlign = "center";
+      ctx.font = "bold 16px 'Share Tech Mono', monospace"; ctx.fillStyle = "#c47030"; ctx.textAlign = "center";
       ctx.fillText(`${lockStep}`, 0, -34); ctx.textAlign = "start";
     }
 
     const hasFlag = state.flags.find(f => f.carrierId === player.id);
     if (hasFlag) {
-      ctx.fillStyle = hasFlag.team === "red" ? "#ef4444" : "#3b82f6";
-      ctx.font = "bold 16px Arial"; ctx.textAlign = "center"; ctx.fillText("🚩", 0, -38);
+      ctx.fillStyle = hasFlag.team === "red" ? "#c44040" : "#4a6a8a";
+      ctx.font = "bold 16px 'Share Tech Mono', monospace"; ctx.textAlign = "center"; ctx.fillText("\ud83d\udea9", 0, -38);
     }
     ctx.restore();
   });
@@ -152,17 +152,17 @@ export const drawEntities = (ctx: CanvasRenderingContext2D) => {
   if (selfPlayer) {
     const queue = (selfPlayer as any).moveQueue ?? [];
     queue.forEach((pt: any, i: number) => {
-      let alpha = 0.8; // default opaque for locked/immediate move
+      let alpha = 0.8;
       if (i > 0) {
-        alpha = 0.3; // future moves are always cancellable
+        alpha = 0.3;
       } else if ((selfPlayer as any).nextActionAt > Date.now()) {
-        alpha = 0.3; // current move is cancellable if we are on cooldown and haven't started
+        alpha = 0.3;
       }
-      ctx.strokeStyle = `rgba(76, 201, 240, ${alpha})`; ctx.lineWidth = 2;
+      ctx.strokeStyle = `rgba(184, 150, 62, ${alpha})`; ctx.lineWidth = 2;
       const sz = 8;
       ctx.beginPath(); ctx.moveTo(pt.x - sz, pt.y); ctx.lineTo(pt.x + sz, pt.y);
       ctx.moveTo(pt.x, pt.y - sz); ctx.lineTo(pt.x, pt.y + sz); ctx.stroke();
-      ctx.fillStyle = `rgba(76, 201, 240, ${alpha})`; ctx.font = "10px monospace"; ctx.fillText(`${i + 1}`, pt.x + sz + 2, pt.y - 2);
+      ctx.fillStyle = `rgba(184, 150, 62, ${alpha})`; ctx.font = "10px 'Share Tech Mono', monospace"; ctx.fillText(`${i + 1}`, pt.x + sz + 2, pt.y - 2);
     });
   }
 
@@ -175,7 +175,7 @@ export const drawEntities = (ctx: CanvasRenderingContext2D) => {
       const CANCEL_DIST = 18;
       ctx.save();
       if (dragDist <= CANCEL_DIST) {
-        ctx.fillStyle = "rgba(255, 100, 100, 0.7)"; ctx.font = "bold 12px monospace"; ctx.textAlign = "center";
+        ctx.fillStyle = "rgba(168, 58, 46, 0.7)"; ctx.font = "bold 12px 'Share Tech Mono', monospace"; ctx.textAlign = "center";
         ctx.fillText("CANCEL", sx, sy - 28); ctx.textAlign = "start";
       } else {
         const aimX = -dragX, aimY = -dragY;
@@ -183,9 +183,9 @@ export const drawEntities = (ctx: CanvasRenderingContext2D) => {
         const ndx = aimX / aimLen, ndy = aimY / aimLen;
         const guideLen = 54;
         const gx = sx + ndx * guideLen, gy = sy + ndy * guideLen;
-        ctx.setLineDash([6, 4]); ctx.strokeStyle = "rgba(76, 201, 240, 0.8)"; ctx.lineWidth = 2;
+        ctx.setLineDash([6, 4]); ctx.strokeStyle = "rgba(184, 150, 62, 0.8)"; ctx.lineWidth = 2;
         ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(gx, gy); ctx.stroke(); ctx.setLineDash([]);
-        ctx.fillStyle = "rgba(76, 201, 240, 0.8)"; ctx.beginPath();
+        ctx.fillStyle = "rgba(184, 150, 62, 0.8)"; ctx.beginPath();
       }
       ctx.restore();
     }

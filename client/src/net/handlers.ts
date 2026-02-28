@@ -74,9 +74,9 @@ export const handleServerMessage = (message: ServerToClientMessage, deps: Handle
         if (lastHp !== undefined) {
           if (p.hp < lastHp && p.hp > 0) {
             state.hitFlashes[p.id] = now + 150;
-            state.floatingTexts.push({ id: Math.random().toString(), text: `-${lastHp - p.hp}`, color: "#ff6b6b", x: p.position.x, y: p.position.y - 25, startedAt: now });
+            state.floatingTexts.push({ id: Math.random().toString(), text: `-${lastHp - p.hp}`, color: "#d45555", x: p.position.x, y: p.position.y - 25, startedAt: now });
           } else if (p.hp > lastHp) {
-            state.floatingTexts.push({ id: Math.random().toString(), text: `+${p.hp - lastHp}`, color: "#4ade80", x: p.position.x, y: p.position.y - 25, startedAt: now });
+            state.floatingTexts.push({ id: Math.random().toString(), text: `+${p.hp - lastHp}`, color: "#7aad55", x: p.position.x, y: p.position.y - 25, startedAt: now });
           }
         }
         state.lastHpMap[p.id] = p.hp;
@@ -118,7 +118,7 @@ export const handleServerMessage = (message: ServerToClientMessage, deps: Handle
           vy: Math.sin(angle) * speed,
           life: 1.0,
           maxLife: Math.random() * 0.5 + 0.3,
-          color: Math.random() > 0.5 ? "#fde047" : "#f97316"
+          color: Math.random() > 0.5 ? "#d4a843" : "#c47030"
         });
       }
       break;
