@@ -64,6 +64,13 @@ export type PlayerSummary = {
   ping?: number;
 };
 
+export type RoomOptions = {
+  teamSelect: boolean;
+  instantKill: boolean;
+  noItemRespawn: boolean;
+  noShooting: boolean;
+};
+
 export type RoomSummary = {
   id: string;
   name: string;
@@ -82,6 +89,11 @@ export type RoomSummary = {
   spectatorCount?: number; // Number of spectators watching
   lobbyId: string;
   hostName?: string; // Name of the room creator
+  options?: RoomOptions;
+  teamStats?: {
+    red: { count: number; score: number };
+    blue: { count: number; score: number };
+  };
 };
 
 export type LobbyState = {
@@ -166,14 +178,19 @@ export type ClientToServerMessage =
       timeLimitSec: number;
       gameMode?: "deathmatch" | "ctf";
       password?: string;
+      options?: RoomOptions;
     };
   }
   | {
     type: "joinRoom";
-    payload: { roomId: string; password?: string };
+    payload: { roomId: string; password?: string; requestedTeam?: "red" | "blue" };
   }
   | {
     type: "leaveRoom";
+  }
+  | {
+    type: "selectTeam";
+    payload: { team: "red" | "blue" };
   }
   | {
     type: "chat";

@@ -61,10 +61,12 @@ const drawMinimap = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) =
 
   const getSelf = () => state.players.find(p => p.id === state.selfId);
   for (const p of state.players) {
+    const team = (p as any).team;
+    if (team === null) continue; // Skip spectators
+
     const px = (p as any).position?.x ?? (p as any).x ?? 0;
     const py = (p as any).position?.y ?? (p as any).y ?? 0;
     const isSelf = p.id === state.selfId;
-    const team = (p as any).team;
     if (team === "red") ctx.fillStyle = isSelf ? "#ff5555" : "#c44040";
     else if (team === "blue") ctx.fillStyle = isSelf ? "#6a92c8" : "#4a6a8a";
     else ctx.fillStyle = isSelf ? "#8a6a2a" : "#7a6a5a";

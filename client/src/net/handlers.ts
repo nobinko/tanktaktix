@@ -57,8 +57,10 @@ export const handleServerMessage = (message: ServerToClientMessage, deps: Handle
         if (state.isSpectator) {
           state.camera.x = 0; state.camera.y = 0;
         } else {
+          // Camera logic moved to render loop or per-frame update,
+          // but if we want instant snap on join/team-select:
           const me = payload.players.find((p) => p.id === state.selfId);
-          if (me) {
+          if (me && me.team !== null) {
             state.camera.x = me.position.x - state.mapSize.width / 2;
             state.camera.y = me.position.y - state.mapSize.height / 2;
           }
@@ -91,7 +93,9 @@ export const handleServerMessage = (message: ServerToClientMessage, deps: Handle
           } else if (p.hp > lastHp) {
             // respawnCooldownUntilが未来ならリスポーン直後 → +テキスト出さない
             const isRespawn = (p as any).respawnCooldownUntil > now;
-            if (!isRespawn) {
+            // チーム未所属(0)から所属(100/20)への変化も回復ではないので出さない
+            const isFirstSpawn = lastHp === 0 && p.team !== null;
+            if (!isRespawn && !isFirstSpawn) {
               state.floatingTexts.push({ id: Math.random().toString(), text: `+${p.hp - lastHp}`, color: "#7aad55", x: p.position.x, y: p.position.y - 25, startedAt: now });
             }
           }
@@ -104,6 +108,30 @@ export const handleServerMessage = (message: ServerToClientMessage, deps: Handle
         deps.setScreen("room");
         deps.setupRoom();
       }
+
+      // Phase 5-12: Team Select Overlay
+      const me = payload.players.find((p) => p.id === state.selfId);
+      const tsOverlay = document.querySelector("#team-select-overlay") as HTMLElement;
+      if (me && me.team === null && !state.isSpectator) {
+        tsOverlay.classList.remove("hidden");
+        const redCount = document.querySelector("#ts-red-count");
+        const blueCount = document.querySelector("#ts-blue-count");
+        if (redCount) redCount.textContent = payload.players.filter(p => p.team === "red").length.toString();
+        if (blueCount) blueCount.textContent = payload.players.filter(p => p.team === "blue").length.toString();
+      } else {
+        tsOverlay.classList.add("hidden");
+        // Update camera continuously if we are alive and have a team
+        if (me && me.team !== null && !state.isSpectator) {
+          // We might want to snap camera if it's the very first time we got a team
+          const previouslyHadTeam = (state as any)._hadTeam;
+          if (!previouslyHadTeam) {
+            state.camera.x = me.position.x - state.mapSize.width / 2;
+            state.camera.y = me.position.y - state.mapSize.height / 2;
+            (state as any)._hadTeam = true;
+          }
+        }
+      }
+
       deps.renderRoomMeta();
       break;
     }

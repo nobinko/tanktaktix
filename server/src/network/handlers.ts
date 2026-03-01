@@ -5,7 +5,7 @@ import { players, rooms, send } from "../state.js";
 import type { ClientMsg, PlayerRuntime } from "../types.js";
 import { clamp, nowMs } from "../utils/math.js";
 import { newId } from "../utils/id.js";
-import { createRoom, detachFromRoom, joinLobby, joinRoom } from "../room.js";
+import { createRoom, detachFromRoom, joinLobby, joinRoom, spawnPlayer } from "../room.js";
 import { broadcastLobby, broadcastRoom, lobbyStatePayload, roomStatePayloadForSpectator, sendRoomState } from "./broadcast.js";
 import { setAimDir, setMoveDir, setMoveTarget, stopMove } from "../systems/movement.js";
 import { tryShoot, tryUseItem } from "../systems/combat.js";
@@ -48,6 +48,7 @@ export function registerWsHandlers(wss: WebSocketServer) {
       hasBomb: false,
       ropeCount: 0,
       bootsCharges: 0,
+      lives: 0,
 
       socket,
       disconnectedAt: null,
@@ -126,7 +127,14 @@ export function registerWsHandlers(wss: WebSocketServer) {
           const password = pickString(pld.password, "");
           const passwordProtected = !!password.trim();
           const gameMode = (pickString(pld.gameMode, "ctf") === "ctf") ? "ctf" : "deathmatch";
-          createRoom({ roomName, roomId, mapId, passwordProtected, password: passwordProtected ? password : undefined, maxPlayers, timeLimitSec, gameMode, lobbyId: player.lobbyId, hostId: player.id });
+          const optionsRaw = isRecord(pld.options) ? pld.options : {};
+          const options = {
+            teamSelect: !!optionsRaw.teamSelect,
+            instantKill: !!optionsRaw.instantKill,
+            noItemRespawn: !!optionsRaw.noItemRespawn,
+            noShooting: !!optionsRaw.noShooting,
+          };
+          createRoom({ roomName, roomId, mapId, passwordProtected, password: passwordProtected ? password : undefined, maxPlayers, timeLimitSec, gameMode, lobbyId: player.lobbyId, hostId: player.id, options });
           break;
         }
         case "switchLobby": {
@@ -141,7 +149,25 @@ export function registerWsHandlers(wss: WebSocketServer) {
           const pld = isRecord(payload) ? payload : {};
           const roomId = pickString(pld.roomId, "").trim();
           const password = pickString(pld.password, "").trim() || undefined;
-          if (roomId) joinRoom(player, roomId, password);
+          if (roomId) joinRoom(player, roomId, password); // Drop requestedTeam from join payload
+          break;
+        }
+        case "selectTeam": {
+          if (!player.roomId) break;
+          const room = rooms.get(player.roomId);
+          if (!room || !room.options.teamSelect || player.team !== null) break;
+          const pld = isRecord(payload) ? payload : {};
+          const requestedTeam = pickString(pld.team, "");
+          if (requestedTeam === "red" || requestedTeam === "blue") {
+            player.team = requestedTeam;
+            const safeName = (player.name && player.name.trim().length > 0) ? player.name : `Player - ${player.id.slice(0, 4)}`;
+            room.history.set(player.id, { name: safeName, team: player.team, kills: 0, deaths: 0, score: 0, fired: 0, hits: 0 });
+            const maxHp = room.options?.instantKill ? 20 : 100;
+            player.lives = room.options?.instantKill ? 20 : 0;
+            spawnPlayer(player, room);
+            sendRoomState(room.id);
+            broadcastRoom(room.id, { type: "chat", payload: { from: "SYSTEM", message: `${player.name} joined the ${requestedTeam} team.`, timestamp: Date.now() } });
+          }
           break;
         }
         case "spectateRoom": {

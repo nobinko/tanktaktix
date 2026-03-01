@@ -107,6 +107,17 @@ export const initAppHtml = () => {
           <label class="cr-label">Password <span class="cr-hint">optional</span>
             <input id="room-password" placeholder="Leave blank for public" />
           </label>
+          <div class="cr-options-box" style="margin: 12px 0; padding: 12px; border: 1px solid rgba(168, 148, 104, 0.4); border-radius: 4px;">
+            <p style="margin:0 0 8px 0; font-size:12px; font-weight:bold; color:#d4c4a8;">OPTIONS (Rules)</p>
+            <div class="cr-row" style="gap: 12px; align-items: center; margin-bottom: 6px;">
+              <label style="font-size: 12px; display: flex; align-items: center; gap: 4px; color:#d4c4a8; cursor:pointer;"><input type="checkbox" id="opt-team-select"> Team Select</label>
+              <label style="font-size: 12px; display: flex; align-items: center; gap: 4px; color:#d4c4a8; cursor:pointer;"><input type="checkbox" id="opt-instant-kill"> Instant Kill (HP20開始)</label>
+            </div>
+            <div class="cr-row" style="gap: 12px; align-items: center;">
+              <label style="font-size: 12px; display: flex; align-items: center; gap: 4px; color:#d4c4a8; cursor:pointer;"><input type="checkbox" id="opt-no-item-respawn"> No Item Respawn</label>
+              <label style="font-size: 12px; display: flex; align-items: center; gap: 4px; color:#d4c4a8; cursor:pointer;"><input type="checkbox" id="opt-no-shooting"> No Shooting (Item Only)</label>
+            </div>
+          </div>
           <div class="create-room-actions">
             <button id="create-room-cancel" class="lobby-btn">CANCEL</button>
             <button id="create-room" class="lobby-btn primary">CREATE</button>
@@ -114,9 +125,45 @@ export const initAppHtml = () => {
         </div>
       </div>
     </div>
+    
+    <!-- Join Room モーダル (Password/Team Select対応) -->
+    <div id="join-room-modal" class="lobby-modal hidden">
+      <div class="lobby-modal-overlay"></div>
+      <div class="lobby-modal-content">
+        <h3>JOIN ROOM</h3>
+        <div class="create-room-form">
+          <p id="join-room-name" style="color: #e5dcd0; margin-bottom: 12px; font-family: monospace;"></p>
+          <div id="join-pw-container" class="hidden">
+            <label class="cr-label">Password
+              <input id="join-room-password" placeholder="Enter password" type="password" />
+            </label>
+          </div>
+          <div class="create-room-actions" style="margin-top: 16px;">
+            <button id="join-room-cancel" class="lobby-btn">CANCEL</button>
+            <button id="join-room-confirm" class="lobby-btn primary">JOIN</button>
+          </div>
+        </div>
+      </div>
+    </div>
   </section>
   <section id="room-screen" class="screen">
     <div class="panel relative-panel">
+      <!-- Team Select Overlay -->
+      <div id="team-select-overlay" class="result-overlay hidden">
+        <div class="result-content" style="max-width: 500px; text-align: center;">
+          <h2 style="margin-bottom: 24px;">CHOOSE YOUR TEAM</h2>
+          <div style="display: flex; gap: 20px; justify-content: center; margin-bottom: 24px;">
+            <div id="ts-red-card" style="background:#4a2a2a; border:2px solid #c44040; border-radius:8px; padding:20px; width:180px; cursor:pointer; transition:all 0.2s;">
+              <h3 style="color:#e45050; margin:0 0 8px 0;">RED TEAM</h3>
+              <p id="ts-red-count" style="font-size:24px; color:#fff; margin:0;">0</p>
+            </div>
+            <div id="ts-blue-card" style="background:#2a3a4a; border:2px solid #4a6a8a; border-radius:8px; padding:20px; width:180px; cursor:pointer; transition:all 0.2s;">
+              <h3 style="color:#508be4; margin:0 0 8px 0;">BLUE TEAM</h3>
+              <p id="ts-blue-count" style="font-size:24px; color:#fff; margin:0;">0</p>
+            </div>
+          </div>
+        </div>
+      </div>
       <div id="result-overlay" class="result-overlay hidden">
         <div class="result-content">
           <h2>Game Result</h2>
@@ -223,15 +270,12 @@ export const drawMapDataThumbnail = (canvas: HTMLCanvasElement, mapData: { width
   }
 };
 
-export const renderRooms = (rooms: RoomSummary[], sendMessage: (msg: any) => void, requestPassword: () => Promise<string | null>) => {
+export const renderRooms = (rooms: RoomSummary[], sendMessage: (msg: any) => void, requestJoinInfo: (room: RoomSummary, isSpectate: boolean) => Promise<{ password?: string, team?: "red" | "blue" } | null>) => {
   const roomList = dom.roomList();
   const countEl = document.querySelector("#room-count") as HTMLElement | null;
   roomList.innerHTML = "";
 
   // インジケーター更新
-  const totalPlayers = rooms.reduce((s, r) => s + ((r as any).players?.length ?? (r as any).playerCount ?? 0), 0);
-  const statsEl = document.querySelector("#lobby-stats") as HTMLElement | null;
-  if (statsEl) statsEl.textContent = `📡 ${rooms.length} games live・${totalPlayers} players`;
   if (countEl) countEl.textContent = `(${rooms.length})`;
 
   if (rooms.length === 0) {
@@ -260,12 +304,40 @@ export const renderRooms = (rooms: RoomSummary[], sendMessage: (msg: any) => voi
     const hostName = (room as any).hostName ?? "";
     const displayId = `Room ${room.id}`;
     const comment = (room.name && room.name !== room.id) ? room.name : "(no comment)";
+
+    // オプションタグ
+    const optTags = [];
+    if (room.options) {
+      if (room.options.teamSelect) optTags.push(`<span class="rc-tag" style="background:#4a6a8a; border-color:#6a8aba; color:#fff;" title="Team Select">Team</span>`);
+      if (room.options.instantKill) optTags.push(`<span class="rc-tag" style="background:#c44040; border-color:#e46060; color:#fff;" title="Instant Kill">1Hit</span>`);
+      if (room.options.noItemRespawn) optTags.push(`<span class="rc-tag" style="background:#bd954e; border-color:#ddb56e; color:#fff;" title="No Item Respawn">NoItem</span>`);
+      if (room.options.noShooting) optTags.push(`<span class="rc-tag" style="background:#666; border-color:#888; color:#fff;" title="No Shooting">NoShoot</span>`);
+    }
+    const tagsHtml = optTags.join(" ");
+
+    // チームスコア・人数情報
+    let teamStatsHtml = "";
+    const tStats = (room as any).teamStats;
+    if (tStats) {
+      const rs = tStats.red;
+      const bs = tStats.blue;
+      teamStatsHtml = `
+      <div class="rc-teamstats" style="display:flex; gap:8px; font-size:11.5px; align-items:center; margin-left:4px;">
+        <span style="color:#d45555; font-weight:bold;">RED: ${rs.score} (👤${rs.count})</span>
+        <span style="color:#6a92c8; font-weight:bold;">BLUE: ${bs.score} (👤${bs.count})</span>
+      </div>`;
+    }
+
     li.innerHTML = `
       <div class="room-card-thumb-wrap"><canvas class="room-thumbnail"></canvas></div>
-      <span class="rc-name">${lockIcon}${displayId}</span>
-      <span class="rc-comment">${comment}</span>
-      <span class="rc-tag">${modeLabel}</span>
-      <span class="rc-tag">${mapLabel}</span>
+      <div style="display:flex; align-items:center; gap:8px; flex: 1; flex-wrap:wrap;">
+        <span class="rc-name">${lockIcon}${displayId}</span>
+        <span class="rc-comment">${comment}</span>
+        <span class="rc-tag">${modeLabel}</span>
+        <span class="rc-tag">${mapLabel}</span>
+        ${tagsHtml}
+        ${teamStatsHtml}
+      </div>
       <span class="rc-tag">${playerCount}/${room.maxPlayers}${spectLabel ? ` 👁${spectCount}` : ""}</span>
       <span class="rc-time">${timerHtml}</span>
       ${hostName ? `<span class="rc-host">by ${hostName}</span>` : ""}
@@ -277,18 +349,18 @@ export const renderRooms = (rooms: RoomSummary[], sendMessage: (msg: any) => voi
     const mapMeta = room.mapData || MAPS[(room as any).mapId];
     if (thumbCanvas && mapMeta) drawMapDataThumbnail(thumbCanvas, mapMeta as any);
     (li.querySelector(".join") as HTMLButtonElement).addEventListener("click", async () => {
-      const pw = room.passwordProtected ? await requestPassword() : "";
-      if (pw === null) return;
+      const info = await requestJoinInfo(room, false);
+      if (info === null) return;
       state.isSpectator = false;
       state.leavingRoomId = "";
-      sendMessage({ type: "joinRoom", payload: { roomId: room.id, password: pw } });
+      sendMessage({ type: "joinRoom", payload: { roomId: room.id, password: info.password, requestedTeam: info.team } });
     });
     (li.querySelector(".watch") as HTMLButtonElement).addEventListener("click", async () => {
-      const pw = room.passwordProtected ? await requestPassword() : "";
-      if (pw === null) return;
+      const info = await requestJoinInfo(room, true);
+      if (info === null) return;
       state.isSpectator = true;
       state.leavingRoomId = "";
-      sendMessage({ type: "spectateRoom", payload: { roomId: room.id, password: pw } });
+      sendMessage({ type: "spectateRoom", payload: { roomId: room.id, password: info.password } });
     });
     roomList.appendChild(li);
   });

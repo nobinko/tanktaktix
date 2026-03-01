@@ -188,6 +188,7 @@ export function tick() {
             if (otherId === p.id) continue;
             const other = players.get(otherId);
             if (!other) continue;
+            if (other.team === null) continue; // Skip spectators
             if (other.hp <= 0) continue;
             if (other.respawnAt) continue;
             const pdx = nextX - other.x;
@@ -241,7 +242,7 @@ export function tick() {
 
             // Trigger Pickup Logic
             if (hitItem) {
-              if (canPlayerPickupItem(p, hitItem.type)) {
+              if (canPlayerPickupItem(p, hitItem.type, room)) {
                 applyItemEffect(p, hitItem, room);
               }
             } else if (hitFlag) {

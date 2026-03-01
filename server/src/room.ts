@@ -1,4 +1,4 @@
-import type { Item, ItemType, MapData, Team } from "@tanktaktix/shared";
+import type { Item, ItemType, MapData, Team, RoomOptions } from "@tanktaktix/shared";
 import { ACTION_COOLDOWN_MS, AMMO_REFILL_AMOUNT, COOLDOWN_LONG_MS, COOLDOWN_SHORT_MS, HULL_ROTATION_SPEED, ITEM_RADIUS, MEDIC_HEAL_AMOUNT, MOVE_SPEED, RECONNECT_TIMEOUT_MS, RESPAWN_MS, TANK_SIZE, TURRET_ROTATION_SPEED, DEFAULT_MAP, ITEM_POOL, MOVE_QUEUE_MAX } from "./constants.js";
 import { players, rooms, send } from "./state.js";
 import type { PlayerRuntime, Room } from "./types.js";
@@ -97,7 +97,8 @@ export function spawnPlayer(p: PlayerRuntime, room: Room) {
       p.y = sp.y;
     }
   }
-  p.hp = 100;
+  const maxHp = room.options?.instantKill ? 20 : 100;
+  p.hp = maxHp;
   p.ammo = 20;
   p.respawnAt = null;
   p.pendingMove = null;
@@ -132,9 +133,10 @@ export function initializeItems(room: Room) {
   console.log(`[DEBUG] Initialized ${room.items.length} items for room ${room.id}`);
 }
 
-export function canPlayerPickupItem(p: PlayerRuntime, type: ItemType): boolean {
+export function canPlayerPickupItem(p: PlayerRuntime, type: ItemType, room: Room): boolean {
+  const maxHp = room.options?.instantKill ? 20 : 100;
   if (type === "medic" || type === "heart") {
-    if (p.hp >= 100) return false;
+    if (p.hp >= maxHp) return false;
   } else if (type === "ammo") {
     if (p.ammo >= 40) return false;
   } else if (type === "bomb") {
@@ -148,16 +150,19 @@ export function canPlayerPickupItem(p: PlayerRuntime, type: ItemType): boolean {
 }
 
 export function applyItemEffect(p: PlayerRuntime, item: Item, room: Room) {
-  if (item.type === "medic") p.hp = Math.min(100, p.hp + MEDIC_HEAL_AMOUNT);
+  const maxHp = room.options?.instantKill ? 20 : 100;
+  if (item.type === "medic") p.hp = Math.min(maxHp, p.hp + MEDIC_HEAL_AMOUNT);
   else if (item.type === "ammo") p.ammo = Math.min(40, p.ammo + AMMO_REFILL_AMOUNT);
-  else if (item.type === "heart") p.hp = 100;
+  else if (item.type === "heart") p.hp = maxHp;
   else if (item.type === "bomb") p.hasBomb = true;
   else if (item.type === "rope") p.ropeCount = Math.min(2, p.ropeCount + 1);
   else if (item.type === "boots") p.bootsCharges = 3;
 
   // Remove and Respawn
   room.items = room.items.filter(it => it.id !== item.id);
-  respawnItem(room, item.type);
+  if (!room.options.noItemRespawn) {
+    respawnItem(room, item.type);
+  }
 }
 
 export function respawnItem(room: Room, type: ItemType) {
@@ -165,7 +170,7 @@ export function respawnItem(room: Room, type: ItemType) {
   if (pos) room.items.push({ id: newId(), x: pos.x, y: pos.y, type, spawnedAt: nowMs() });
 }
 
-export function joinRoom(p: PlayerRuntime, roomId: string, password?: string) {
+export function joinRoom(p: PlayerRuntime, roomId: string, password?: string, requestedTeam?: "red" | "blue") {
   const room = rooms.get(roomId);
   if (!room) return send(p.socket, { type: "error", payload: { message: "Room not found." } });
   if (room.passwordProtected && room.password !== password) return send(p.socket, { type: "error", payload: { message: "Invalid password." } });
@@ -173,10 +178,20 @@ export function joinRoom(p: PlayerRuntime, roomId: string, password?: string) {
   detachFromRoom(p);
   p.roomId = roomId;
   room.playerIds.add(p.id);
-  p.team = assignTeam(room);
+  if (room.options.teamSelect) {
+    p.team = null; // Unassigned initially
+    p.hp = 0; // Spectator until team selected
+  } else {
+    p.team = assignTeam(room);
+  }
   const safeName = (p.name && p.name.trim().length > 0) ? p.name : `Player - ${p.id.slice(0, 4)} `;
-  room.history.set(p.id, { name: safeName, team: p.team, kills: 0, deaths: 0, score: 0, fired: 0, hits: 0 });
-  spawnPlayer(p, room);
+  if (p.team !== null) {
+    room.history.set(p.id, { name: safeName, team: p.team, kills: 0, deaths: 0, score: 0, fired: 0, hits: 0 });
+    const maxHp = room.options?.instantKill ? 20 : 100;
+    p.lives = room.options?.instantKill ? 20 : 0;
+    spawnPlayer(p, room);
+  }
+
   p.score = 0; p.kills = 0; p.deaths = 0; p.hits = 0; p.fired = 0;
   sendRoomState(roomId);
   broadcastLobby(room.lobbyId);
@@ -184,13 +199,14 @@ export function joinRoom(p: PlayerRuntime, roomId: string, password?: string) {
 
 import { MAPS } from "@tanktaktix/shared";
 
-export function createRoom(roomData: { roomName: string; roomId: string; mapId: string; passwordProtected: boolean; password?: string; maxPlayers: number; timeLimitSec: number; gameMode: "deathmatch" | "ctf"; lobbyId: string; hostId: string; }) {
+export function createRoom(roomData: { roomName: string; roomId: string; mapId: string; passwordProtected: boolean; password?: string; maxPlayers: number; timeLimitSec: number; gameMode: "deathmatch" | "ctf"; lobbyId: string; hostId: string; options?: RoomOptions; }) {
   const createdAt = nowMs();
   const endsAt = createdAt + roomData.timeLimitSec * 1000;
   const mapData = MAPS[roomData.mapId] || DEFAULT_MAP;
   const flagSrc = mapData.flagPositions ?? mapData.spawnPoints;
   const flags = roomData.gameMode === "ctf" ? [{ team: "red" as const, x: flagSrc.find(s => s.team === "red")?.x ?? 100, y: flagSrc.find(s => s.team === "red")?.y ?? 100, carrierId: null }, { team: "blue" as const, x: flagSrc.find(s => s.team === "blue")?.x ?? 1700, y: flagSrc.find(s => s.team === "blue")?.y ?? 900, carrierId: null }] : [];
-  const room: Room = { id: roomData.roomId, name: roomData.roomName, mapId: roomData.mapId, mapData, lobbyId: roomData.lobbyId, passwordProtected: roomData.passwordProtected, password: roomData.password, maxPlayers: roomData.maxPlayers, timeLimitSec: roomData.timeLimitSec, createdAt, endsAt, ended: false, gameMode: roomData.gameMode, playerIds: new Set(), spectatorIds: new Set(), bullets: [], explosions: [], items: [], lastItemSpawnAt: createdAt, flags, scoreRed: 0, scoreBlue: 0, hostId: roomData.hostId, history: new Map() };
+  const defaultOptions: RoomOptions = { teamSelect: false, instantKill: false, noItemRespawn: false, noShooting: false };
+  const room: Room = { id: roomData.roomId, name: roomData.roomName, mapId: roomData.mapId, mapData, lobbyId: roomData.lobbyId, passwordProtected: roomData.passwordProtected, password: roomData.password, maxPlayers: roomData.maxPlayers, timeLimitSec: roomData.timeLimitSec, createdAt, endsAt, ended: false, gameMode: roomData.gameMode, options: roomData.options || defaultOptions, playerIds: new Set(), spectatorIds: new Set(), bullets: [], explosions: [], items: [], lastItemSpawnAt: createdAt, flags, scoreRed: 0, scoreBlue: 0, hostId: roomData.hostId, history: new Map() };
   rooms.set(roomData.roomId, room);
   initializeItems(room);
   broadcastLobby(room.lobbyId);

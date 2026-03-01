@@ -31,7 +31,7 @@ resizeObserver.observe(canvas);
 // Real-time lobby room list timer
 setInterval(() => {
   if (state.phase === "lobby") {
-    renderRooms(state.rooms, sendWsMessage, () => showPromptDialog("Room Password", "パスワード付きルームです。", "Password"));
+    renderRooms(state.rooms, sendWsMessage, requestJoinInfo);
   }
 }, 1000);
 
@@ -108,7 +108,7 @@ const showSetting = async () => {
 
 const handleServerMsg = (message: any) => handleServerMessage(message, {
   setScreen,
-  renderRooms: () => renderRooms(state.rooms, sendWsMessage, () => showPromptDialog("Room Password", "パスワード付きルームです。", "Password")),
+  renderRooms: () => renderRooms(state.rooms, sendWsMessage, requestJoinInfo),
   renderLobbyPlayers,
   renderLobbyChat,
   renderRoomMeta: () => undefined, // Info moved to HUD
@@ -193,6 +193,46 @@ nameInput.value = savedName;
   });
 });
 
+const requestJoinInfo = (room: any, isSpectate: boolean): Promise<{ password?: string } | null> => {
+  return new Promise((resolve) => {
+    const isPw = room.passwordProtected;
+
+    if (!isPw) {
+      return resolve({});
+    }
+
+    const modal = document.querySelector("#join-room-modal") as HTMLElement;
+    const nameEl = document.querySelector("#join-room-name") as HTMLElement;
+    const pwContainer = document.querySelector("#join-pw-container") as HTMLElement;
+    const pwInput = document.querySelector("#join-room-password") as HTMLInputElement;
+    const cancelBtn = document.querySelector("#join-room-cancel") as HTMLButtonElement;
+    const confirmBtn = document.querySelector("#join-room-confirm") as HTMLButtonElement;
+    nameEl.textContent = "Joining: Room " + room.id;
+    pwContainer.classList.toggle("hidden", !isPw);
+    pwInput.value = "";
+
+    modal.classList.remove("hidden");
+
+    const cleanup = () => {
+      cancelBtn.onclick = null;
+      confirmBtn.onclick = null;
+      modal.classList.add("hidden");
+    };
+
+    cancelBtn.onclick = () => {
+      cleanup();
+      resolve(null);
+    };
+
+    confirmBtn.onclick = () => {
+      cleanup();
+      resolve({
+        password: isPw ? pwInput.value.trim() : undefined,
+      });
+    };
+  });
+};
+
 // New Game モーダル開閉
 const createRoomModal = document.querySelector("#create-room-modal") as HTMLElement;
 (document.querySelector("#new-game-btn") as HTMLButtonElement)?.addEventListener("click", () => {
@@ -211,7 +251,13 @@ const createRoomModal = document.querySelector("#create-room-modal") as HTMLElem
   const id = (document.querySelector("#room-id") as HTMLInputElement).value.trim() || Math.floor(Math.random() * 10000).toString().padStart(4, "0");
   const name = (document.querySelector("#room-name") as HTMLInputElement).value.trim();
   const mapId = (document.querySelector("#map-select") as HTMLSelectElement)?.value || "alpha";
-  sendWsMessage({ type: "createRoom", payload: { roomId: id, name: name, mapId, maxPlayers: parseInt((document.querySelector("#max-players") as HTMLInputElement).value) || 4, timeLimitSec: parseInt((document.querySelector("#time-limit") as HTMLInputElement).value) || 240, gameMode: ((document.querySelector("#game-mode") as HTMLSelectElement).value || "ctf") as "deathmatch" | "ctf", password: (document.querySelector("#room-password") as HTMLInputElement).value.trim() || undefined } });
+  const options = {
+    teamSelect: (document.querySelector("#opt-team-select") as HTMLInputElement).checked,
+    instantKill: (document.querySelector("#opt-instant-kill") as HTMLInputElement).checked,
+    noItemRespawn: (document.querySelector("#opt-no-item-respawn") as HTMLInputElement).checked,
+    noShooting: (document.querySelector("#opt-no-shooting") as HTMLInputElement).checked,
+  };
+  sendWsMessage({ type: "createRoom", payload: { roomId: id, name: name, mapId, maxPlayers: parseInt((document.querySelector("#max-players") as HTMLInputElement).value) || 4, timeLimitSec: parseInt((document.querySelector("#time-limit") as HTMLInputElement).value) || 240, gameMode: ((document.querySelector("#game-mode") as HTMLSelectElement).value || "ctf") as "deathmatch" | "ctf", password: (document.querySelector("#room-password") as HTMLInputElement).value.trim() || undefined, options } });
   createRoomModal?.classList.add("hidden");
 });
 
@@ -240,7 +286,14 @@ dom.lobbyChatInput()?.addEventListener("keydown", (e) => {
   }
 });
 
-const handleLeave = async (requireConfirm = true) => {
+// Team Select Overlay Event
+const handleTeamSelect = (team: "red" | "blue") => {
+  sendWsMessage({ type: "selectTeam", payload: { team } } as any);
+};
+(document.querySelector("#ts-red-card") as HTMLElement)?.addEventListener("click", () => handleTeamSelect("red"));
+(document.querySelector("#ts-blue-card") as HTMLElement)?.addEventListener("click", () => handleTeamSelect("blue"));
+
+async function handleLeave(requireConfirm = true) {
   if (requireConfirm && !(await showConfirmDialog("Leave Room", "Leave this room?", "Leave", "Stay"))) return;
   if (!state.roomId) return;
   state.leavingRoomId = state.roomId;
@@ -251,7 +304,9 @@ const handleLeave = async (requireConfirm = true) => {
   state.bullets = [];
   state.explosions = [];
   state.isSpectator = false;
+  (state as any)._hadTeam = false;
   document.querySelector("#result-overlay")?.classList.add("hidden");
+  document.querySelector("#team-select-overlay")?.classList.add("hidden");
   setScreen("lobby");
 };
 

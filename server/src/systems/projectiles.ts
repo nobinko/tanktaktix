@@ -68,7 +68,7 @@ export function updateBullets(room: Room, dtSec: number, now: number) {
       const hitItem = room.items.find(i => Math.hypot(i.x - curr.x, i.y - curr.y) < 25);
       if (hitItem && owner) {
         // Immediate Effect instead of teleport
-        if (canPlayerPickupItem(owner, hitItem.type)) {
+        if (canPlayerPickupItem(owner, hitItem.type, room)) {
           applyItemEffect(owner, hitItem, room);
         }
         exploded = true;
@@ -152,6 +152,7 @@ export function updateBullets(room: Room, dtSec: number, now: number) {
       if (pid === b.shooterId) continue;
       const t = players.get(pid);
       if (!t) continue;
+      if (t.team === null) continue; // Skip spectators
       if (t.respawnAt && t.respawnAt > now) continue;
       if (t.respawnCooldownUntil > now) continue; // Invincible to bullets during respawn CD
       if (t.hp <= 0) continue;

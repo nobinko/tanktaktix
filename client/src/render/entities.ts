@@ -87,9 +87,11 @@ export const drawEntities = (ctx: CanvasRenderingContext2D) => {
   const now = Date.now();
 
   state.players.forEach((player) => {
+    const pTeam = (player as any).team;
+    if (pTeam === null) return; // Skip spectators / unassigned players
+
     const { x, y } = (player as any).position ?? { x: (player as any).x, y: (player as any).y };
     let color = "#c47030";
-    const pTeam = (player as any).team;
     if (pTeam === "red") color = "#c44040";
     else if (pTeam === "blue") color = "#4a6a8a";
     else if (player.id === state.selfId) color = "#8a6a2a";

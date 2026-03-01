@@ -58,7 +58,18 @@ export function toRoomSummary(r: Room) {
   const playerIds = [...r.playerIds];
   const hostPlayer = players.get(r.hostId);
   const hostName = hostPlayer?.name ?? "unknown";
-  return { id: r.id, name: r.name, roomName: r.name, mapId: r.mapId, mapData: r.mapData, passwordProtected: r.passwordProtected, maxPlayers: r.maxPlayers, timeLimitSec: r.timeLimitSec, createdAt: r.createdAt, endsAt: r.endsAt, ended: r.ended, gameMode: r.gameMode, players: playerIds, playerCount: playerIds.length, spectatorCount: r.spectatorIds.size, lobbyId: r.lobbyId, hostName };
+
+  let teamStats: { red: { count: number; score: number }; blue: { count: number; score: number } } | undefined;
+  if (r.options.teamSelect || r.gameMode === "ctf") {
+    const redCount = playerIds.map(id => players.get(id)).filter(p => p && p.team === "red").length;
+    const blueCount = playerIds.map(id => players.get(id)).filter(p => p && p.team === "blue").length;
+    teamStats = {
+      red: { count: redCount, score: r.scoreRed },
+      blue: { count: blueCount, score: r.scoreBlue },
+    };
+  }
+
+  return { id: r.id, name: r.name, roomName: r.name, mapId: r.mapId, mapData: r.mapData, passwordProtected: r.passwordProtected, maxPlayers: r.maxPlayers, timeLimitSec: r.timeLimitSec, createdAt: r.createdAt, endsAt: r.endsAt, ended: r.ended, gameMode: r.gameMode, players: playerIds, playerCount: playerIds.length, spectatorCount: r.spectatorIds.size, lobbyId: r.lobbyId, hostName, options: r.options, teamStats };
 }
 
 export function lobbyStatePayload(lobbyId: string) {

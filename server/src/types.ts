@@ -26,6 +26,7 @@ export type PlayerRuntime = {
   deaths: number;
   hits: number;
   fired: number;
+  lives: number;
   cooldownUntil: number;
   respawnAt: number | null;
   respawnCooldownUntil: number;
@@ -72,6 +73,12 @@ export type Room = {
   endsAt: number;
   ended: boolean;
   gameMode: "deathmatch" | "ctf";
+  options: {
+    teamSelect: boolean;
+    instantKill: boolean;
+    noItemRespawn: boolean;
+    noShooting: boolean;
+  };
   playerIds: Set<string>;
   spectatorIds: Set<string>;
   bullets: Bullet[];

@@ -36,6 +36,7 @@
 | `aim` | `{ direction: Vector2 }` | AIMモード中の砲塔方向を更新する。direction は単位ベクトル |
 | `useItem` | `{ item: string, direction: Vector2 }` | AIMアクション派生。item は `"rope"` / `"ammo"` / `"heal"` / `"flag"` |
 | `spectateRoom` | `{ roomId: string, password?: string }` | ルームに観戦者として参加する |
+| `selectTeam` | `{ team: "red" | "blue" }` | チーム選択オプションが有効な部屋での入室後のチーム決定 |
 
 ### createRoom payload 詳細
 
@@ -48,7 +49,16 @@
   timeLimitSec: number;  // 5〜3600（clamp される）
   gameMode?: "deathmatch" | "ctf";  // 省略時は "ctf"
   password?: string;     // 省略または空文字で非パスワード保護
+  options?: RoomOptions; // 特殊ルールセット
 }
+
+// RoomOptions の詳細
+type RoomOptions = {
+  teamSelect?: boolean;
+  instantKill?: boolean;
+  noItemRespawn?: boolean;
+  noShooting?: boolean;
+};
 ```
 
 ---
@@ -158,6 +168,11 @@ type RoomSummary = {
   players: string[];       // プレイヤーID一覧
   playerCount: number;
   spectatorCount?: number; // 観戦者数
+  options?: RoomOptions;   // 適用中のオプションルール
+  teamStats?: {            // チームの現在人数とスコア（CTFまたはTeam Select有効時）
+    red: { count: number; score: number };
+    blue: { count: number; score: number };
+  };
 };
 ```
 

@@ -27,7 +27,7 @@ export function triggerExplosion(room: Room, x: number, y: number, shooterId: st
 
   for (const pid of room.playerIds) {
     const target = players.get(pid);
-    if (!target || target.hp <= 0 || target.respawnAt || target.respawnCooldownUntil > nowMs()) continue;
+    if (!target || target.team === null || target.hp <= 0 || target.respawnAt || target.respawnCooldownUntil > nowMs()) continue;
 
     // Calculate distance
     const dist = Math.hypot(target.x - x, target.y - y);
@@ -131,6 +131,11 @@ export function triggerExplosion(room: Room, x: number, y: number, shooterId: st
 
 export function tryShoot(p: PlayerRuntime, dir: Vector2) {
   if (!p.roomId) return;
+  const room = rooms.get(p.roomId);
+  if (!room) return;
+
+  if (room.options.noShooting) return;
+
   const now = nowMs();
 
   if (p.respawnAt && p.respawnAt > now) return;
@@ -158,9 +163,6 @@ export function tryShoot(p: PlayerRuntime, dir: Vector2) {
   }
 
   p.cooldownUntil = now + ACTION_COOLDOWN_MS;
-
-  const room = rooms.get(p.roomId);
-  if (!room) return;
 
   const d = norm(dir);
   if (len(d) === 0) return;
