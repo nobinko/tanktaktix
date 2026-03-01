@@ -120,12 +120,12 @@ export function registerWsHandlers(wss: WebSocketServer) {
           const nameRaw = pickString(pld.name ?? pld.roomName, "");
           const roomName = nameRaw.trim() ? nameRaw.trim() : roomId;
           const mapId = pickString(pld.mapId, "alpha");
-          const maxPlayers = clamp(pickNumber(pld.maxPlayers, 4), 2, 16);
-          const timeLimitSec = clamp(pickNumber(pld.timeLimitSec ?? pld.timeLimit, 240), 5, 3600);
+          const maxPlayers = (clamp(pickNumber(pld.maxPlayers, 4), 2, 100) >> 1) << 1; // even 2-100
+          const timeLimitSec = clamp(pickNumber(pld.timeLimitSec ?? pld.timeLimit, 240), 30, 3600);
           const password = pickString(pld.password, "");
           const passwordProtected = !!password.trim();
           const gameMode = (pickString(pld.gameMode, "ctf") === "ctf") ? "ctf" : "deathmatch";
-          createRoom({ roomName, roomId, mapId, passwordProtected, password: passwordProtected ? password : undefined, maxPlayers, timeLimitSec, gameMode, lobbyId: player.lobbyId });
+          createRoom({ roomName, roomId, mapId, passwordProtected, password: passwordProtected ? password : undefined, maxPlayers, timeLimitSec, gameMode, lobbyId: player.lobbyId, hostId: player.id });
           break;
         }
         case "switchLobby": {

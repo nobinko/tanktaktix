@@ -80,6 +80,8 @@ export type Room = {
   flags: Flag[];
   scoreRed: number;
   scoreBlue: number;
+  hostId: string; // ID of the player who created the room
+
   history: Map<string, {
     name: string;
     team: Team;

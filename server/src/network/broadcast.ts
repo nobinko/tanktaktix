@@ -56,7 +56,9 @@ function toBulletPublic(b: Bullet): BulletPublic {
 
 export function toRoomSummary(r: Room) {
   const playerIds = [...r.playerIds];
-  return { id: r.id, name: r.name, roomName: r.name, mapId: r.mapId, mapData: r.mapData, passwordProtected: r.passwordProtected, maxPlayers: r.maxPlayers, timeLimitSec: r.timeLimitSec, createdAt: r.createdAt, endsAt: r.endsAt, ended: r.ended, gameMode: r.gameMode, players: playerIds, playerCount: playerIds.length, spectatorCount: r.spectatorIds.size, lobbyId: r.lobbyId };
+  const hostPlayer = players.get(r.hostId);
+  const hostName = hostPlayer?.name ?? "unknown";
+  return { id: r.id, name: r.name, roomName: r.name, mapId: r.mapId, mapData: r.mapData, passwordProtected: r.passwordProtected, maxPlayers: r.maxPlayers, timeLimitSec: r.timeLimitSec, createdAt: r.createdAt, endsAt: r.endsAt, ended: r.ended, gameMode: r.gameMode, players: playerIds, playerCount: playerIds.length, spectatorCount: r.spectatorIds.size, lobbyId: r.lobbyId, hostName };
 }
 
 export function lobbyStatePayload(lobbyId: string) {

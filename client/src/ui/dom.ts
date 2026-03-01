@@ -25,7 +25,95 @@ export const initAppHtml = () => {
       </div>
     </div>
   </section>
-  <section id="lobby-screen" class="screen"><div class="panel"><div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;"><div style="display: flex; align-items: center; gap: 16px;"><h2 id="lobby-header" style="margin: 0;">Lobby</h2><select id="lobby-select" style="padding: 4px 8px; font-size: 0.9em; font-family: 'Share Tech Mono', monospace; background: rgba(229, 220, 208, 0.8); border: 1px solid #8a7348; border-radius: 4px;"></select></div><div style="display: flex; gap: 8px;"><button id="lobby-help" class="secondary" style="padding: 4px 12px; font-size: 0.9em;">Help</button><button id="lobby-setting" class="secondary" style="padding: 4px 12px; font-size: 0.9em;">Setting</button><button id="lobby-exit" class="secondary" style="padding: 4px 12px; font-size: 0.9em;">Exit</button></div></div><div class="grid three" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;"><div><h3>Rooms</h3><ul id="room-list" class="room-list"></ul></div><div><h3>Create Room</h3><div class="grid"><input id="room-id" placeholder="Room ID" /><input id="room-name" placeholder="Room name (optional)" /><input id="max-players" placeholder="Max players" value="4" /><input id="time-limit" placeholder="Time limit (sec)" value="240" /><select id="game-mode"><option value="ctf" selected>Flag (CTF)</option><option value="deathmatch">Deathmatch</option></select><select id="map-select"><option value="alpha">Alpha (Classic)</option><option value="beta">Beta (Urban)</option><option value="gamma">Gamma (Fort)</option><option value="delta">Delta (Nature)</option><option value="epsilon">Epsilon (Obstacles)</option><option value="test-s">Test Map S (1000x1000)</option><option value="test-m">Test Map M (1200x1200)</option><option value="test-l">Test Map L (1500x1500)</option></select><input id="room-password" placeholder="Password (optional)" /><button id="create-room">Create</button></div></div><div><h3>Lobby Chat</h3><div id="lobby-chat-log" style="height: 200px; overflow-y: auto; background: rgba(229, 220, 208, 0.5); border: 1px solid rgba(168, 148, 104, 0.4); padding: 4px; margin-bottom: 8px; font-size: 0.9em; font-family: 'Share Tech Mono', monospace;"></div><input id="lobby-chat-input" placeholder="Type here..." style="width: 100%; box-sizing: border-box;" /><h3 style="margin-top: 12px;">Players</h3><ul id="lobby-player-list" style="height: 120px; overflow-y: auto; list-style: none; padding: 0; background: rgba(229, 220, 208, 0.3);"></ul></div></div></div>
+  <section id="lobby-screen" class="screen">
+    <div class="lobby-layout">
+      <header class="lobby-header">
+        <div class="lobby-header-left">
+          <h1 class="lobby-title">TANK TAKTIX</h1>
+          <select id="lobby-select" class="lobby-select"></select>
+        </div>
+        <span id="lobby-stats" class="lobby-stats"></span>
+      </header>
+
+      <main class="lobby-main">
+        <section class="lobby-rooms">
+          <h3 class="lobby-section-title">ROOMS <span id="room-count"></span></h3>
+          <ul id="room-list" class="room-list"></ul>
+        </section>
+
+        <section class="lobby-bottom">
+          <div class="lobby-players">
+            <h3 class="lobby-section-title">PLAYERS <span id="player-count"></span></h3>
+            <ul id="lobby-player-list" class="lobby-player-list"></ul>
+          </div>
+          <div class="lobby-chat">
+            <h3 class="lobby-section-title">CHAT</h3>
+            <div id="lobby-chat-log" class="lobby-chat-log"></div>
+            <input id="lobby-chat-input" class="lobby-chat-input" placeholder="Type and Enter..." />
+          </div>
+        </section>
+      </main>
+
+      <footer class="lobby-footer">
+        <button id="new-game-btn" class="lobby-btn primary">+ NEW GAME</button>
+        <button id="lobby-help" class="lobby-btn">HELP</button>
+        <button id="lobby-setting" class="lobby-btn">SETTING</button>
+        <button id="lobby-exit" class="lobby-btn">EXIT</button>
+      </footer>
+    </div>
+
+    <!-- Create Room モーダル -->
+    <div id="create-room-modal" class="lobby-modal hidden">
+      <div class="lobby-modal-overlay"></div>
+      <div class="lobby-modal-content">
+        <h3>CREATE ROOM</h3>
+        <div class="create-room-form">
+          <div class="cr-row">
+            <label class="cr-label">Room ID
+              <input id="room-id" placeholder="(auto)" />
+            </label>
+            <label class="cr-label">Comment
+              <input id="room-name" placeholder="(optional)" />
+            </label>
+          </div>
+          <div class="cr-row">
+            <label class="cr-label">Max Players <span class="cr-hint">2–100, even</span>
+              <input id="max-players" value="4" type="number" min="2" max="100" step="2" />
+            </label>
+            <label class="cr-label">Time Limit (sec) <span class="cr-hint">30–3600</span>
+              <input id="time-limit" value="240" type="number" min="30" max="3600" step="30" />
+            </label>
+          </div>
+          <div class="cr-row">
+            <label class="cr-label">Game Mode
+              <select id="game-mode">
+                <option value="ctf" selected>Flag (CTF)</option>
+                <option value="deathmatch">Deathmatch</option>
+              </select>
+            </label>
+            <label class="cr-label">Map
+              <select id="map-select">
+                <option value="alpha">Alpha (Classic)</option>
+                <option value="beta">Beta (Urban)</option>
+                <option value="gamma">Gamma (Fort)</option>
+                <option value="delta">Delta (Nature)</option>
+                <option value="epsilon">Epsilon (Obstacles)</option>
+                <option value="test-s">Test Map S (1000×1000)</option>
+                <option value="test-m">Test Map M (1200×1200)</option>
+                <option value="test-l">Test Map L (1500×1500)</option>
+              </select>
+            </label>
+          </div>
+          <label class="cr-label">Password <span class="cr-hint">optional</span>
+            <input id="room-password" placeholder="Leave blank for public" />
+          </label>
+          <div class="create-room-actions">
+            <button id="create-room-cancel" class="lobby-btn">CANCEL</button>
+            <button id="create-room" class="lobby-btn primary">CREATE</button>
+          </div>
+        </div>
+      </div>
+    </div>
   </section>
   <section id="room-screen" class="screen">
     <div class="panel relative-panel">
@@ -89,8 +177,6 @@ export const setScreen = (phase: Phase) => {
   state.phase = phase;
   if (phase === "lobby") {
     state.chat = [];
-    const header = document.querySelector("#lobby-header") as HTMLElement;
-    if (header) header.textContent = state.lobbyId ? `${state.lobbyId}` : "Lobby";
     const select = dom.lobbySelect();
     if (select && state.availableLobbies.length > 0) {
       select.innerHTML = state.availableLobbies.map(l => `<option value="${l}" ${l === state.lobbyId ? "selected" : ""}>${l}</option>`).join("");
@@ -139,19 +225,54 @@ export const drawMapDataThumbnail = (canvas: HTMLCanvasElement, mapData: { width
 
 export const renderRooms = (rooms: RoomSummary[], sendMessage: (msg: any) => void, requestPassword: () => Promise<string | null>) => {
   const roomList = dom.roomList();
+  const countEl = document.querySelector("#room-count") as HTMLElement | null;
   roomList.innerHTML = "";
+
+  // インジケーター更新
+  const totalPlayers = rooms.reduce((s, r) => s + ((r as any).players?.length ?? (r as any).playerCount ?? 0), 0);
+  const statsEl = document.querySelector("#lobby-stats") as HTMLElement | null;
+  if (statsEl) statsEl.textContent = `📡 ${rooms.length} games live・${totalPlayers} players`;
+  if (countEl) countEl.textContent = `(${rooms.length})`;
+
   if (rooms.length === 0) {
-    roomList.innerHTML = `<li class="room empty">No rooms yet. Create one!</li>`;
+    const emptyLi = document.createElement("li");
+    emptyLi.style.cssText = "padding:24px;text-align:center;color:#8a7348;font-family:'Share Tech Mono',monospace;font-size:0.85em;";
+    emptyLi.textContent = "No rooms yet. Hit + NEW GAME to start!";
+    roomList.appendChild(emptyLi);
     return;
   }
+
   rooms.forEach((room) => {
     const li = document.createElement("li");
-    li.className = "room";
+    li.className = "room-card";
     const spectCount = (room as any).spectatorCount ?? 0;
-    const spectLabel = spectCount > 0 ? ` • 👁 ${spectCount}` : "";
+    const spectLabel = spectCount > 0 ? `• 👁 ${spectCount}` : "";
+    const playerCount = (room as any).players?.length ?? (room as any).playerCount ?? 0;
+    const toMMSS = (sec: number) => `${Math.floor(sec / 60).toString().padStart(2, "0")}:${(sec % 60).toString().padStart(2, "0")}`;
     const timeLeft = Math.max(0, Math.ceil(((room as any).endsAt - Date.now()) / 1000));
-    const timerHtml = timeLeft <= 0 ? `<span style="color: #a83a2e;">Ended</span>` : `(Left: ${timeLeft}s)`;
-    li.innerHTML = `<div class="room-row" style="display: flex; gap: 12px; align-items: center;"><canvas class="room-thumbnail" style="border-radius: 4px; border: 1px solid #5c4a2a; flex-shrink: 0;"></canvas><div style="flex-grow: 1;"><strong>${room.name ?? (room as any).roomName ?? room.id}</strong><div class="meta">${(room as any).players?.length ?? (room as any).playerCount ?? 0}/${room.maxPlayers} players${spectLabel} • ${room.timeLimitSec}s ${timerHtml}</div></div><div style="display: flex; gap: 4px;"><button class="join">Join</button><button class="watch" style="background: #e5dcd0; color: #3a2a1a; border: 1px solid #8a7348; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 0.85em;">Watch</button></div></div>`;
+    const timeLimitSec = (room as any).timeLimitSec ?? 0;
+    const timerHtml = timeLeft <= 0
+      ? `<span class="room-card-ended">ENDED</span>`
+      : `<span class="room-card-timer">${toMMSS(timeLeft)}</span><span class="rc-timelimit"> / ${toMMSS(timeLimitSec)}</span>`;
+    const lockIcon = room.passwordProtected ? `🔒 ` : "";
+    const modeLabel = (room as any).gameMode === "ctf" ? "CTF" : "DM";
+    const mapLabel = (room as any).mapId ?? "";
+    const hostName = (room as any).hostName ?? "";
+    const displayId = `Room ${room.id}`;
+    const comment = (room.name && room.name !== room.id) ? room.name : "(no comment)";
+    li.innerHTML = `
+      <div class="room-card-thumb-wrap"><canvas class="room-thumbnail"></canvas></div>
+      <span class="rc-name">${lockIcon}${displayId}</span>
+      <span class="rc-comment">${comment}</span>
+      <span class="rc-tag">${modeLabel}</span>
+      <span class="rc-tag">${mapLabel}</span>
+      <span class="rc-tag">${playerCount}/${room.maxPlayers}${spectLabel ? ` 👁${spectCount}` : ""}</span>
+      <span class="rc-time">${timerHtml}</span>
+      ${hostName ? `<span class="rc-host">by ${hostName}</span>` : ""}
+      <div class="rc-actions">
+        <button class="join room-card-btn-join">JOIN</button>
+        <button class="watch room-card-btn-watch">WATCH</button>
+      </div>`;
     const thumbCanvas = li.querySelector(".room-thumbnail") as HTMLCanvasElement;
     const mapMeta = room.mapData || MAPS[(room as any).mapId];
     if (thumbCanvas && mapMeta) drawMapDataThumbnail(thumbCanvas, mapMeta as any);

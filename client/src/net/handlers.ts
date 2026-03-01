@@ -28,9 +28,6 @@ export const handleServerMessage = (message: ServerToClientMessage, deps: Handle
           deps.renderLobbyChat();
         }
         state.lobbyId = newLobbyId;
-        // ヘッダーのロビー名を常に最新にする
-        const headerEl = document.querySelector("#lobby-header") as HTMLElement;
-        if (headerEl && newLobbyId) headerEl.textContent = newLobbyId;
         // ドロップダウンの選択値も同期
         const sel = document.querySelector("#lobby-select") as HTMLSelectElement;
         if (sel && newLobbyId) sel.value = newLobbyId;

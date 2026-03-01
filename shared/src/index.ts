@@ -80,6 +80,7 @@ export type RoomSummary = {
   playerCount: number;
   spectatorCount?: number; // Number of spectators watching
   lobbyId: string;
+  hostName?: string; // Name of the room creator
 };
 
 export type LobbyState = {

@@ -30,6 +30,16 @@ body {
   display: block;
 }
 
+/* lobby-screen は flex なので active の時だけ flex を明示、非activeは .screen の display:none が勝つよう !important */
+#lobby-screen {
+  display: none !important;
+}
+
+#lobby-screen.active {
+  display: block !important;
+}
+
+
 .panel {
   background: rgba(229, 220, 208, 0.92);
   border: 1px solid rgba(168, 148, 104, 0.5);
@@ -45,7 +55,7 @@ body {
 #login-screen {
   position: relative;
   overflow: hidden;
-  background: #1a1208;
+  background: #f0e8d8;
 }
 
 #title-bg {
@@ -76,11 +86,10 @@ body {
 .title-logo {
   font-family: "Cinzel Decorative", serif;
   font-size: clamp(2.2rem, 6vw, 5rem);
-  color: #f0d070;
+  color: #6b4a1a;
   text-shadow:
-    0 0 60px rgba(220, 160, 30, 0.9),
-    0 0 20px rgba(220, 140, 20, 0.6),
-    0 4px 16px rgba(0, 0, 0, 0.95);
+    0 2px 8px rgba(168, 130, 60, 0.4),
+    0 1px 0 rgba(255, 255, 255, 0.6);
   letter-spacing: 6px;
   margin: 0 0 8px;
   line-height: 1.1;
@@ -89,62 +98,62 @@ body {
 .title-subtitle {
   font-family: "Share Tech Mono", monospace;
   font-size: 0.78rem;
-  color: rgba(210, 185, 130, 0.65);
+  color: rgba(120, 90, 45, 0.65);
   letter-spacing: 5px;
   margin: 0;
   text-transform: uppercase;
 }
 
 .login-card {
-  background: rgba(18, 12, 6, 0.72);
+  background: rgba(255, 252, 245, 0.88);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
-  border: 1px solid rgba(200, 165, 80, 0.35);
+  border: 1px solid rgba(168, 130, 70, 0.35);
   border-radius: 14px;
   padding: 32px 40px;
   min-width: 320px;
   max-width: 480px;
   width: 90vw;
   box-shadow:
-    0 24px 64px rgba(0, 0, 0, 0.75),
-    inset 0 1px 0 rgba(255, 220, 100, 0.1);
+    0 12px 40px rgba(100, 70, 20, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7);
 }
 
 .login-card .notice {
-  color: rgba(210, 185, 130, 0.7);
+  color: rgba(100, 75, 35, 0.7);
   margin-top: 0;
   margin-bottom: 16px;
   font-size: 12px;
 }
 
 .login-card input {
-  background: rgba(255, 240, 200, 0.08);
-  border: 1px solid rgba(200, 165, 80, 0.4);
-  color: #f0e4c0;
+  background: rgba(240, 232, 215, 0.8);
+  border: 1px solid rgba(168, 130, 70, 0.45);
+  color: #3a2a1a;
   font-family: "Share Tech Mono", monospace;
   font-size: 14px;
 }
 
 .login-card input::placeholder {
-  color: rgba(200, 175, 120, 0.45);
+  color: rgba(120, 90, 50, 0.45);
 }
 
 .login-card input:focus {
   outline: none;
-  border-color: rgba(220, 170, 60, 0.7);
-  background: rgba(255, 240, 200, 0.13);
+  border-color: rgba(150, 110, 45, 0.7);
+  background: rgba(240, 232, 215, 1);
 }
 
 .login-card button {
-  background: rgba(200, 160, 60, 0.15);
-  border: 1px solid rgba(200, 165, 80, 0.4);
-  color: #d4b870;
+  background: rgba(200, 175, 130, 0.25);
+  border: 1px solid rgba(168, 130, 70, 0.45);
+  color: #6b4a1a;
   font-size: 12px;
 }
 
 .login-card button:hover {
-  background: rgba(200, 160, 60, 0.28);
-  border-color: rgba(220, 180, 80, 0.65);
+  background: rgba(200, 175, 130, 0.45);
+  border-color: rgba(150, 110, 45, 0.65);
 }
 
 .login-enter-btn {
@@ -153,23 +162,508 @@ body {
   font-size: 14px !important;
   font-family: "Cinzel", serif !important;
   letter-spacing: 3px !important;
-  background: linear-gradient(135deg, rgba(180, 130, 30, 0.7), rgba(140, 90, 15, 0.8)) !important;
-  border: 1px solid rgba(220, 170, 60, 0.6) !important;
-  color: #f5e080 !important;
-  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8) !important;
-  box-shadow: 0 4px 16px rgba(180, 120, 20, 0.35) !important;
+  background: linear-gradient(135deg, #c8a050, #a07830) !important;
+  border: 1px solid rgba(150, 110, 45, 0.6) !important;
+  color: #fff8e8 !important;
+  text-shadow: 0 1px 3px rgba(80, 50, 10, 0.4) !important;
+  box-shadow: 0 4px 16px rgba(150, 110, 30, 0.3) !important;
   transition: all 0.2s ease !important;
 }
 
 .login-enter-btn:hover {
-  background: linear-gradient(135deg, rgba(200, 150, 40, 0.85), rgba(160, 110, 25, 0.9)) !important;
-  box-shadow: 0 6px 24px rgba(200, 140, 30, 0.55) !important;
+  background: linear-gradient(135deg, #d4ab58, #b08438) !important;
+  box-shadow: 0 6px 24px rgba(160, 120, 40, 0.45) !important;
   transform: translateY(-1px);
 }
 
-#lobby-screen .panel {
-  overflow: auto;
+/* ===================== ロビー画面 새 레이아웃 ===================== */
+
+
+/* ===== Lobby Layout (TankMania Style) ===== */
+.lobby-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: #f0e8d8;
 }
+
+.lobby-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 20px;
+  border-bottom: 1px solid rgba(168, 148, 104, 0.4);
+  background: rgba(220, 210, 195, 0.97);
+  flex-shrink: 0;
+}
+
+.lobby-header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.lobby-title {
+  font-family: "Cinzel Decorative", serif;
+  font-size: 1.1rem;
+  color: #6b4a1a;
+  margin: 0;
+  letter-spacing: 3px;
+}
+
+.lobby-select {
+  padding: 4px 8px;
+  font-family: "Share Tech Mono", monospace;
+  font-size: 0.85em;
+  background: rgba(229, 220, 208, 0.8);
+  border: 1px solid #8a7348;
+  border-radius: 4px;
+  color: #3a2a1a;
+}
+
+.lobby-stats {
+  font-family: "Share Tech Mono", monospace;
+  font-size: 0.8em;
+  color: #8a7348;
+}
+
+.lobby-section-title {
+  font-family: "Share Tech Mono", monospace;
+  font-size: 0.75em;
+  color: #8a7348;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  margin: 0 0 6px 0;
+  flex-shrink: 0;
+}
+
+/* Main content area */
+.lobby-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 12px 20px;
+  gap: 12px;
+}
+
+/* Top: Rooms */
+.lobby-rooms {
+  flex: 6;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.lobby-rooms .room-list {
+  flex: 1;
+  overflow-y: auto;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Bottom: Players + Chat side by side */
+.lobby-bottom {
+  flex: 4;
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 12px;
+  min-height: 0;
+}
+
+.lobby-players {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.lobby-player-list {
+  flex: 1;
+  overflow-y: auto;
+  list-style: none;
+  padding: 6px;
+  margin: 0;
+  background: rgba(245, 240, 230, 0.8);
+  border: 1px solid rgba(168, 148, 104, 0.35);
+  border-radius: 4px;
+  font-family: "Share Tech Mono", monospace;
+  font-size: 0.85em;
+  color: #3a2a1a;
+}
+
+.lobby-player-list li {
+  padding: 2px 4px;
+  border-bottom: 1px solid rgba(168, 148, 104, 0.15);
+}
+
+.lobby-player-list li:last-child {
+  border-bottom: none;
+}
+
+.lobby-chat {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.lobby-chat-log {
+  flex: 1;
+  overflow-y: auto;
+  background: rgba(245, 240, 230, 0.8);
+  border: 1px solid rgba(168, 148, 104, 0.35);
+  border-radius: 4px;
+  padding: 8px;
+  font-size: 0.85em;
+  font-family: "Share Tech Mono", monospace;
+  color: #3a2a1a;
+  min-height: 0;
+}
+
+.lobby-chat-log .chat-from {
+  color: #8a5a18;
+  font-weight: bold;
+}
+
+.lobby-chat-input {
+  margin-top: 4px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 10px;
+  font-family: "Share Tech Mono", monospace;
+  font-size: 0.85em;
+  background: rgba(229, 220, 208, 0.8);
+  border: 1px solid #8a7348;
+  border-radius: 4px;
+  color: #3a2a1a;
+  flex-shrink: 0;
+}
+
+.lobby-chat-input::placeholder {
+  color: rgba(100, 80, 40, 0.5);
+}
+
+.lobby-chat-input:focus {
+  outline: none;
+  border-color: #a07830;
+  background: rgba(240, 232, 215, 1);
+}
+
+/* Footer */
+.lobby-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border-top: 1px solid rgba(168, 148, 104, 0.4);
+  background: rgba(220, 210, 195, 0.97);
+  flex-shrink: 0;
+}
+
+.lobby-btn {
+  padding: 6px 16px;
+  font-family: "Share Tech Mono", monospace;
+  font-size: 0.8em;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  background: rgba(229, 220, 208, 0.8);
+  border: 1px solid #8a7348;
+  border-radius: 4px;
+  cursor: pointer;
+  color: #3a2a1a;
+  transition: background 0.15s;
+}
+
+.lobby-btn.primary {
+  background: linear-gradient(180deg, #d4b870, #b89840);
+  color: #3a2a1a;
+  font-weight: bold;
+  border-color: #a89468;
+}
+
+.lobby-btn:hover {
+  background: rgba(212, 184, 112, 0.4);
+}
+
+.lobby-btn.primary:hover {
+  background: linear-gradient(180deg, #e0c880, #c8a850);
+}
+
+/* Room Cards - compact horizontal row */
+.room-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 12px;
+  background: rgba(248, 244, 236, 0.85);
+  border: 1px solid rgba(168, 130, 70, 0.22);
+  border-radius: 5px;
+  transition: border-color 0.12s, transform 0.1s;
+}
+
+.room-card:hover {
+  border-color: rgba(168, 130, 70, 0.5);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(100, 70, 20, 0.08);
+}
+
+.rc-name {
+  flex: 0 0 auto;
+  font-family: "Cinzel", serif;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #5a3a10;
+  white-space: nowrap;
+}
+
+.rc-comment {
+  flex: 1;
+  font-family: "Share Tech Mono", monospace;
+  font-size: 0.8rem;
+  color: rgba(100, 75, 40, 0.55);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  font-style: italic;
+}
+
+.rc-tag {
+  font-family: "Share Tech Mono", monospace;
+  font-size: 0.82rem;
+  color: rgba(100, 75, 40, 0.8);
+  background: rgba(168, 130, 70, 0.1);
+  border: 1px solid rgba(168, 130, 70, 0.22);
+  border-radius: 3px;
+  padding: 2px 8px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.rc-time {
+  font-family: "Share Tech Mono", monospace;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  flex-shrink: 0;
+  text-align: right;
+}
+
+.rc-timelimit {
+  font-family: "Share Tech Mono", monospace;
+  font-size: 0.78rem;
+  color: rgba(100, 75, 40, 0.5);
+}
+
+.rc-host {
+  font-family: "Share Tech Mono", monospace;
+  font-size: 0.75rem;
+  color: rgba(100, 75, 40, 0.5);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.rc-actions {
+  display: flex;
+  gap: 5px;
+  flex-shrink: 0;
+}
+
+.room-card-thumb-wrap {
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid rgba(168, 130, 70, 0.3);
+  background: rgba(235, 225, 205, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.room-card-thumb-wrap canvas {
+  display: block;
+  max-width: 48px;
+  max-height: 48px;
+}
+
+.room-card-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.room-card-name {
+  font-family: "Cinzel", serif;
+  font-size: 0.85rem;
+  color: #5a3a10;
+  font-weight: 600;
+  margin-bottom: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.room-card-meta {
+  font-family: "Share Tech Mono", monospace;
+  font-size: 0.7rem;
+  color: rgba(100, 75, 40, 0.7);
+}
+
+.room-card-time {
+  font-family: "Share Tech Mono", monospace;
+  font-size: 0.7rem;
+}
+
+.room-card-timer {
+  color: rgba(60, 130, 60, 0.9);
+}
+
+.room-card-ended {
+  color: rgba(170, 50, 40, 0.85);
+}
+
+.room-card-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.room-card-btn-join {
+  background: linear-gradient(135deg, #c8a050, #a07830);
+  border: 1px solid rgba(140, 100, 35, 0.5);
+  color: #fff8e8;
+  font-family: "Share Tech Mono", monospace;
+  font-size: 0.72rem;
+  padding: 3px 10px;
+  border-radius: 3px;
+  cursor: pointer;
+  letter-spacing: 0.5px;
+  transition: all 0.12s;
+  text-transform: uppercase;
+}
+
+.room-card-btn-join:hover {
+  background: linear-gradient(135deg, #d4ab58, #b08438);
+}
+
+.room-card-btn-watch {
+  background: rgba(235, 225, 205, 0.7);
+  border: 1px solid rgba(168, 130, 70, 0.3);
+  color: rgba(80, 60, 25, 0.8);
+  font-family: "Share Tech Mono", monospace;
+  font-size: 0.72rem;
+  padding: 3px 10px;
+  border-radius: 3px;
+  cursor: pointer;
+  letter-spacing: 0.5px;
+  transition: all 0.12s;
+  text-transform: uppercase;
+}
+
+.room-card-btn-watch:hover {
+  background: rgba(220, 208, 185, 0.98);
+}
+
+/* Create Room Modal */
+.lobby-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.lobby-modal.hidden {
+  display: none;
+}
+
+.lobby-modal-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.lobby-modal-content {
+  position: relative;
+  background: rgba(240, 234, 222, 0.99);
+  border: 1px solid #a89468;
+  border-radius: 8px;
+  padding: 36px;
+  width: min(660px, 92vw);
+  z-index: 1;
+  box-shadow: 0 16px 48px rgba(80, 55, 15, 0.2);
+}
+
+.lobby-modal-content h3 {
+  font-family: "Share Tech Mono", monospace;
+  color: #6b4a1a;
+  letter-spacing: 2px;
+  margin: 0 0 20px 0;
+  font-size: 1.1rem;
+}
+
+.create-room-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.cr-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.cr-label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-family: "Share Tech Mono", monospace;
+  font-size: 1.0rem;
+  color: rgba(100, 75, 35, 0.75);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.cr-hint {
+  font-size: 0.85rem;
+  color: rgba(100, 75, 35, 0.45);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.cr-label input,
+.cr-label select {
+  background: rgba(229, 220, 208, 0.8);
+  border: 1px solid #8a7348;
+  border-radius: 4px;
+  color: #3a2a1a;
+  font-family: "Share Tech Mono", monospace;
+  font-size: 1.05rem;
+  padding: 9px 12px;
+}
+
+.cr-label input:focus,
+.cr-label select:focus {
+  outline: none;
+  border-color: #a07830;
+}
+
+.create-room-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+
+
+
 
 #room-screen {
   padding: 0;
@@ -243,15 +737,6 @@ button.secondary {
   gap: 8px;
 }
 
-.room-list li {
-  padding: 12px;
-  border-radius: 6px;
-  background: rgba(229, 220, 208, 0.6);
-  border: 1px solid rgba(168, 148, 104, 0.3);
-  display: grid;
-  grid-template-columns: 1fr auto;
-  align-items: center;
-}
 
 #map {
   display: block;
