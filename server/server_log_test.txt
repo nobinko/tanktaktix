@@ -1,0 +1,85 @@
+
+> @tanktaktix/server@0.1.0 dev
+> tsx watch src/index.ts
+
+Uncaught Exception: Error: listen EADDRINUSE: address already in use 0.0.0.0:3000
+    at Server.setupListenHandle [as _listen2] (node:net:1937:16)
+    at listenInCluster (node:net:1994:12)
+    at node:net:2203:7
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  code: 'EADDRINUSE',
+  errno: -4091,
+  syscall: 'listen',
+  address: '0.0.0.0',
+  port: 3000
+}
+10:37:55 [tsx] change in ./src\room.ts Restarting...
+Uncaught Exception: Error: listen EADDRINUSE: address already in use 0.0.0.0:3000
+    at Server.setupListenHandle [as _listen2] (node:net:1937:16)
+    at listenInCluster (node:net:1994:12)
+    at node:net:2203:7
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  code: 'EADDRINUSE',
+  errno: -4091,
+  syscall: 'listen',
+  address: '0.0.0.0',
+  port: 3000
+}
+c10:38:28 [tsx] change in ./src\tick.ts Restarting...
+Uncaught Exception: Error: listen EADDRINUSE: address already in use 0.0.0.0:3000
+    at Server.setupListenHandle [as _listen2] (node:net:1937:16)
+    at listenInCluster (node:net:1994:12)
+    at node:net:2203:7
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  code: 'EADDRINUSE',
+  errno: -4091,
+  syscall: 'listen',
+  address: '0.0.0.0',
+  port: 3000
+}
+c10:38:29 [tsx] change in ./src\systems\projectiles.ts Restarting...
+Uncaught Exception: Error: listen EADDRINUSE: address already in use 0.0.0.0:3000
+    at Server.setupListenHandle [as _listen2] (node:net:1937:16)
+    at listenInCluster (node:net:1994:12)
+    at node:net:2203:7
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  code: 'EADDRINUSE',
+  errno: -4091,
+  syscall: 'listen',
+  address: '0.0.0.0',
+  port: 3000
+}
+c10:38:49 [tsx] change in ./src\tick.ts Restarting...
+cServer running on http://0.0.0.0:3000
+10:38:50 [tsx] change in ./src\systems\projectiles.ts Restarting...
+Uncaught Exception: Error: listen EADDRINUSE: address already in use 0.0.0.0:3000
+    at Server.setupListenHandle [as _listen2] (node:net:1937:16)
+    at listenInCluster (node:net:1994:12)
+    at node:net:2203:7
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  code: 'EADDRINUSE',
+  errno: -4091,
+  syscall: 'listen',
+  address: '0.0.0.0',
+  port: 3000
+}
+c10:39:25 [tsx] change in ./src\systems\combat.ts Restarting...
+cServer running on http://0.0.0.0:3000
+[DEBUG] Initialized 12 items for room 7855
+Room 7855 is empty but kept because time remains.
+Room 7855 is empty but kept because time remains.
+10:44:03 [tsx] change in ./src\systems\combat.ts Restarting...
+cServer running on http://0.0.0.0:3000
+[DEBUG] Initialized 12 items for room 8264
+[DEBUG] Player 81f216ee-ff02-48f7-b45b-9f3da68e9d39 socket closed.Waiting for rejoin...
+[DEBUG] Player 81f216ee-ff02-48f7-b45b-9f3da68e9d39 re - claiming their session.
+Room 8264 is empty but kept because time remains.
+[DEBUG] Initialized 12 items for room 4736
+[DEBUG] Player 81f216ee-ff02-48f7-b45b-9f3da68e9d39 socket closed.Waiting for rejoin...
+[DEBUG] Player 81f216ee-ff02-48f7-b45b-9f3da68e9d39 re - claiming their session.
+Room 4736 is empty but kept because time remains.
+[DEBUG] Player 81f216ee-ff02-48f7-b45b-9f3da68e9d39 socket closed.Waiting for rejoin...
+10:46:34 [tsx] change in ./..\shared\dist\index.js Restarting...
+cServer running on http://0.0.0.0:3000
+[DEBUG] Initialized 12 items for room 0211
+[DEBUG] Initialized 12 items for room 3688

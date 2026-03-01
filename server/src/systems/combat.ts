@@ -75,6 +75,10 @@ export function triggerExplosion(room: Room, x: number, y: number, shooterId: st
             // Updating Room Team Score
             if (shooter.team === "red") room.scoreRed += 1;
             if (shooter.team === "blue") room.scoreBlue += 1;
+          } else if (!shooter || shooter.id === target.id) {
+            // Suicide: +1 point for the opposing team
+            if (target.team === "red") room.scoreBlue += 1;
+            else if (target.team === "blue") room.scoreRed += 1;
           }
 
           // Update history for shooter

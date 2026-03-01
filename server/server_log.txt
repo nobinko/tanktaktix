@@ -1,0 +1,435 @@
+
+> @tanktaktix/server@0.1.0 dev
+> tsx watch src/index.ts
+
+Server running on http://0.0.0.0:3000
+[DEBUG] Initialized 12 items for room test_clamp_u9m8v
+[DEBUG] Player 5871145d-a167-4ef8-930f-a568f180bb38 socket closed.Waiting for rejoin...
+[DEBUG] GameEnd Room test_clamp_u9m8v.Winner: draw 
+[DEBUG] Results Payload:  [
+  {
+    "id": "5871145d-a167-4ef8-930f-a568f180bb38",
+    "name": "ClampTester",
+    "team": "red",
+    "roomId": "test_clamp_u9m8v",
+    "position": {
+      "x": 0,
+      "y": 0
+    },
+    "target": null,
+    "moveQueue": [],
+    "hp": 0,
+    "ammo": 0,
+    "score": 0,
+    "deaths": 0,
+    "kills": 0,
+    "hits": 0,
+    "fired": 0,
+    "nextActionAt": 0,
+    "actionLockStep": 0,
+    "hullAngle": 0,
+    "turretAngle": 0,
+    "respawnAt": null
+  }
+]
+9:51:29 [tsx] change in ./src\tick.ts Restarting...
+cServer running on http://0.0.0.0:3000
+[DEBUG] Initialized 12 items for room test_clamp_tlk1o
+[DEBUG] Player 99c8 moving to (121.8, 500.7)
+[DEBUG] Player 99c8 moving to (127.6, 499.1)
+[DEBUG] Player 99c8 moving to (133.4, 497.5)
+[DEBUG] Player 99c8 moving to (139.2, 495.9)
+[DEBUG] Player 99c8 moving to (145.0, 494.3)
+[DEBUG] Player 99c8 moving to (150.8, 492.7)
+[DEBUG] Player 99c8 moving to (156.5, 491.2)
+[DEBUG] Player 99c8 moving to (162.3, 489.6)
+[DEBUG] Player 99c8 moving to (168.1, 488.0)
+[DEBUG] Player 99c8 moving to (173.9, 486.4)
+[DEBUG] Player 99c8 moving to (179.7, 484.8)
+[DEBUG] Player 99c8 moving to (185.5, 483.2)
+[DEBUG] Player 99c8 moving to (191.3, 481.6)
+[DEBUG] Player 99c8 moving to (197.1, 480.1)
+[DEBUG] Player 99c8 moving to (202.8, 478.5)
+[DEBUG] Player 99c8 moving to (208.6, 476.9)
+[DEBUG] Player 99c8 moving to (214.4, 475.3)
+[DEBUG] Player 99c8 moving to (220.2, 473.7)
+[DEBUG] Player 99c8 moving to (226.0, 472.1)
+[DEBUG] Player 99c8 moving to (231.8, 470.6)
+[DEBUG] Player 99c8 moving to (237.6, 469.0)
+[DEBUG] Player 99c8 moving to (243.4, 467.4)
+[DEBUG] Player 99c8 moving to (249.1, 465.8)
+[DEBUG] Player 99c8 moving to (254.9, 464.2)
+[DEBUG] Player 99c8 moving to (260.7, 462.6)
+[DEBUG] Player 99c8 moving to (266.5, 461.1)
+[DEBUG] Player 99c8 moving to (272.3, 459.5)
+[DEBUG] Player 99c8 moving to (278.1, 457.9)
+[DEBUG] Player 99c8 moving to (283.9, 456.3)
+[DEBUG] Player 99c8 moving to (289.6, 454.7)
+[DEBUG] Player 99c8 moving to (295.4, 453.1)
+[DEBUG] Player 99c8 moving to (301.2, 451.6)
+[DEBUG] Player 99c8 moving to (307.0, 450.0)
+[DEBUG] Player 99c8 moving to (312.8, 448.4)
+[DEBUG] Player 99c8 moving to (318.6, 446.8)
+[DEBUG] Player 99c8 moving to (324.4, 445.2)
+[DEBUG] Player 99c8 moving to (330.2, 443.6)
+[DEBUG] Player 99c8 moving to (335.9, 442.0)
+[DEBUG] Player 99c8 moving to (341.7, 440.5)
+[DEBUG] Player 99c8 moving to (347.5, 438.9)
+[DEBUG] Player 99c8 moving to (353.3, 437.3)
+[DEBUG] Player 99c8 moving to (359.1, 435.7)
+[DEBUG] Player 99c8 moving to (364.9, 434.1)
+[DEBUG] Player 99c8 moving to (370.7, 432.5)
+[DEBUG] Player 99c8 moving to (376.5, 431.0)
+[DEBUG] Player 99c8 moving to (382.2, 429.4)
+[DEBUG] Player 99c8 moving to (388.0, 427.8)
+[DEBUG] Player 99c8 moving to (393.8, 426.2)
+[DEBUG] Player 99c8 moving to (399.6, 424.6)
+[DEBUG] Player 99c8 moving to (405.4, 423.0)
+[DEBUG] Player 99c8545e-2c6b-4e1d-90e6-131039125b31 socket closed.Waiting for rejoin...
+[DEBUG] Initialized 12 items for room test_clamp_p85qm6
+[DEBUG] Player 8dcb moving to (102.7, 548.0)
+[DEBUG] Player 8dcb moving to (108.5, 549.3)
+[DEBUG] Player 8dcb moving to (114.4, 550.6)
+[DEBUG] Player 8dcb moving to (120.2, 551.9)
+[DEBUG] Player 8dcb moving to (126.1, 553.2)
+[DEBUG] Player 8dcb moving to (131.9, 554.5)
+[DEBUG] Player 8dcb moving to (137.8, 555.9)
+[DEBUG] Player 8dcb moving to (143.7, 557.2)
+[DEBUG] Player 8dcb moving to (149.5, 558.5)
+[DEBUG] Player 8dcb moving to (155.4, 559.8)
+[DEBUG] Player 8dcb moving to (161.2, 561.1)
+[DEBUG] Player 8dcb moving to (167.1, 562.4)
+[DEBUG] Player 8dcb moving to (172.9, 563.7)
+[DEBUG] Player 8dcb moving to (178.8, 565.0)
+[DEBUG] Player 8dcb moving to (184.6, 566.3)
+[DEBUG] Player 8dcb moving to (190.5, 567.7)
+[DEBUG] Player 8dcb moving to (196.4, 569.0)
+[DEBUG] Player 8dcb moving to (202.2, 570.3)
+[DEBUG] Player 8dcb moving to (208.1, 571.6)
+[DEBUG] Player 8dcb moving to (213.9, 572.9)
+[DEBUG] Player 8dcb moving to (219.8, 574.2)
+[DEBUG] Player 8dcb moving to (225.6, 575.5)
+[DEBUG] Player 8dcb moving to (231.5, 576.8)
+[DEBUG] Player 8dcb moving to (237.3, 578.1)
+[DEBUG] Player 8dcb moving to (243.2, 579.4)
+[DEBUG] Player 8dcb moving to (249.0, 580.8)
+[DEBUG] Player 8dcb moving to (254.9, 582.1)
+[DEBUG] Player 8dcb moving to (260.8, 583.4)
+[DEBUG] Player 8dcb moving to (266.6, 584.7)
+[DEBUG] Player 8dcb moving to (272.5, 586.0)
+[DEBUG] Player 8dcb moving to (278.3, 587.3)
+[DEBUG] Player 8dcb moving to (284.2, 588.6)
+[DEBUG] Player 8dcb moving to (290.0, 589.9)
+[DEBUG] Player 8dcb moving to (295.9, 591.2)
+[DEBUG] Player 8dcb moving to (301.7, 592.5)
+[DEBUG] Player 8dcb moving to (307.6, 593.9)
+[DEBUG] Player 8dcb moving to (313.5, 595.2)
+[DEBUG] Player 8dcb moving to (319.3, 596.5)
+[DEBUG] Player 8dcb moving to (325.2, 597.8)
+[DEBUG] Player 8dcb moving to (331.0, 599.1)
+[DEBUG] Player 8dcb moving to (336.9, 600.4)
+[DEBUG] Player 8dcb moving to (342.7, 601.7)
+[DEBUG] Player 8dcb moving to (348.6, 603.0)
+[DEBUG] Player 8dcb moving to (354.4, 604.3)
+[DEBUG] Player 8dcb moving to (360.3, 605.7)
+[DEBUG] Player 8dcb moving to (366.2, 607.0)
+[DEBUG] Player 8dcb moving to (372.0, 608.3)
+[DEBUG] Player 8dcb moving to (377.9, 609.6)
+[DEBUG] Player 8dcb moving to (383.7, 610.9)
+[DEBUG] Player 8dcb moving to (389.6, 612.2)
+[DEBUG] Player 8dcb17fc-0300-410d-b186-5922d8371533 socket closed.Waiting for rejoin...
+[DEBUG] GameEnd Room test_clamp_tlk1o.Winner: draw 
+[DEBUG] Results Payload:  [
+  {
+    "id": "99c8545e-2c6b-4e1d-90e6-131039125b31",
+    "name": "ClampTester",
+    "team": "red",
+    "roomId": "test_clamp_tlk1o",
+    "position": {
+      "x": 0,
+      "y": 0
+    },
+    "target": null,
+    "moveQueue": [],
+    "hp": 0,
+    "ammo": 0,
+    "score": 0,
+    "deaths": 0,
+    "kills": 0,
+    "hits": 0,
+    "fired": 0,
+    "nextActionAt": 0,
+    "actionLockStep": 0,
+    "hullAngle": 0,
+    "turretAngle": 0,
+    "respawnAt": null
+  }
+]
+[DEBUG] Player 99c8545e-2c6b-4e1d-90e6-131039125b31 reconnection timeout.Cleaning up.
+Room test_clamp_tlk1o deleted(empty & time up).
+[DEBUG] Initialized 12 items for room test_clamp_2p78nr
+[DEBUG] Player 4b38 moving to (111.8, 543.1)
+[DEBUG] Player 4b38 moving to (113.8, 548.8)
+[DEBUG] Player 4b38 moving to (115.7, 554.5)
+[DEBUG] Player 4b38 moving to (117.7, 560.2)
+[DEBUG] Player 4b38 moving to (119.6, 565.8)
+[DEBUG] Player 4b38 moving to (121.6, 571.5)
+[DEBUG] GameEnd Room test_clamp_p85qm6.Winner: draw 
+[DEBUG] Results Payload:  [
+  {
+    "id": "8dcb17fc-0300-410d-b186-5922d8371533",
+    "name": "ClampTester",
+    "team": "red",
+    "roomId": "test_clamp_p85qm6",
+    "position": {
+      "x": 0,
+      "y": 0
+    },
+    "target": null,
+    "moveQueue": [],
+    "hp": 0,
+    "ammo": 0,
+    "score": 0,
+    "deaths": 0,
+    "kills": 0,
+    "hits": 0,
+    "fired": 0,
+    "nextActionAt": 0,
+    "actionLockStep": 0,
+    "hullAngle": 0,
+    "turretAngle": 0,
+    "respawnAt": null
+  }
+]
+[DEBUG] Player 4b38 moving to (123.5, 577.2)
+[DEBUG] Player 4b38 moving to (125.5, 582.8)
+[DEBUG] Player 4b38 moving to (127.4, 588.5)
+[DEBUG] Player 4b38 moving to (129.4, 594.2)
+[DEBUG] Player 4b38 moving to (131.3, 599.9)
+[DEBUG] Player 4b38 moving to (133.3, 605.5)
+[DEBUG] Player 4b38 moving to (135.2, 611.2)
+[DEBUG] Player 4b38 moving to (137.2, 616.9)
+[DEBUG] Player 4b38 moving to (139.1, 622.6)
+[DEBUG] Player 4b38 moving to (141.1, 628.2)
+[DEBUG] Player 4b38 moving to (143.1, 633.9)
+[DEBUG] Player 4b38 moving to (145.0, 639.6)
+[DEBUG] Player 4b38 moving to (147.0, 645.3)
+[DEBUG] Player 4b38 moving to (148.9, 650.9)
+[DEBUG] Player 4b38 moving to (150.9, 656.6)
+[DEBUG] Player 4b38 moving to (152.8, 662.3)
+[DEBUG] Player 4b38 moving to (154.8, 667.9)
+[DEBUG] Player 4b38 moving to (156.7, 673.6)
+[DEBUG] Player 4b38 moving to (158.7, 679.3)
+[DEBUG] Player 4b38 moving to (160.6, 685.0)
+[DEBUG] Player 4b38 moving to (162.6, 690.6)
+[DEBUG] Player 4b38 moving to (164.5, 696.3)
+[DEBUG] Player 4b38 moving to (166.5, 702.0)
+[DEBUG] Player 4b38 moving to (168.4, 707.7)
+[DEBUG] Player 4b38 moving to (170.4, 713.3)
+[DEBUG] Player 4b38 moving to (172.4, 719.0)
+[DEBUG] Player 4b38 moving to (174.3, 724.7)
+[DEBUG] Player 4b38 moving to (176.3, 730.3)
+[DEBUG] Player 4b38 moving to (178.2, 736.0)
+[DEBUG] Player 4b38 moving to (180.2, 741.7)
+[DEBUG] Player 4b38 moving to (182.1, 747.4)
+[DEBUG] Player 4b38 moving to (184.1, 753.0)
+[DEBUG] Player 4b38 moving to (186.0, 758.7)
+[DEBUG] Player 4b38 moving to (188.0, 764.4)
+[DEBUG] Player 4b38 moving to (189.9, 770.1)
+[DEBUG] Player 4b38 moving to (191.9, 775.7)
+[DEBUG] Player 4b38 moving to (193.8, 781.4)
+[DEBUG] !!! Collision detected with medic at dist 30.4
+[DEBUG] Player 4b38f66a-ed61-452b-a0b4-8f5b152b6b05 socket closed.Waiting for rejoin...
+[DEBUG] Player 8dcb17fc-0300-410d-b186-5922d8371533 reconnection timeout.Cleaning up.
+Room test_clamp_p85qm6 deleted(empty & time up).
+[DEBUG] Initialized 12 items for room test_flag_jsich8p
+[DEBUG] Player 18b0 moving to (126.3, 492.0)
+[DEBUG] GameEnd Room test_clamp_2p78nr.Winner: draw 
+[DEBUG] Results Payload:  [
+  {
+    "id": "4b38f66a-ed61-452b-a0b4-8f5b152b6b05",
+    "name": "ClampTester",
+    "team": "red",
+    "roomId": "test_clamp_2p78nr",
+    "position": {
+      "x": 0,
+      "y": 0
+    },
+    "target": null,
+    "moveQueue": [],
+    "hp": 0,
+    "ammo": 0,
+    "score": 0,
+    "deaths": 0,
+    "kills": 0,
+    "hits": 0,
+    "fired": 0,
+    "nextActionAt": 0,
+    "actionLockStep": 0,
+    "hullAngle": 0,
+    "turretAngle": 0,
+    "respawnAt": null
+  }
+]
+[DEBUG] Player 18b05607-b2c0-469f-9131-ea394b8d90ca socket closed.Waiting for rejoin...
+[DEBUG] Player 4b38f66a-ed61-452b-a0b4-8f5b152b6b05 reconnection timeout.Cleaning up.
+Room test_clamp_2p78nr deleted(empty & time up).
+[DEBUG] Initialized 12 items for room test_flag_2zcsfy
+[DEBUG] Player 9444 moving to (126.1, 478.9)
+[DEBUG] Player 9444c54f-409a-45c4-9836-367a3ee01f44 socket closed.Waiting for rejoin...
+[DEBUG] GameEnd Room test_flag_jsich8p.Winner: draw 
+[DEBUG] Results Payload:  [
+  {
+    "id": "18b05607-b2c0-469f-9131-ea394b8d90ca",
+    "name": "FlagTester",
+    "team": "red",
+    "roomId": "test_flag_jsich8p",
+    "position": {
+      "x": 0,
+      "y": 0
+    },
+    "target": null,
+    "moveQueue": [],
+    "hp": 0,
+    "ammo": 0,
+    "score": 0,
+    "deaths": 0,
+    "kills": 0,
+    "hits": 0,
+    "fired": 0,
+    "nextActionAt": 0,
+    "actionLockStep": 0,
+    "hullAngle": 0,
+    "turretAngle": 0,
+    "respawnAt": null
+  }
+]
+9:55:17 [tsx] change in ./src\tick.ts Restarting...
+
+node:internal/modules/run_main:122
+    triggerUncaughtException(
+    ^
+Error [TransformError]: Transform failed with 1 error:
+C:\Users\moske\tanktaktix\server\src\tick.ts:295:0: ERROR: Unexpected "}"
+    at failureErrorWithLog (C:\Users\moske\tanktaktix\node_modules\esbuild\lib\main.js:1476:15)
+    at C:\Users\moske\tanktaktix\node_modules\esbuild\lib\main.js:755:50
+    at responseCallbacks.<computed> (C:\Users\moske\tanktaktix\node_modules\esbuild\lib\main.js:622:9)
+    at handleIncomingPacket (C:\Users\moske\tanktaktix\node_modules\esbuild\lib\main.js:677:12)
+    at Socket.readFromStdout (C:\Users\moske\tanktaktix\node_modules\esbuild\lib\main.js:600:7)
+    at Socket.emit (node:events:518:28)
+    at addChunk (node:internal/streams/readable:561:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
+    at Readable.push (node:internal/streams/readable:392:5)
+    at Pipe.onStreamRead (node:internal/stream_base_commons:189:23)
+
+Node.js v22.14.0
+c9:55:46 [tsx] change in ./src\tick.ts Rerunning...
+
+node:internal/modules/run_main:122
+    triggerUncaughtException(
+    ^
+Error [TransformError]: Transform failed with 1 error:
+C:\Users\moske\tanktaktix\server\src\tick.ts:310:10: ERROR: Unexpected "else"
+    at failureErrorWithLog (C:\Users\moske\tanktaktix\node_modules\esbuild\lib\main.js:1476:15)
+    at C:\Users\moske\tanktaktix\node_modules\esbuild\lib\main.js:755:50
+    at responseCallbacks.<computed> (C:\Users\moske\tanktaktix\node_modules\esbuild\lib\main.js:622:9)
+    at handleIncomingPacket (C:\Users\moske\tanktaktix\node_modules\esbuild\lib\main.js:677:12)
+    at Socket.readFromStdout (C:\Users\moske\tanktaktix\node_modules\esbuild\lib\main.js:600:7)
+    at Socket.emit (node:events:518:28)
+    at addChunk (node:internal/streams/readable:561:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
+    at Readable.push (node:internal/streams/readable:392:5)
+    at Pipe.onStreamRead (node:internal/stream_base_commons:189:23)
+
+Node.js v22.14.0
+c9:56:30 [tsx] change in ./src\tick.ts Rerunning...
+cServer running on http://0.0.0.0:3000
+[DEBUG] Initialized 12 items for room 5742
+Room 5742 is empty but kept because time remains.
+[DEBUG] GameEnd Room 5742.Winner: draw 
+[DEBUG] Results Payload:  [
+  {
+    "id": "3f7af8c6-d6d3-431f-b7da-bf0136aed0df",
+    "name": "TestPlayer",
+    "team": "red",
+    "roomId": "5742",
+    "position": {
+      "x": 0,
+      "y": 0
+    },
+    "target": null,
+    "moveQueue": [],
+    "hp": 0,
+    "ammo": 0,
+    "score": 0,
+    "deaths": 0,
+    "kills": 0,
+    "hits": 0,
+    "fired": 3,
+    "nextActionAt": 0,
+    "actionLockStep": 0,
+    "hullAngle": 0,
+    "turretAngle": 0,
+    "respawnAt": null
+  }
+]
+[DEBUG] Player 3f7af8c6-d6d3-431f-b7da-bf0136aed0df socket closed.Waiting for rejoin...
+[DEBUG] Player 3f7af8c6-d6d3-431f-b7da-bf0136aed0df reconnection timeout.Cleaning up.
+Room 5742 deleted(empty & time up).
+10:37:55 [tsx] change in ./src\room.ts Restarting...
+cServer running on http://0.0.0.0:3000
+10:38:28 [tsx] change in ./src\tick.ts Restarting...
+cServer running on http://0.0.0.0:3000
+10:38:29 [tsx] change in ./src\systems\projectiles.ts Restarting...
+cServer running on http://0.0.0.0:3000
+10:38:49 [tsx] change in ./src\tick.ts Restarting...
+Uncaught Exception: Error: listen EADDRINUSE: address already in use 0.0.0.0:3000
+    at Server.setupListenHandle [as _listen2] (node:net:1937:16)
+    at listenInCluster (node:net:1994:12)
+    at node:net:2203:7
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  code: 'EADDRINUSE',
+  errno: -4091,
+  syscall: 'listen',
+  address: '0.0.0.0',
+  port: 3000
+}
+c10:38:50 [tsx] change in ./src\systems\projectiles.ts Restarting...
+cServer running on http://0.0.0.0:3000
+10:39:25 [tsx] change in ./src\systems\combat.ts Restarting...
+Uncaught Exception: Error: listen EADDRINUSE: address already in use 0.0.0.0:3000
+    at Server.setupListenHandle [as _listen2] (node:net:1937:16)
+    at listenInCluster (node:net:1994:12)
+    at node:net:2203:7
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  code: 'EADDRINUSE',
+  errno: -4091,
+  syscall: 'listen',
+  address: '0.0.0.0',
+  port: 3000
+}
+c10:44:03 [tsx] change in ./src\systems\combat.ts Restarting...
+Uncaught Exception: Error: listen EADDRINUSE: address already in use 0.0.0.0:3000
+    at Server.setupListenHandle [as _listen2] (node:net:1937:16)
+    at listenInCluster (node:net:1994:12)
+    at node:net:2203:7
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  code: 'EADDRINUSE',
+  errno: -4091,
+  syscall: 'listen',
+  address: '0.0.0.0',
+  port: 3000
+}
+c10:46:34 [tsx] change in ./..\shared\dist\index.js Restarting...
+Uncaught Exception: Error: listen EADDRINUSE: address already in use 0.0.0.0:3000
+    at Server.setupListenHandle [as _listen2] (node:net:1937:16)
+    at listenInCluster (node:net:1994:12)
+    at node:net:2203:7
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  code: 'EADDRINUSE',
+  errno: -4091,
+  syscall: 'listen',
+  address: '0.0.0.0',
+  port: 3000
+}
+c
