@@ -16,7 +16,7 @@ export type PlayerRuntime = {
   lobbyId: string;
   aimDir: Vector2;
   pendingMove: Vector2 | null;
-  moveQueue: { x: number; y: number; cost: number }[];
+  moveQueue: { x: number; y: number; startX: number; startY: number }[];
   hullAngle: number;
   turretAngle: number;
   isRotating: boolean;
@@ -35,6 +35,7 @@ export type PlayerRuntime = {
   bootsCharges: number;
   socket: WebSocket | null;
   disconnectedAt: number | null;
+  ping: number;
 };
 
 export type Bullet = {

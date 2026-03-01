@@ -30,7 +30,7 @@ export const state = {
   teamScores: { red: 0, blue: 0 } as { red: number; blue: number },
   camera: { x: 0, y: 0, zoom: 1, rotation: 0 },
   lobbyChat: [] as { from: string; message: string }[],
-  onlinePlayers: [] as { id: string; name: string }[],
+  onlinePlayers: [] as { id: string; name: string; ping?: number }[],
   items: [] as Item[],
   flags: [] as Flag[],
   isSpectator: false,

@@ -2,21 +2,35 @@ import { state } from "../state.js";
 
 export const drawWorld = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = "#e8e0d4";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
   ctx.save();
   ctx.translate(canvas.width / 2, canvas.height / 2);
   ctx.rotate(state.camera.rotation);
   ctx.scale(state.camera.zoom, state.camera.zoom);
   ctx.translate(-state.camera.x - state.mapSize.width / 2, -state.camera.y - state.mapSize.height / 2);
 
+  // マップ外（画面全体）の背景として、カメラから見える最大範囲を十分覆う巨大な矩形を描画
+  const overdraw = 3000;
+  ctx.fillStyle = "#a89f91";
+  ctx.fillRect(-overdraw, -overdraw, state.mapSize.width + overdraw * 2, state.mapSize.height + overdraw * 2);
+
+  // マップ内の背景色
+  ctx.fillStyle = "#e8e0d4";
+  ctx.fillRect(0, 0, state.mapSize.width, state.mapSize.height);
+
+  // グリッド線
   ctx.strokeStyle = "rgba(160, 130, 80, 0.08)";
-  for (let x = 0; x < state.mapSize.width; x += 60) {
+  for (let x = 0; x <= state.mapSize.width; x += 60) {
     ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, state.mapSize.height); ctx.stroke();
   }
-  for (let y = 0; y < state.mapSize.height; y += 60) {
+  for (let y = 0; y <= state.mapSize.height; y += 60) {
     ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(state.mapSize.width, y); ctx.stroke();
   }
+
+  // マップの境界枠
+  ctx.strokeStyle = "#8a7a68";
+  ctx.lineWidth = 4;
+  ctx.strokeRect(0, 0, state.mapSize.width, state.mapSize.height);
 
   if (state.mapData && state.mapData.walls) {
     for (const w of state.mapData.walls) {

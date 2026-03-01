@@ -28,10 +28,10 @@ export function toPlayerPublic(p: PlayerRuntime) {
     deaths: p.deaths,
     hits: p.hits,
     fired: p.fired,
-    isHidden: p.isHidden,
     hasBomb: p.hasBomb,
     ropeCount: p.ropeCount,
     bootsCharges: p.bootsCharges,
+    ping: p.ping,
   };
 }
 
@@ -64,7 +64,7 @@ export function toRoomSummary(r: Room) {
 export function lobbyStatePayload(lobbyId: string) {
   const list = [...rooms.values()].filter(r => !r.ended && r.lobbyId === lobbyId).map(toRoomSummary);
   list.sort((a, b) => b.createdAt - a.createdAt);
-  const onlinePlayers = [...players.values()].filter(p => !p.roomId && p.lobbyId === lobbyId && p.disconnectedAt === null).map(p => ({ id: p.id, name: p.name }));
+  const onlinePlayers = [...players.values()].filter(p => !p.roomId && p.lobbyId === lobbyId && p.disconnectedAt === null).map(p => ({ id: p.id, name: p.name, ping: p.ping }));
   return { rooms: list, onlinePlayers, currentLobbyId: lobbyId, availableLobbies: AVAILABLE_LOBBIES };
 }
 

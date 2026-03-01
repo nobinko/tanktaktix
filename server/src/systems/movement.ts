@@ -35,10 +35,8 @@ export function setMoveTarget(p: PlayerRuntime, target: Vector2, mapW: number, m
   const clamped = { x: clamp(finalTarget.x, 0, mapW), y: clamp(finalTarget.y, 0, mapH) };
   const fdx = clamped.x - origin.x;
   const fdy = clamped.y - origin.y;
-  const fdist = Math.hypot(fdx, fdy);
-  const cost = fdist > COOLDOWN_THRESHOLD ? COOLDOWN_LONG_MS : COOLDOWN_SHORT_MS;
   if (p.moveQueue.length >= MOVE_QUEUE_MAX) return;
-  p.moveQueue.push({ ...clamped, cost });
+  p.moveQueue.push({ ...clamped, startX: origin.x, startY: origin.y });
   p.isMoving = true;
 }
 
@@ -74,8 +72,8 @@ export function updateRoomMovement(room: Room, now: number) {
         const effectiveSpeed = p.bootsCharges > 0 ? MOVE_SPEED * 1.5 : MOVE_SPEED;
         if (distance <= effectiveSpeed) {
           p.x = currentTarget.x; p.y = currentTarget.y; p.moveQueue.shift(); p.isMoving = false; p.isRotating = false;
-          const applyCooldown = (dist: number) => dist >= 200 ? COOLDOWN_LONG_MS : COOLDOWN_SHORT_MS;
-          const arrivedCooldown = currentTarget.cost ?? applyCooldown(Math.hypot(currentTarget.x - p.x, currentTarget.y - p.y));
+          const movedDist = Math.hypot(p.x - currentTarget.startX, p.y - currentTarget.startY);
+          const arrivedCooldown = movedDist >= 200 ? COOLDOWN_LONG_MS : COOLDOWN_SHORT_MS;
           p.cooldownUntil = now + arrivedCooldown;
           if (p.bootsCharges > 0) p.bootsCharges--;
         } else {

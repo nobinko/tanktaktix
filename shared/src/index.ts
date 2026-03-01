@@ -61,6 +61,7 @@ export type PlayerSummary = {
   hasBomb?: boolean;
   ropeCount?: number;
   bootsCharges?: number;
+  ping?: number;
 };
 
 export type RoomSummary = {
@@ -207,6 +208,14 @@ export type ClientToServerMessage =
   | {
     type: "switchLobby";
     payload: { lobbyId: string };
+  }
+  | {
+    type: "ping";
+    payload: { timestamp: number };
+  }
+  | {
+    type: "reportPing";
+    payload: { ping: number };
   };
 
 export type ServerToClientMessage =
@@ -245,5 +254,9 @@ export type ServerToClientMessage =
       winners: Team | "draw";
       results: PlayerSummary[];
     };
+  }
+  | {
+    type: "pong";
+    payload: { timestamp: number };
   };
 

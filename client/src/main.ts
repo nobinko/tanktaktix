@@ -35,6 +35,13 @@ setInterval(() => {
   }
 }, 1000);
 
+// Ping measurement (every 10 seconds)
+setInterval(() => {
+  if (state.selfId) {
+    sendWsMessage({ type: "ping", payload: { timestamp: Date.now() } });
+  }
+}, 10000);
+
 const chatInput = dom.chatInput();
 const getSelf = () => state.players.find((p) => p.id === state.selfId);
 
@@ -46,7 +53,8 @@ const renderLobbyPlayers = () => {
   if (countEl) countEl.textContent = `(${state.onlinePlayers.length})`;
   state.onlinePlayers.forEach((p) => {
     const li = document.createElement("li");
-    li.textContent = p.name;
+    const pingText = p.ping != null ? `(${p.ping}ms)` : "";
+    li.innerHTML = `<span class="lp-name">${p.name}</span><span class="lp-ping"> ${pingText}</span>`;
     list.appendChild(li);
   });
 };

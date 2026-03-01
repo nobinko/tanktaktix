@@ -3,6 +3,7 @@
 ## Current Project Status (2026-03-01)
 **State:** Phase 1, 2, 3, 4 COMPLETE. Phase 5 IN PROGRESS (5-1 Refinements, 5-3 Multi-lobby, 5-10 Title, 5-11 Lobby Redesign COMPLETE).
 **Latest Changes:**
+- **UI & Gameplay Polishing**: ロビーでのPing表示の追加、壁に密着した際の移動クールダウン不具合（実際の移動距離で判定）の修正、マップ外境界線の暗色化と明確化、およびブラウザ切断・更新時のルーム即時退出処理を実装完了。
 - **Phase 5-3 Multi-lobby**: ロビーを `Main Lobby` / `Sub Lobby 1` / `Sub Lobby 2` に分割。ルーム・チャット・プレイヤーリストをロビーごとに完全隔離。全遷移（参加/退出/切断/スペクター）でリスト即時同期を実装。
 **Next Action:** Continue with Phase 5 remaining features (Sound, etc.).
 

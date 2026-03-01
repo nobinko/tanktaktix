@@ -51,6 +51,7 @@ export function registerWsHandlers(wss: WebSocketServer) {
 
       socket,
       disconnectedAt: null,
+      ping: 0,
     };
 
     players.set(boundPlayerId, p);
@@ -285,6 +286,22 @@ export function registerWsHandlers(wss: WebSocketServer) {
           }
           break;
         }
+        case "ping": {
+          const pld = isRecord(payload) ? payload : {};
+          const t = pickNumber(pld.timestamp, nowMs());
+          // 往復時間(Ping)はクライアント側で計算するため、
+          // サーバーは受け取ったtをそのまま返す
+          send(socket, { type: "pong", payload: { timestamp: t } });
+          break;
+        }
+        // Client sends reportPing to update their ping value on the server
+        case "reportPing": {
+          const pld = isRecord(payload) ? payload : {};
+          const resultPing = pickNumber(pld.ping, 0);
+          player.ping = Math.max(0, resultPing);
+          if (!player.roomId) broadcastLobby(player.lobbyId); // Pingが変わったらロビー画面へ反映する
+          break;
+        }
         default: break;
       }
     });
@@ -292,11 +309,17 @@ export function registerWsHandlers(wss: WebSocketServer) {
     socket.on("close", () => {
       const p = players.get(boundPlayerId);
       if (p) {
-        console.log(`[DEBUG] Player ${boundPlayerId} socket closed. Waiting for rejoin...`);
+        console.log(`[DEBUG] Player ${boundPlayerId} socket closed. Removing from game.`);
         p.socket = null;
         p.disconnectedAt = nowMs();
+
+        const lobbyId = p.lobbyId;
+        const wasInLobby = !p.roomId;
+        detachFromRoom(p);
+        players.delete(boundPlayerId);
+
         // 元のロビーにプレイヤーが去ったことを即座に通知
-        if (!p.roomId) broadcastLobby(p.lobbyId);
+        if (wasInLobby) broadcastLobby(lobbyId);
       }
     });
   });

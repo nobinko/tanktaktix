@@ -141,6 +141,14 @@ export const handleServerMessage = (message: ServerToClientMessage, deps: Handle
       }
       break;
     }
+    case "pong": {
+      const ping = Date.now() - message.payload.timestamp;
+      // Report ping to server
+      import("./wsClient").then(({ sendWsMessage }) => {
+        sendWsMessage({ type: "reportPing", payload: { ping } });
+      });
+      break;
+    }
     default:
       break;
   }

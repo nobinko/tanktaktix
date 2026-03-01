@@ -14,18 +14,7 @@ export function tick() {
   const dtSec = Math.min(0.1, Math.max(0.001, (now - lastTickAt) / 1000));
   lastTickAt = now;
 
-  // Cleanup disconnected players (B-3)
-  for (const [pid, p] of players.entries()) {
-    if (p.disconnectedAt !== null && now - p.disconnectedAt > RECONNECT_TIMEOUT_MS) {
-      console.log(`[DEBUG] Player ${pid} reconnection timeout. Cleaning up.`);
-      const lobbyId = p.lobbyId;
-      const wasInLobby = !p.roomId;
-      detachFromRoom(p);
-      players.delete(pid);
-      // タイムアウト削除時にロビーへ通知
-      if (wasInLobby) broadcastLobby(lobbyId);
-    }
-  }
+  // Disconnected players cleanup is now handled immediately in socket.on("close")
 
   for (const room of rooms.values()) {
     // Clear old explosions for state sync (visuals are one-shot via broadcast, but state keeps for late joiners/re-sync if needed)
@@ -142,7 +131,8 @@ export function tick() {
             const applyCooldown = (dist: number) => {
               return dist >= 200 ? COOLDOWN_LONG_MS : COOLDOWN_SHORT_MS;
             };
-            const arrivedCooldown = currentTarget.cost ?? applyCooldown(Math.hypot(currentTarget.x - p.x, currentTarget.y - p.y));
+            const movedDist = Math.hypot(p.x - currentTarget.startX, p.y - currentTarget.startY);
+            const arrivedCooldown = applyCooldown(movedDist);
             p.cooldownUntil = now + arrivedCooldown;
 
             // Phase 4: consume boots charge on arrival
@@ -235,12 +225,15 @@ export function tick() {
           }
 
           if (hitItem || hitFlag) {
-            // MOVEMENT CLAMP: Stop and trigger cooldown
+            // MOVEMENT CLAMP: Stop and trigger cooldown based on actual moved distance
             p.pendingMove = null;
             let collidedCost = COOLDOWN_SHORT_MS;
             if (p.moveQueue.length > 0) {
               const currentTarget = p.moveQueue.shift();
-              if (currentTarget?.cost) collidedCost = currentTarget.cost;
+              if (currentTarget) {
+                const movedDist = Math.hypot(p.x - currentTarget.startX, p.y - currentTarget.startY);
+                collidedCost = movedDist >= 200 ? COOLDOWN_LONG_MS : COOLDOWN_SHORT_MS;
+              }
             }
             p.isMoving = false;
             p.isRotating = false;
@@ -279,12 +272,15 @@ export function tick() {
             p.isMoving = true;
           }
         } else {
-          // Hit wall or player — consume target, trigger cooldown
+          // Hit wall or player — trigger cooldown based on actual moved distance
           p.pendingMove = null;
           let collidedCost = COOLDOWN_SHORT_MS;
           if (p.moveQueue.length > 0) {
             const currentTarget = p.moveQueue.shift();
-            if (currentTarget?.cost) collidedCost = currentTarget.cost;
+            if (currentTarget) {
+              const movedDist = Math.hypot(p.x - currentTarget.startX, p.y - currentTarget.startY);
+              collidedCost = movedDist >= 200 ? COOLDOWN_LONG_MS : COOLDOWN_SHORT_MS;
+            }
           }
           p.isMoving = false;
           p.isRotating = false;
