@@ -1,5 +1,5 @@
 import type { Vector2, Explosion } from "@tanktaktix/shared";
-import { ACTION_COOLDOWN_MS, AMMO_REFILL_AMOUNT, BULLET_RADIUS, BULLET_SPEED, BULLET_TTL_MS, EXPLOSION_DAMAGE, EXPLOSION_RADIUS, HIT_RADIUS, ITEM_RADIUS, MEDIC_HEAL_AMOUNT, RESPAWN_COOLDOWN_MS, TANK_SIZE } from "../constants.js";
+import { ACTION_COOLDOWN_MS, AMMO_REFILL_AMOUNT, BULLET_RADIUS, BULLET_SPEED, BULLET_TTL_MS, EXPLOSION_DAMAGE, EXPLOSION_RADIUS, FLAG_RADIUS, HIT_RADIUS, ITEM_RADIUS, MEDIC_HEAL_AMOUNT, RESPAWN_COOLDOWN_MS, TANK_SIZE } from "../constants.js";
 import { players, rooms } from "../state.js";
 import type { Bullet, PlayerRuntime, Room } from "../types.js";
 import { broadcastRoom, sendRoomState } from "../network/broadcast.js";
@@ -107,6 +107,22 @@ export function triggerExplosion(room: Room, x: number, y: number, shooterId: st
       }
     }
   }
+
+  // 3. Item Collision / Chain Reaction
+  // We use a clone to avoid modification during iteration issues, though filter() handles it.
+  const itemsToCheck = [...room.items];
+  for (const item of itemsToCheck) {
+    const dist = Math.hypot(item.x - x, item.y - y);
+    if (dist <= explosionRadius + ITEM_RADIUS) {
+      // Remove immediately to prevent double-hits in recursion
+      room.items = room.items.filter(it => it.id !== item.id);
+      respawnItem(room, item.type);
+
+      if (item.type === "bomb") {
+        triggerExplosion(room, item.x, item.y, shooterId, true);
+      }
+    }
+  }
 }
 
 export function tryShoot(p: PlayerRuntime, dir: Vector2) {
@@ -208,9 +224,6 @@ export function tryUseItem(p: PlayerRuntime, item: string, dir: Vector2) {
     room.bullets.push(ropeBullet);
 
     p.turretAngle = Math.atan2(d.y, d.x);
-    broadcastRoom(p.roomId, {
-      type: "chat", payload: { from: "SYSTEM", message: `🔗 ${p.name} used a Rope!`, timestamp: now }
-    });
   } else if (item === "ammo" && p.ammo >= 5) {
     p.ammo -= 5;
     p.cooldownUntil = now + ACTION_COOLDOWN_MS;

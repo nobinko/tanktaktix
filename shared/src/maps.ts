@@ -68,8 +68,8 @@ export const MAP_ALPHA: MapData = {
         { team: "blue", x: 1680, y: 520 },
     ],
     flagPositions: [
-        { team: "red", x: 120, y: 520 },
-        { team: "blue", x: 1680, y: 520 },
+        { team: "red", x: 270, y: 520 },
+        { team: "blue", x: 1530, y: 520 },
     ],
 };
 
@@ -93,8 +93,8 @@ export const MAP_BETA: MapData = {
         { team: "blue", x: 1720, y: 520 },
     ],
     flagPositions: [
-        { team: "red", x: 80, y: 520 },
-        { team: "blue", x: 1720, y: 520 },
+        { team: "red", x: 230, y: 520 },
+        { team: "blue", x: 1570, y: 520 },
     ],
 };
 
@@ -118,8 +118,8 @@ export const MAP_GAMMA: MapData = {
         { team: "blue", x: 1700, y: 520 },
     ],
     flagPositions: [
-        { team: "red", x: 100, y: 520 },
-        { team: "blue", x: 1700, y: 520 },
+        { team: "red", x: 250, y: 520 },
+        { team: "blue", x: 1550, y: 520 },
     ],
 };
 
@@ -146,8 +146,8 @@ export const MAP_DELTA: MapData = {
         { team: "blue", x: 1700, y: 520 },
     ],
     flagPositions: [
-        { team: "red", x: 100, y: 520 },
-        { team: "blue", x: 1700, y: 520 },
+        { team: "red", x: 250, y: 520 },
+        { team: "blue", x: 1550, y: 520 },
     ],
 };
 
@@ -183,8 +183,8 @@ export const MAP_EPSILON: MapData = {
         { team: "blue", x: 1675, y: 520 },
     ],
     flagPositions: [
-        { team: "red", x: 100, y: 520 },
-        { team: "blue", x: 1700, y: 520 },
+        { team: "red", x: 275, y: 520 },
+        { team: "blue", x: 1525, y: 520 },
     ],
 };
 
@@ -198,8 +198,8 @@ export const MAP_TEST_S: MapData = {
         { team: "blue", x: 900, y: 500 },
     ],
     flagPositions: [
-        { team: "red", x: 100, y: 500 },
-        { team: "blue", x: 900, y: 500 },
+        { team: "red", x: 250, y: 500 },
+        { team: "blue", x: 750, y: 500 },
     ],
 };
 
@@ -213,8 +213,8 @@ export const MAP_TEST_M: MapData = {
         { team: "blue", x: 1100, y: 600 },
     ],
     flagPositions: [
-        { team: "red", x: 100, y: 600 },
-        { team: "blue", x: 1100, y: 600 },
+        { team: "red", x: 250, y: 600 },
+        { team: "blue", x: 950, y: 600 },
     ],
 };
 
@@ -228,8 +228,8 @@ export const MAP_TEST_L: MapData = {
         { team: "blue", x: 1400, y: 750 },
     ],
     flagPositions: [
-        { team: "red", x: 100, y: 750 },
-        { team: "blue", x: 1400, y: 750 },
+        { team: "red", x: 250, y: 750 },
+        { team: "blue", x: 1250, y: 750 },
     ],
 };
 
