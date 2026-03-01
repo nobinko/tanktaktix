@@ -39,10 +39,13 @@ export const createRenderer = (deps: { canvas: HTMLCanvasElement; ctx: CanvasRen
     state.camera.y += -camDx * camSin + camDy * camCos;
 
     // Clamp camera within map boundaries (account for zoom and viewport size)
+    // Add 25% margin on each side (total 50% extra freedom) as requested by the user
     const vw = canvas.width / state.camera.zoom;
     const vh = canvas.height / state.camera.zoom;
-    const limitX = Math.max(0, (state.mapSize.width - vw) / 2);
-    const limitY = Math.max(0, (state.mapSize.height - vh) / 2);
+    const marginX = vw * 0.25;
+    const marginY = vh * 0.25;
+    const limitX = Math.max(0, (state.mapSize.width - vw) / 2) + marginX;
+    const limitY = Math.max(0, (state.mapSize.height - vh) / 2) + marginY;
 
     state.camera.x = Math.max(-limitX, Math.min(limitX, state.camera.x));
     state.camera.y = Math.max(-limitY, Math.min(limitY, state.camera.y));

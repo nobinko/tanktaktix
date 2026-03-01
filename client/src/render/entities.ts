@@ -64,7 +64,7 @@ export const drawEntities = (ctx: CanvasRenderingContext2D) => {
       if (bAny.isHealPass) { ctx.translate(b.position.x, b.position.y); ctx.rotate(-state.camera.rotation); drawItemSprite(ctx, "medic"); ctx.restore(); continue; }
       if (bAny.isFlagPass) { ctx.translate(b.position.x, b.position.y); ctx.rotate(-state.camera.rotation); drawFlagSprite(ctx, bAny.flagTeam || "red"); ctx.restore(); continue; }
 
-      ctx.fillStyle = bAny.isBomb ? "#c44040" : "#c4843a";
+      ctx.fillStyle = bAny.isBomb ? "#000000" : "#c4843a";
       ctx.beginPath(); ctx.arc(b.position.x, b.position.y, b.radius, 0, Math.PI * 2); ctx.fill();
       ctx.restore();
     }

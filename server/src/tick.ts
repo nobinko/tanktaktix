@@ -1,7 +1,7 @@
 import type { Item, ItemType } from "@tanktaktix/shared";
-import { ACTION_COOLDOWN_MS, AMMO_REFILL_AMOUNT, COOLDOWN_LONG_MS, COOLDOWN_SHORT_MS, HULL_ROTATION_SPEED, ITEM_RADIUS, MEDIC_HEAL_AMOUNT, MOVE_SPEED, RECONNECT_TIMEOUT_MS, RESPAWN_MS, TANK_SIZE, TURRET_ROTATION_SPEED } from "./constants.js";
+import { ACTION_COOLDOWN_MS, AMMO_REFILL_AMOUNT, COOLDOWN_LONG_MS, COOLDOWN_SHORT_MS, FLAG_RADIUS, HULL_ROTATION_SPEED, ITEM_RADIUS, MEDIC_HEAL_AMOUNT, MOVE_SPEED, RECONNECT_TIMEOUT_MS, RESPAWN_MS, TANK_SIZE, TURRET_ROTATION_SPEED } from "./constants.js";
 import { players, rooms } from "./state.js";
-import { detachFromRoom, respawnItem, spawnPlayer } from "./room.js";
+import { applyItemEffect, canPlayerPickupItem, detachFromRoom, respawnItem, spawnPlayer } from "./room.js";
 import { broadcastRoom, sendRoomState } from "./network/broadcast.js";
 import { updateBullets } from "./systems/projectiles.js";
 import { updateCTF } from "./systems/ctf.js";
@@ -206,29 +206,70 @@ export function tick() {
         }
 
         if (!hitWall && !hitPlayer) {
-          let hitOwnDroppedFlag = false;
-          if (room.gameMode === "ctf") {
+          let hitItem: Item | null = null;
+          let hitFlag: any | null = null;
+
+          // 1. Check Item Collision
+          for (const item of room.items) {
+            if (Math.hypot(nextX - item.x, nextY - item.y) < TANK_SIZE + ITEM_RADIUS) {
+              hitItem = item;
+              break;
+            }
+          }
+
+          // 2. Check Flag Collision
+          if (!hitItem && room.gameMode === "ctf") {
             for (const f of room.flags) {
-              if (f.droppedById === p.id && Math.hypot(nextX - f.x, nextY - f.y) < 25 + TANK_SIZE) {
-                hitOwnDroppedFlag = true;
-                f.carrierId = p.id;
-                f.droppedById = undefined;
-                broadcastRoom(room.id, {
-                  type: "chat", payload: { from: "SYSTEM", message: `🚩 ${p.name} picked up the ${f.team} flag!`, timestamp: now }
-                });
+              // Ignore if already carried
+              if (f.carrierId) continue;
+              // Check hit
+              if (Math.hypot(nextX - f.x, nextY - f.y) < TANK_SIZE + FLAG_RADIUS) {
+                hitFlag = f;
                 break;
               }
             }
           }
 
-          if (hitOwnDroppedFlag) {
-            // Cancel movement and trigger cooldown as per standstill flag pickup rule
+          if (hitItem || hitFlag) {
+            // MOVEMENT CLAMP: Stop and trigger cooldown
             p.pendingMove = null;
-            if (p.moveQueue.length > 0) p.moveQueue.shift();
+            let collidedCost = COOLDOWN_SHORT_MS;
+            if (p.moveQueue.length > 0) {
+              const currentTarget = p.moveQueue.shift();
+              if (currentTarget?.cost) collidedCost = currentTarget.cost;
+            }
             p.isMoving = false;
             p.isRotating = false;
-            p.cooldownUntil = now + Math.min(ACTION_COOLDOWN_MS, 300);
+            p.cooldownUntil = now + collidedCost;
+
+            // Trigger Pickup Logic
+            if (hitItem) {
+              if (canPlayerPickupItem(p, hitItem.type)) {
+                applyItemEffect(p, hitItem, room);
+              }
+            } else if (hitFlag) {
+              // Flag Pickup Logic
+              if (p.team !== hitFlag.team) {
+                // Enemy flag pickup
+                const alreadyCarrying = room.flags.some(otherF => otherF.carrierId === p.id);
+                if (!alreadyCarrying) {
+                  hitFlag.carrierId = p.id;
+                  hitFlag.droppedById = undefined;
+                  broadcastRoom(room.id, {
+                    type: "chat", payload: { from: "SYSTEM", message: `🚩 ${p.name} picked up the ${hitFlag.team} flag!`, timestamp: now }
+                  });
+                }
+              } else if (hitFlag.droppedById === p.id) {
+                // Own dropped flag recovery
+                hitFlag.carrierId = p.id;
+                hitFlag.droppedById = undefined;
+                broadcastRoom(room.id, {
+                  type: "chat", payload: { from: "SYSTEM", message: `🚩 ${p.name} recovered the ${hitFlag.team} flag!`, timestamp: now }
+                });
+              }
+            }
           } else {
+            // Normal movement
             p.x = nextX;
             p.y = nextY;
             p.isMoving = true;
@@ -246,60 +287,7 @@ export function tick() {
           p.cooldownUntil = now + collidedCost;
         }
       }
-
-      // Check Item Pickups (Phase 4-1/4-3/4-4)
-      if (!room.ended && p.hp > 0 && !p.respawnAt) {
-        const nextItems: Item[] = [];
-        const pickedTypes: ItemType[] = [];
-        for (const item of room.items) {
-          const dist = Math.hypot(p.x - item.x, p.y - item.y);
-          if (dist < TANK_SIZE + ITEM_RADIUS) {
-            // Phase 4-3: Check pickup limits before applying
-            let canPickup = true;
-            if (item.type === "medic" || item.type === "heart") {
-              if (p.hp >= 100) canPickup = false; // HP full → cannot pick
-            } else if (item.type === "ammo") {
-              if (p.ammo >= 40) canPickup = false; // Ammo full → cannot pick
-            } else if (item.type === "bomb") {
-              if (p.hasBomb) canPickup = false; // Already has bomb
-            } else if (item.type === "rope") {
-              if (p.ropeCount >= 2) canPickup = false; // Max 2 ropes
-            } else if (item.type === "boots") {
-              if (p.bootsCharges > 0) canPickup = false; // Already has boots
-            }
-
-            if (canPickup) {
-              // Phase 4-4: Apply effects
-              if (item.type === "medic") {
-                p.hp = Math.min(100, p.hp + MEDIC_HEAL_AMOUNT);
-              } else if (item.type === "ammo") {
-                p.ammo = Math.min(40, p.ammo + AMMO_REFILL_AMOUNT);
-              } else if (item.type === "heart") {
-                p.hp = 100; // Full heal
-              } else if (item.type === "bomb") {
-                p.hasBomb = true; // Next shot is bomb shot
-              } else if (item.type === "rope") {
-                p.ropeCount = Math.min(2, p.ropeCount + 1);
-              } else if (item.type === "boots") {
-                p.bootsCharges = 3; // 3 move arrivals
-              }
-              pickedTypes.push(item.type);
-            } else {
-              nextItems.push(item); // Cannot pick → keep item
-            }
-          } else {
-            nextItems.push(item);
-          }
-        }
-        if (pickedTypes.length > 0) {
-          room.items = nextItems;
-          // Respawn same types at new random locations
-          for (const t of pickedTypes) {
-            respawnItem(room, t);
-          }
-        }
-      }
-    }
+    } // This closes the `for (const pid of room.playerIds)` loop at line 91.
 
     if (room.gameMode === "ctf") {
       updateCTF(room, now);

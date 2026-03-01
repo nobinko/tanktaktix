@@ -87,32 +87,6 @@ export function updateCTF(room: Room, now: number) {
         }
       }
 
-      // 2. Pickup (Enemy taking flag from base)
-      for (const pid of room.playerIds) {
-        const p = players.get(pid);
-        if (!p || p.hp <= 0 || p.respawnAt || p.respawnCooldownUntil > now) continue;
-
-        const dist = Math.hypot(p.x - f.x, p.y - f.y);
-
-        if (dist < FLAG_RADIUS + TANK_SIZE) {
-          if (p.team !== f.team) {
-            // Enemy touches flag -> Take it
-            const alreadyCarrying = room.flags.some(otherF => otherF.carrierId === p.id);
-            if (!alreadyCarrying) {
-              f.carrierId = p.id;
-              console.log(`[DEBUG] CTF Pickup! Player ${p.id} (${p.team}) took ${f.team} flag.`);
-              broadcastRoom(room.id, {
-                type: "chat",
-                payload: {
-                  from: "SYSTEM",
-                  message: `🚩 ${p.name} has the ${f.team} flag!`,
-                  timestamp: now
-                }
-              });
-            }
-          }
-        }
-      }
     }
   }
 }

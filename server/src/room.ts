@@ -124,6 +124,34 @@ export function initializeItems(room: Room) {
   console.log(`[DEBUG] Initialized ${room.items.length} items for room ${room.id}`);
 }
 
+export function canPlayerPickupItem(p: PlayerRuntime, type: ItemType): boolean {
+  if (type === "medic" || type === "heart") {
+    if (p.hp >= 100) return false;
+  } else if (type === "ammo") {
+    if (p.ammo >= 40) return false;
+  } else if (type === "bomb") {
+    if (p.hasBomb) return false;
+  } else if (type === "rope") {
+    if (p.ropeCount >= 2) return false;
+  } else if (type === "boots") {
+    if (p.bootsCharges > 0) return false;
+  }
+  return true;
+}
+
+export function applyItemEffect(p: PlayerRuntime, item: Item, room: Room) {
+  if (item.type === "medic") p.hp = Math.min(100, p.hp + MEDIC_HEAL_AMOUNT);
+  else if (item.type === "ammo") p.ammo = Math.min(40, p.ammo + AMMO_REFILL_AMOUNT);
+  else if (item.type === "heart") p.hp = 100;
+  else if (item.type === "bomb") p.hasBomb = true;
+  else if (item.type === "rope") p.ropeCount = Math.min(2, p.ropeCount + 1);
+  else if (item.type === "boots") p.bootsCharges = 3;
+
+  // Remove and Respawn
+  room.items = room.items.filter(it => it.id !== item.id);
+  respawnItem(room, item.type);
+}
+
 export function respawnItem(room: Room, type: ItemType) {
   const pos = findRandomItemPosition(room.mapData);
   if (pos) room.items.push({ id: newId(), x: pos.x, y: pos.y, type, spawnedAt: nowMs() });
