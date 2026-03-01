@@ -79,11 +79,14 @@ export type RoomSummary = {
   players: string[];
   playerCount: number;
   spectatorCount?: number; // Number of spectators watching
+  lobbyId: string;
 };
 
 export type LobbyState = {
   rooms: RoomSummary[];
   onlinePlayers: { id: string; name: string }[];
+  currentLobbyId: string;
+  availableLobbies: string[];
 };
 
 export type Explosion = {
@@ -199,6 +202,10 @@ export type ClientToServerMessage =
   | {
     type: "aim"; // Update turret aim direction (during AIM mode)
     payload: { direction: Vector2 };
+  }
+  | {
+    type: "switchLobby";
+    payload: { lobbyId: string };
   };
 
 export type ServerToClientMessage =

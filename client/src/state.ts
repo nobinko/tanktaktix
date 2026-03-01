@@ -40,6 +40,8 @@ export const state = {
   particles: [] as { x: number; y: number; vx: number; vy: number; life: number; maxLife: number; color: string }[],
   leavingRoomId: "",
   mapSize: { width: 1800, height: 1040 },
+  lobbyId: "",
+  availableLobbies: [] as string[],
 };
 
 export const keysDown = new Set<string>();

@@ -1,5 +1,5 @@
 import type { BulletPublic } from "@tanktaktix/shared";
-import { ACTION_LOCK_STEP_MS } from "../constants.js";
+import { ACTION_LOCK_STEP_MS, AVAILABLE_LOBBIES } from "../constants.js";
 import { nowMs } from "../utils/math.js";
 import { players, rooms, send } from "../state.js";
 import type { Bullet, PlayerRuntime, Room, ServerMsg } from "../types.js";
@@ -56,14 +56,14 @@ function toBulletPublic(b: Bullet): BulletPublic {
 
 export function toRoomSummary(r: Room) {
   const playerIds = [...r.playerIds];
-  return { id: r.id, name: r.name, roomName: r.name, mapId: r.mapId, mapData: r.mapData, passwordProtected: r.passwordProtected, maxPlayers: r.maxPlayers, timeLimitSec: r.timeLimitSec, createdAt: r.createdAt, endsAt: r.endsAt, ended: r.ended, gameMode: r.gameMode, players: playerIds, playerCount: playerIds.length, spectatorCount: r.spectatorIds.size };
+  return { id: r.id, name: r.name, roomName: r.name, mapId: r.mapId, mapData: r.mapData, passwordProtected: r.passwordProtected, maxPlayers: r.maxPlayers, timeLimitSec: r.timeLimitSec, createdAt: r.createdAt, endsAt: r.endsAt, ended: r.ended, gameMode: r.gameMode, players: playerIds, playerCount: playerIds.length, spectatorCount: r.spectatorIds.size, lobbyId: r.lobbyId };
 }
 
-export function lobbyStatePayload() {
-  const list = [...rooms.values()].filter(r => !r.ended).map(toRoomSummary);
+export function lobbyStatePayload(lobbyId: string) {
+  const list = [...rooms.values()].filter(r => !r.ended && r.lobbyId === lobbyId).map(toRoomSummary);
   list.sort((a, b) => b.createdAt - a.createdAt);
-  const onlinePlayers = [...players.values()].filter(p => !p.roomId).map(p => ({ id: p.id, name: p.name }));
-  return { rooms: list, onlinePlayers };
+  const onlinePlayers = [...players.values()].filter(p => !p.roomId && p.lobbyId === lobbyId && p.disconnectedAt === null).map(p => ({ id: p.id, name: p.name }));
+  return { rooms: list, onlinePlayers, currentLobbyId: lobbyId, availableLobbies: AVAILABLE_LOBBIES };
 }
 
 export function roomStatePayloadForPlayer(roomId: string, recipient: PlayerRuntime) {
@@ -84,9 +84,9 @@ export function roomStatePayloadForSpectator(roomId: string) {
   return { roomId: room.id, roomName: room.name, mapId: room.mapId, room: toRoomSummary(room), timeLeftSec, players: ps, bullets: bs, projectiles: bs, explosions: room.explosions, gameMode: room.gameMode, teamScores: { red: room.scoreRed, blue: room.scoreBlue }, mapData: room.mapData, flags: room.gameMode === "ctf" ? room.flags : undefined, items: room.items };
 }
 
-export function broadcastLobby() {
-  const payload = lobbyStatePayload();
-  for (const p of players.values()) if (p.roomId === null) send(p.socket, { type: "lobby", payload });
+export function broadcastLobby(lobbyId: string) {
+  const payload = lobbyStatePayload(lobbyId);
+  for (const p of players.values()) if (p.roomId === null && p.lobbyId === lobbyId) send(p.socket, { type: "lobby", payload });
 }
 
 export function broadcastRoom(roomId: string, msg: ServerMsg) {

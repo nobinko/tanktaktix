@@ -39,3 +39,4 @@ export const MAX_MOVE_DIST = 300;
 export const COOLDOWN_THRESHOLD = 200;
 export const COOLDOWN_SHORT_MS = 1500;
 export const COOLDOWN_LONG_MS = 2100;
+export const AVAILABLE_LOBBIES = ["Main Lobby", "Sub Lobby 1", "Sub Lobby 2"];

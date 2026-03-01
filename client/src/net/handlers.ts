@@ -20,9 +20,25 @@ export const handleServerMessage = (message: ServerToClientMessage, deps: Handle
       break;
     case "lobby":
       if (state.phase === "room") break;
+      {
+        const newLobbyId = (message.payload as any).currentLobbyId;
+        if (newLobbyId && newLobbyId !== state.lobbyId) {
+          // ロビーが変わったらチャット履歴をクリアしてUIも更新
+          state.lobbyChat = [];
+          deps.renderLobbyChat();
+        }
+        state.lobbyId = newLobbyId;
+        // ヘッダーのロビー名を常に最新にする
+        const headerEl = document.querySelector("#lobby-header") as HTMLElement;
+        if (headerEl && newLobbyId) headerEl.textContent = newLobbyId;
+        // ドロップダウンの選択値も同期
+        const sel = document.querySelector("#lobby-select") as HTMLSelectElement;
+        if (sel && newLobbyId) sel.value = newLobbyId;
+      }
       state.rooms = message.payload.rooms;
-      if ((message.payload as any).onlinePlayers) {
-        state.onlinePlayers = (message.payload as any).onlinePlayers;
+      state.availableLobbies = (message.payload as any).availableLobbies;
+      if (message.payload.onlinePlayers) {
+        state.onlinePlayers = message.payload.onlinePlayers;
         deps.renderLobbyPlayers();
       }
       deps.renderRooms();

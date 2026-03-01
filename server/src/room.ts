@@ -30,12 +30,20 @@ export function detachFromRoom(p: PlayerRuntime) {
   p.cooldownUntil = 0;
   p.respawnCooldownUntil = 0;
   sendRoomState(oldRoomId);
+  const oldLobbyId = p.lobbyId;
+  broadcastLobby(oldLobbyId);
 }
 
-export function joinLobby(p: PlayerRuntime) {
+export function joinLobby(p: PlayerRuntime, lobbyId?: string) {
+  const oldLobbyId = p.lobbyId;
+  if (lobbyId) p.lobbyId = lobbyId;
   detachFromRoom(p);
-  send(p.socket, { type: "lobby", payload: lobbyStatePayload() });
-  broadcastLobby();
+  // 元のロビーに「このプレイヤーが去った」を通知
+  if (oldLobbyId && oldLobbyId !== p.lobbyId) {
+    broadcastLobby(oldLobbyId);
+  }
+  send(p.socket, { type: "lobby", payload: lobbyStatePayload(p.lobbyId) });
+  broadcastLobby(p.lobbyId);
 }
 
 export function assignTeam(room: Room): Team {
@@ -171,19 +179,19 @@ export function joinRoom(p: PlayerRuntime, roomId: string, password?: string) {
   spawnPlayer(p, room);
   p.score = 0; p.kills = 0; p.deaths = 0; p.hits = 0; p.fired = 0;
   sendRoomState(roomId);
-  broadcastLobby();
+  broadcastLobby(room.lobbyId);
 }
 
 import { MAPS } from "@tanktaktix/shared";
 
-export function createRoom(roomData: { roomName: string; roomId: string; mapId: string; passwordProtected: boolean; password?: string; maxPlayers: number; timeLimitSec: number; gameMode: "deathmatch" | "ctf"; }) {
+export function createRoom(roomData: { roomName: string; roomId: string; mapId: string; passwordProtected: boolean; password?: string; maxPlayers: number; timeLimitSec: number; gameMode: "deathmatch" | "ctf"; lobbyId: string; }) {
   const createdAt = nowMs();
   const endsAt = createdAt + roomData.timeLimitSec * 1000;
   const mapData = MAPS[roomData.mapId] || DEFAULT_MAP;
   const flagSrc = mapData.flagPositions ?? mapData.spawnPoints;
   const flags = roomData.gameMode === "ctf" ? [{ team: "red" as const, x: flagSrc.find(s => s.team === "red")?.x ?? 100, y: flagSrc.find(s => s.team === "red")?.y ?? 100, carrierId: null }, { team: "blue" as const, x: flagSrc.find(s => s.team === "blue")?.x ?? 1700, y: flagSrc.find(s => s.team === "blue")?.y ?? 900, carrierId: null }] : [];
-  const room: Room = { id: roomData.roomId, name: roomData.roomName, mapId: roomData.mapId, mapData, passwordProtected: roomData.passwordProtected, password: roomData.password, maxPlayers: roomData.maxPlayers, timeLimitSec: roomData.timeLimitSec, createdAt, endsAt, ended: false, gameMode: roomData.gameMode, playerIds: new Set(), spectatorIds: new Set(), bullets: [], explosions: [], items: [], lastItemSpawnAt: createdAt, flags, scoreRed: 0, scoreBlue: 0, history: new Map() };
+  const room: Room = { id: roomData.roomId, name: roomData.roomName, mapId: roomData.mapId, mapData, lobbyId: roomData.lobbyId, passwordProtected: roomData.passwordProtected, password: roomData.password, maxPlayers: roomData.maxPlayers, timeLimitSec: roomData.timeLimitSec, createdAt, endsAt, ended: false, gameMode: roomData.gameMode, playerIds: new Set(), spectatorIds: new Set(), bullets: [], explosions: [], items: [], lastItemSpawnAt: createdAt, flags, scoreRed: 0, scoreBlue: 0, history: new Map() };
   rooms.set(roomData.roomId, room);
   initializeItems(room);
-  broadcastLobby();
+  broadcastLobby(room.lobbyId);
 }

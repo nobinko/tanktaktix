@@ -2,7 +2,7 @@ import type { Item, ItemType } from "@tanktaktix/shared";
 import { ACTION_COOLDOWN_MS, AMMO_REFILL_AMOUNT, COOLDOWN_LONG_MS, COOLDOWN_SHORT_MS, FLAG_RADIUS, HULL_ROTATION_SPEED, ITEM_RADIUS, MEDIC_HEAL_AMOUNT, MOVE_SPEED, RECONNECT_TIMEOUT_MS, RESPAWN_MS, TANK_SIZE, TURRET_ROTATION_SPEED } from "./constants.js";
 import { players, rooms } from "./state.js";
 import { applyItemEffect, canPlayerPickupItem, detachFromRoom, respawnItem, spawnPlayer } from "./room.js";
-import { broadcastRoom, sendRoomState } from "./network/broadcast.js";
+import { broadcastLobby, broadcastRoom, sendRoomState } from "./network/broadcast.js";
 import { updateBullets } from "./systems/projectiles.js";
 import { updateCTF } from "./systems/ctf.js";
 import { clamp, len, norm, normalizeAngle, nowMs } from "./utils/math.js";
@@ -17,9 +17,13 @@ export function tick() {
   // Cleanup disconnected players (B-3)
   for (const [pid, p] of players.entries()) {
     if (p.disconnectedAt !== null && now - p.disconnectedAt > RECONNECT_TIMEOUT_MS) {
-      console.log(`[DEBUG] Player ${pid} reconnection timeout.Cleaning up.`);
+      console.log(`[DEBUG] Player ${pid} reconnection timeout. Cleaning up.`);
+      const lobbyId = p.lobbyId;
+      const wasInLobby = !p.roomId;
       detachFromRoom(p);
       players.delete(pid);
+      // タイムアウト削除時にロビーへ通知
+      if (wasInLobby) broadcastLobby(lobbyId);
     }
   }
 

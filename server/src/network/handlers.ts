@@ -1,9 +1,9 @@
 import { WebSocketServer } from "ws";
 import type { Vector2 } from "@tanktaktix/shared";
-import { clamp } from "../utils/math.js";
+import { AVAILABLE_LOBBIES } from "../constants.js";
 import { players, rooms, send } from "../state.js";
 import type { ClientMsg, PlayerRuntime } from "../types.js";
-import { nowMs } from "../utils/math.js";
+import { clamp, nowMs } from "../utils/math.js";
 import { newId } from "../utils/id.js";
 import { createRoom, detachFromRoom, joinLobby, joinRoom } from "../room.js";
 import { broadcastLobby, broadcastRoom, lobbyStatePayload, roomStatePayloadForSpectator, sendRoomState } from "./broadcast.js";
@@ -36,6 +36,7 @@ export function registerWsHandlers(wss: WebSocketServer) {
       score: 0, kills: 0, deaths: 0, hits: 0, fired: 0,
 
       roomId: null,
+      lobbyId: AVAILABLE_LOBBIES[0],
       aimDir: { x: 1, y: 0 },
       pendingMove: null, moveQueue: [],
       hullAngle: 0, turretAngle: 0, isRotating: false,
@@ -54,7 +55,7 @@ export function registerWsHandlers(wss: WebSocketServer) {
 
     players.set(boundPlayerId, p);
     send(socket, { type: "welcome", payload: { id: boundPlayerId } });
-    send(socket, { type: "lobby", payload: lobbyStatePayload() });
+    send(socket, { type: "lobby", payload: lobbyStatePayload(p.lobbyId) });
 
     socket.on("message", (raw) => {
       const msg = safeJsonParse(raw.toString());
@@ -91,8 +92,8 @@ export function registerWsHandlers(wss: WebSocketServer) {
               if (reclaimedPlayer.roomId) {
                 sendRoomState(reclaimedPlayer.roomId);
               } else {
-                joinLobby(reclaimedPlayer);
-                broadcastLobby(); // Ensure everyone sees the updated name
+                joinLobby(reclaimedPlayer, reclaimedPlayer.lobbyId);
+                broadcastLobby(reclaimedPlayer.lobbyId); // Ensure everyone sees the updated name
               }
               return; // Exit wss.on('message') early as we swapped players
             }
@@ -100,12 +101,12 @@ export function registerWsHandlers(wss: WebSocketServer) {
 
           if (name) player.name = name.slice(0, 16);
           send(socket, { type: "welcome", payload: { id: boundPlayerId } });
-          joinLobby(player); // Trigger lobby update and broadcast
-          broadcastLobby(); // Ensure everyone sees the updated name
+          joinLobby(player, player.lobbyId); // Trigger lobby update and broadcast
+          broadcastLobby(player.lobbyId); // Ensure everyone sees the updated name
           break;
         }
         case "requestLobby": {
-          joinLobby(player);
+          joinLobby(player, player.lobbyId);
           break;
         }
         case "createRoom": {
@@ -124,7 +125,15 @@ export function registerWsHandlers(wss: WebSocketServer) {
           const password = pickString(pld.password, "");
           const passwordProtected = !!password.trim();
           const gameMode = (pickString(pld.gameMode, "ctf") === "ctf") ? "ctf" : "deathmatch";
-          createRoom({ roomName, roomId, mapId, passwordProtected, password: passwordProtected ? password : undefined, maxPlayers, timeLimitSec, gameMode });
+          createRoom({ roomName, roomId, mapId, passwordProtected, password: passwordProtected ? password : undefined, maxPlayers, timeLimitSec, gameMode, lobbyId: player.lobbyId });
+          break;
+        }
+        case "switchLobby": {
+          const pld = isRecord(payload) ? payload : {};
+          const newLobbyId = pickString(pld.lobbyId, "");
+          if (AVAILABLE_LOBBIES.includes(newLobbyId)) {
+            joinLobby(player, newLobbyId);
+          }
           break;
         }
         case "joinRoom": {
@@ -156,13 +165,13 @@ export function registerWsHandlers(wss: WebSocketServer) {
             // Send initial room state to spectator (full visibility)
             const statePayload = roomStatePayloadForSpectator(roomId);
             if (statePayload) send(player.socket, { type: "room", payload: statePayload });
-            broadcastLobby();
+            broadcastLobby(player.lobbyId);
           }
           break;
         }
         case "leaveRoom":
         case "leave": {
-          joinLobby(player);
+          joinLobby(player, player.lobbyId);
           break;
         }
         case "move": {
@@ -271,7 +280,7 @@ export function registerWsHandlers(wss: WebSocketServer) {
               },
             };
             for (const p of players.values()) {
-              if (!p.roomId) send(p.socket, chatMsg);
+              if (!p.roomId && p.lobbyId === player.lobbyId) send(p.socket, chatMsg);
             }
           }
           break;
@@ -283,9 +292,11 @@ export function registerWsHandlers(wss: WebSocketServer) {
     socket.on("close", () => {
       const p = players.get(boundPlayerId);
       if (p) {
-        console.log(`[DEBUG] Player ${boundPlayerId} socket closed.Waiting for rejoin...`);
+        console.log(`[DEBUG] Player ${boundPlayerId} socket closed. Waiting for rejoin...`);
         p.socket = null;
         p.disconnectedAt = nowMs();
+        // 元のロビーにプレイヤーが去ったことを即座に通知
+        if (!p.roomId) broadcastLobby(p.lobbyId);
       }
     });
   });

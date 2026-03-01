@@ -148,6 +148,21 @@ nameInput.value = savedName;
 (document.querySelector("#lobby-help") as HTMLButtonElement).addEventListener("click", () => void showHelp());
 (document.querySelector("#lobby-setting") as HTMLButtonElement).addEventListener("click", () => void showSetting());
 
+dom.lobbySelect()?.addEventListener("change", (e) => {
+  const lobbyId = (e.target as HTMLSelectElement).value;
+  sendWsMessage({ type: "switchLobby", payload: { lobbyId } } as any);
+});
+
+// Lobby Chat Input
+dom.lobbyChatInput()?.addEventListener("keydown", (e) => {
+  if (e.key !== "Enter") return;
+  const input = dom.lobbyChatInput();
+  const message = input?.value.trim();
+  if (!message) return;
+  sendWsMessage({ type: "chat", payload: { message } } as any);
+  if (input) input.value = "";
+});
+
 (document.querySelector("#lobby-exit") as HTMLButtonElement).addEventListener("click", async () => {
   if (await showConfirmDialog("Exit", "Return to Title Screen?", "Exit", "Cancel")) {
     closeWs();

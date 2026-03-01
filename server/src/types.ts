@@ -13,6 +13,7 @@ export type PlayerRuntime = {
   hp: number;
   ammo: number;
   roomId: string | null;
+  lobbyId: string;
   aimDir: Vector2;
   pendingMove: Vector2 | null;
   moveQueue: { x: number; y: number; cost: number }[];
@@ -61,6 +62,7 @@ export type Room = {
   name: string;
   mapId: string;
   mapData: MapData;
+  lobbyId: string;
   passwordProtected: boolean;
   password?: string;
   maxPlayers: number;
