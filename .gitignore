@@ -9,5 +9,6 @@ dist
 .env
 *.log
 logs.txt
+server/server_log*.txt
 .claude/
 .gemini/
