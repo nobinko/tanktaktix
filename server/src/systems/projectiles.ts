@@ -205,6 +205,28 @@ export function updateBullets(room: Room, dtSec: number, now: number) {
 
     if (exploded) continue;
 
+    // 5a. AmmoPass/HealPass: アイテム or 旗に当たったら投射物だけ消滅（アイテム・旗は変化なし）
+    if (!exploded && (b.isAmmoPass || b.isHealPass)) {
+      const hitItem = room.items.find(item =>
+        Math.hypot(curr.x - item.x, curr.y - item.y) < b.radius + ITEM_RADIUS
+      );
+      if (hitItem) {
+        exploded = true;
+        passFinished = true;
+      }
+      if (!exploded) {
+        const hitFlag = room.flags.find(f =>
+          !f.carrierId && Math.hypot(curr.x - f.x, curr.y - f.y) < b.radius + 20
+        );
+        if (hitFlag) {
+          exploded = true;
+          passFinished = true;
+        }
+      }
+    }
+
+    if (exploded && passFinished) continue;
+
     // 5. Item Collision — bullet destroys items, same-type respawns
     if (!b.isAmmoPass && !b.isHealPass && !b.isFlagPass && !b.isRope) {
       const hitIdx = room.items.findIndex(item =>

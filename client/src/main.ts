@@ -106,7 +106,55 @@ const handleServerMsg = (message: any) => handleServerMessage(message, {
   renderLobbyChat,
   renderRoomMeta: () => undefined, // Info moved to HUD
   setupRoom,
-  showGameResult: () => undefined,
+  showGameResult: (payload: any) => {
+    const overlay = document.querySelector("#result-overlay") as HTMLElement;
+    if (!overlay) return;
+
+    // Winner表示
+    const winnerEl = document.querySelector("#result-winner") as HTMLElement;
+    if (winnerEl) {
+      if (payload.winners === "draw") {
+        winnerEl.textContent = "🤝 Draw!";
+        winnerEl.style.color = "#c9b07a";
+      } else {
+        const winColor = payload.winners === "red" ? "#c44040" : "#4a6a8a";
+        const winLabel = payload.winners === "red" ? "🔴 Red Team Wins!" : "🔵 Blue Team Wins!";
+        winnerEl.textContent = winLabel;
+        winnerEl.style.color = winColor;
+      }
+    }
+
+    // スコアテーブル描画
+    const tbody = document.querySelector("#result-body") as HTMLElement;
+    if (tbody && payload.results) {
+      const sorted = [...payload.results].sort((a: any, b: any) => b.score - a.score);
+      tbody.innerHTML = sorted.map((p: any) => {
+        const acc = p.fired > 0 ? Math.round((p.hits / p.fired) * 100) : 0;
+        const teamColor = p.team === "red" ? "#c44040" : "#4a6a8a";
+        const highlight = p.id === state.selfId ? " style=\"background:rgba(200,180,100,0.15);\"" : "";
+        return `<tr${highlight}><td style="color:${teamColor};font-weight:bold;">${p.name}</td><td>${p.score}</td><td>${p.kills} / ${p.deaths}</td><td>${acc}%</td></tr>`;
+      }).join("");
+    }
+
+    // Copy Resultボタン
+    const copyBtn = document.querySelector("#copy-result") as HTMLButtonElement;
+    if (copyBtn) {
+      copyBtn.onclick = () => {
+        const sorted = [...(payload.results ?? [])].sort((a: any, b: any) => b.score - a.score);
+        const lines = sorted.map((p: any) => {
+          const acc = p.fired > 0 ? Math.round((p.hits / p.fired) * 100) : 0;
+          return `${p.name} (${p.team}) Score:${p.score} K/D:${p.kills}/${p.deaths} Acc:${acc}%`;
+        });
+        const text = `[TankTaktix Result] ${payload.winners === "draw" ? "Draw" : payload.winners + " wins"}\n` + lines.join("\n");
+        navigator.clipboard.writeText(text).then(() => {
+          copyBtn.textContent = "Copied!";
+          setTimeout(() => { copyBtn.textContent = "Copy Result"; }, 2000);
+        });
+      };
+    }
+
+    overlay.classList.remove("hidden");
+  },
   showError: (msg: string) => showInfoDialog("Error", msg),
 });
 

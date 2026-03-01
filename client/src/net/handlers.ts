@@ -92,10 +92,15 @@ export const handleServerMessage = (message: ServerToClientMessage, deps: Handle
             state.hitFlashes[p.id] = now + 150;
             state.floatingTexts.push({ id: Math.random().toString(), text: `-${lastHp - p.hp}`, color: "#d45555", x: p.position.x, y: p.position.y - 25, startedAt: now });
           } else if (p.hp > lastHp) {
-            state.floatingTexts.push({ id: Math.random().toString(), text: `+${p.hp - lastHp}`, color: "#7aad55", x: p.position.x, y: p.position.y - 25, startedAt: now });
+            // respawnCooldownUntilが未来ならリスポーン直後 → +テキスト出さない
+            const isRespawn = (p as any).respawnCooldownUntil > now;
+            if (!isRespawn) {
+              state.floatingTexts.push({ id: Math.random().toString(), text: `+${p.hp - lastHp}`, color: "#7aad55", x: p.position.x, y: p.position.y - 25, startedAt: now });
+            }
           }
         }
         state.lastHpMap[p.id] = p.hp;
+
       }
 
       if (state.phase !== "room") {
