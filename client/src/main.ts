@@ -7,9 +7,11 @@ import { handleServerMessage } from "./net/handlers";
 import { attachKeyboardInput } from "./input/keyboard";
 import { attachMouseInput } from "./input/mouse";
 import { initModalHandlers, showConfirmDialog, showInfoDialog, showModal, showPromptDialog } from "./ui/modal";
+import { startTitleRenderer, stopTitleRenderer } from "./render/titleRenderer";
 
 initAppHtml();
 initModalHandlers();
+startTitleRenderer();
 
 const { canvas, ctx } = getCanvasAndCtx();
 const leaveBtn = document.querySelector("#game-leave-btn") as HTMLButtonElement;
@@ -178,6 +180,7 @@ nameInput.value = savedName;
   state.name = name;
   localStorage.setItem("tt_name", name);
   const savedId = localStorage.getItem("tt_id");
+  stopTitleRenderer();
   connectWs(handleServerMsg, (msg) => showInfoDialog("Connection", msg));
   waitForWsOpen(() => {
     sendWsMessage({ type: "login", payload: { name, id: savedId ?? undefined } });

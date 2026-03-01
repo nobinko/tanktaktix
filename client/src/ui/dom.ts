@@ -7,15 +7,21 @@ export const initAppHtml = () => {
   if (!app) throw new Error("Missing #app container");
   app.innerHTML = `
   <section id="login-screen" class="screen active">
-    <div class="panel">
-      <h1>Tank Taktix</h1>
-      <p class="notice">Enter a player name or roll a random 4-digit callsign.</p>
-      <div class="grid two">
-        <input id="name-input" placeholder="Player name" maxlength="16" />
-        <button id="random-name">Random 4-digit</button>
+    <canvas id="title-bg"></canvas>
+    <div class="login-overlay-panel">
+      <div class="title-logo-block">
+        <h1 class="title-logo">TANK TAKTIX</h1>
+        <p class="title-subtitle">TACTICAL TANK BATTLE</p>
       </div>
-      <div style="margin-top: 16px; display: flex; gap: 12px;">
-        <button id="login-btn">Enter Lobby</button>
+      <div class="login-card">
+        <p class="notice">Enter a player name or roll a random 4-digit callsign.</p>
+        <div class="grid two">
+          <input id="name-input" placeholder="Player name" maxlength="16" />
+          <button id="random-name">Random 4-digit</button>
+        </div>
+        <div style="margin-top: 16px;">
+          <button id="login-btn" class="login-enter-btn">ENTER LOBBY</button>
+        </div>
       </div>
     </div>
   </section>

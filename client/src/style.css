@@ -42,7 +42,131 @@ body {
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.3);
 }
 
-#login-screen .panel,
+#login-screen {
+  position: relative;
+  overflow: hidden;
+  background: #1a1208;
+}
+
+#title-bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.login-overlay-panel {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  z-index: 10;
+  padding: 24px;
+}
+
+.title-logo-block {
+  text-align: center;
+  user-select: none;
+}
+
+.title-logo {
+  font-family: "Cinzel Decorative", serif;
+  font-size: clamp(2.2rem, 6vw, 5rem);
+  color: #f0d070;
+  text-shadow:
+    0 0 60px rgba(220, 160, 30, 0.9),
+    0 0 20px rgba(220, 140, 20, 0.6),
+    0 4px 16px rgba(0, 0, 0, 0.95);
+  letter-spacing: 6px;
+  margin: 0 0 8px;
+  line-height: 1.1;
+}
+
+.title-subtitle {
+  font-family: "Share Tech Mono", monospace;
+  font-size: 0.78rem;
+  color: rgba(210, 185, 130, 0.65);
+  letter-spacing: 5px;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.login-card {
+  background: rgba(18, 12, 6, 0.72);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(200, 165, 80, 0.35);
+  border-radius: 14px;
+  padding: 32px 40px;
+  min-width: 320px;
+  max-width: 480px;
+  width: 90vw;
+  box-shadow:
+    0 24px 64px rgba(0, 0, 0, 0.75),
+    inset 0 1px 0 rgba(255, 220, 100, 0.1);
+}
+
+.login-card .notice {
+  color: rgba(210, 185, 130, 0.7);
+  margin-top: 0;
+  margin-bottom: 16px;
+  font-size: 12px;
+}
+
+.login-card input {
+  background: rgba(255, 240, 200, 0.08);
+  border: 1px solid rgba(200, 165, 80, 0.4);
+  color: #f0e4c0;
+  font-family: "Share Tech Mono", monospace;
+  font-size: 14px;
+}
+
+.login-card input::placeholder {
+  color: rgba(200, 175, 120, 0.45);
+}
+
+.login-card input:focus {
+  outline: none;
+  border-color: rgba(220, 170, 60, 0.7);
+  background: rgba(255, 240, 200, 0.13);
+}
+
+.login-card button {
+  background: rgba(200, 160, 60, 0.15);
+  border: 1px solid rgba(200, 165, 80, 0.4);
+  color: #d4b870;
+  font-size: 12px;
+}
+
+.login-card button:hover {
+  background: rgba(200, 160, 60, 0.28);
+  border-color: rgba(220, 180, 80, 0.65);
+}
+
+.login-enter-btn {
+  width: 100%;
+  padding: 12px !important;
+  font-size: 14px !important;
+  font-family: "Cinzel", serif !important;
+  letter-spacing: 3px !important;
+  background: linear-gradient(135deg, rgba(180, 130, 30, 0.7), rgba(140, 90, 15, 0.8)) !important;
+  border: 1px solid rgba(220, 170, 60, 0.6) !important;
+  color: #f5e080 !important;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8) !important;
+  box-shadow: 0 4px 16px rgba(180, 120, 20, 0.35) !important;
+  transition: all 0.2s ease !important;
+}
+
+.login-enter-btn:hover {
+  background: linear-gradient(135deg, rgba(200, 150, 40, 0.85), rgba(160, 110, 25, 0.9)) !important;
+  box-shadow: 0 6px 24px rgba(200, 140, 30, 0.55) !important;
+  transform: translateY(-1px);
+}
+
 #lobby-screen .panel {
   overflow: auto;
 }
@@ -50,6 +174,7 @@ body {
 #room-screen {
   padding: 0;
 }
+
 
 #room-screen .panel {
   border: none;
