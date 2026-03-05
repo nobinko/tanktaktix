@@ -1,4 +1,4 @@
-# Scaling Policy
+# スケーリング方針
 
 スケール方針と最適化の設計メモ。
 
@@ -8,27 +8,27 @@
 
 ---
 
-## A. Background / Current Architecture
+## A. 背景 / 現行アーキテクチャ
 
 | 項目 | 現状 |
 |---|---|
 | 権威モデル | サーバ権威（全ゲームロジックをサーバで計算） |
-| Tick | 50 ms（20 Hz） — [`server/src/index.ts`](../server/src/index.ts) L140 |
+| Tick | 50 ms（20 Hz） — [`server/src/constants.ts`](../server/src/constants.ts) `TICK_MS` |
 | 同期方式 | スナップショット同期（`RoomState` を毎 tick 送信） |
 | 型契約 | shared パッケージで定義 — [`shared/src/index.ts`](../shared/src/index.ts) |
 | デプロイ | Render 単一サービス（Node.js + Express + ws） |
-| ルーム上限 | 2–16 人 / room（[`server/src/index.ts`](../server/src/index.ts) L2055） |
+| ルーム上限 | 2–16 人 / room（`room.ts` の `maxPlayers` clamp 処理） |
 | シリアライズ | JSON（`JSON.stringify` per player per tick） |
 
 ---
 
-## B. Decision Summary
+## B. 決定事項サマリー
 
 ### 現実目標
 
 **最大 16 vs 16（= 32 人 / room）をターゲットに「ゲームとして完成」を優先する。**
 
-### 夢目標
+### 将来目標
 
 50 vs 50（= 100 人）は **設計メモとして保持** するのみ。今は実装しない。
 
@@ -43,7 +43,7 @@
 
 ---
 
-## C. Definition of Done (Performance) — "Complete"
+## C. 完成条件（パフォーマンス）
 
 32 人同室での完成条件:
 
@@ -54,13 +54,13 @@
 
 ---
 
-## D. 50 vs 50 Design Notes
+## D. 50 vs 50 設計メモ
 
 > **今は実装しない。** 方向性だけ固定し、将来の設計判断に使う。
 >
 > 原則: **全体整合を維持したまま** 通信量と計算量を軽くする。距離 AOI で "見えない弾" を作る最適化はしない。
 
-### 柱（優先順）
+### 優先アプローチ
 
 #### 1. Delta 配信 + 軽量化
 
@@ -71,7 +71,7 @@
 - 不変データ除外（後述）
 - 圧縮（gzip / deflate-raw on WebSocket）
 
-#### 2. 送信頻度の分離と LOD
+#### 2. 送信頻度の分離と LOD（レベルオブディテール）
 
 エンティティ種別ごとに送信頻度・精度を段階化する。**cull はしない。**
 
@@ -86,7 +86,7 @@ Grid / Spatial Hash で衝突判定・近傍検索を高速化。
 - 弾丸 × プレイヤーの O(B×P) を O(B×k) に削減（k = 近傍セル内のプレイヤー数）
 - 爆発範囲判定にも同様に適用
 
-### 追加候補
+### 追加最適化候補
 
 | 候補 | 備考 |
 |---|---|
@@ -94,7 +94,7 @@ Grid / Spatial Hash で衝突判定・近傍検索を高速化。
 | バイナリ化 | msgpack / Protocol Buffers 等。JSON より小さく速い |
 | クライアント補間 | 送信 Hz を落とす場合の interpolation / lerp（Optional） |
 
-### Non-goals
+### やらないこと（Non-goals）
 
 | やらないこと | 理由 |
 |---|---|
@@ -104,7 +104,7 @@ Grid / Spatial Hash で衝突判定・近傍検索を高速化。
 
 ---
 
-## E. No-regret Minimal Improvements
+## E. 低コスト改善候補
 
 > 完成後 or 完成直前に入れる候補。**今は実装しない**が、後悔しない改善。
 
@@ -113,7 +113,7 @@ Grid / Spatial Hash で衝突判定・近傍検索を高速化。
 
 ---
 
-## F. Test Plan
+## F. テスト計画
 
 32 人相当の負荷テスト案（現実的な範囲）:
 
