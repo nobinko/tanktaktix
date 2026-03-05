@@ -26,17 +26,20 @@
 | `login` | `{ name: string, id?: string }` | ログイン。name は最大16文字。id は再接続用（B-3） |
 | `requestLobby` | なし | ロビー状態を要求する |
 | `createRoom` | `{ roomId, name, mapId, maxPlayers, timeLimitSec, gameMode?, password? }` | ルーム作成。roomId が既存の場合はエラー |
-| `joinRoom` | `{ roomId: string, password?: string }` | ルーム参加 |
+| `joinRoom` | `{ roomId: string, password?: string, requestedTeam?: "red" \| "blue" }` | ルーム参加 |
 | `leaveRoom` | なし | ルームから退出してロビーへ戻る |
 | `move` | `{ target: Vector2 }` | クリック移動。移動中・クールダウン中でも予約として受け付ける |
 | `moveCancelOne` | なし | 移動キューの末尾を1つキャンセル（Zキー相当） |
 | `shoot` | `{ direction: Vector2 }` | 射撃。direction は単位ベクトル |
-| `chat` | `{ message: string }` | チャット送信。最大120文字。ルーム内ならルームへ、ロビーならロビー全体へ配信 |
+| `chat` | `{ message: string, channel?: "global" \| "team" }` | チャット送信。最大120文字。ルーム内ならルームへ、ロビーならロビー全体へ配信 |
 | `stopMove` | なし | 移動キューを全クリアして即座に停止する |
 | `aim` | `{ direction: Vector2 }` | AIMモード中の砲塔方向を更新する。direction は単位ベクトル |
 | `useItem` | `{ item: string, direction: Vector2 }` | AIMアクション派生。item は `"rope"` / `"ammo"` / `"heal"` / `"flag"` |
 | `spectateRoom` | `{ roomId: string, password?: string }` | ルームに観戦者として参加する |
-| `selectTeam` | `{ team: "red" | "blue" }` | チーム選択オプションが有効な部屋での入室後のチーム決定 |
+| `selectTeam` | `{ team: "red" \| "blue" }` | チーム選択オプションが有効な部屋での入室後のチーム決定 |
+| `switchLobby` | `{ lobbyId: string }` | ロビー切り替え。指定ロビーに移動する |
+| `ping` | `{ timestamp: number }` | Ping 計測。サーバは `pong` で応答する |
+| `reportPing` | `{ ping: number }` | 計測済み Ping 値をサーバに報告する |
 
 ### createRoom payload 詳細
 
@@ -54,10 +57,10 @@
 
 // RoomOptions の詳細
 type RoomOptions = {
-  teamSelect?: boolean;
-  instantKill?: boolean;
-  noItemRespawn?: boolean;
-  noShooting?: boolean;
+  teamSelect: boolean;
+  instantKill: boolean;
+  noItemRespawn: boolean;
+  noShooting: boolean;
 };
 ```
 
@@ -75,6 +78,7 @@ type RoomOptions = {
 | `gameEnd` | `{ roomId: string, winners, results }` | ゲーム終了。winners は `"red" | "blue" | "draw"` |
 | `leaderboard` | `{ players: PlayerSummary[] }` | リーダーボード（将来用途） |
 | `error` | `{ message: string }` | エラー通知（Room not found / Invalid password / Room is full など） |
+| `pong` | `{ timestamp: number }` | Ping 応答 |
 
 ---
 
@@ -147,6 +151,8 @@ type MapData = {
 type LobbyState = {
   rooms: RoomSummary[];
   onlinePlayers: { id: string; name: string }[];
+  currentLobbyId: string;
+  availableLobbies: string[];
 };
 ```
 
@@ -168,6 +174,8 @@ type RoomSummary = {
   players: string[];       // プレイヤーID一覧
   playerCount: number;
   spectatorCount?: number; // 観戦者数
+  lobbyId: string;
+  hostName?: string;       // ルーム作成者の名前
   options?: RoomOptions;   // 適用中のオプションルール
   teamStats?: {            // チームの現在人数とスコア（CTFまたはTeam Select有効時）
     red: { count: number; score: number };
@@ -244,6 +252,7 @@ type PlayerSummary = {
   hasBomb?: boolean;          // bomb所持中（true = 次の1発がボムショットになる）
   ropeCount?: number;         // rope所持本数（0〜2）
   bootsCharges?: number;      // boots残り回数（0 = 未所持, 1〜3 = 残り）
+  ping?: number;
 };
 ```
 
@@ -264,6 +273,7 @@ type ChatMessage = {
   from: string;     // 送信者名
   message: string;
   timestamp: number;
+  channel?: "global" | "team";
 };
 ```
 

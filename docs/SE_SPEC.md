@@ -1,4 +1,8 @@
-# TankTaktix SE（効果音）確定リスト
+# TankTaktix SE（効果音）確定仕様
+
+> 本ドキュメントは確定済みの SE 仕様です。実装状況は [ROADMAP.md](./ROADMAP.md) を参照。
+
+---
 
 ## 全8種
 

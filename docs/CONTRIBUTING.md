@@ -93,4 +93,4 @@ npx ts-node scripts/simulate_4v4.ts
 
 - **サーバ権威を維持する**: ゲームロジック（移動・弾道・HP・スコア）はすべてサーバで計算する
 - **`shared/src/index.ts` を変更したら `docs/PROTOCOL.md` も更新する**
-- `server/src/index.ts` の定数（クールダウン値・マップサイズ等）を変更したら `docs/GAME_MECHANICS.md` も更新する
+- `server/src/constants.ts` の定数（クールダウン値・マップサイズ等）を変更したら `docs/GAME_MECHANICS.md` も更新する
