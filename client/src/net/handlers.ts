@@ -1,5 +1,6 @@
 import type { ServerToClientMessage } from "@tanktaktix/shared";
 import { state } from "../state.js";
+import { soundManager } from "../audio/SoundManager";
 
 export type HandlerDeps = {
   setScreen: (phase: "login" | "lobby" | "room") => void;
@@ -71,6 +72,43 @@ export const handleServerMessage = (message: ServerToClientMessage, deps: Handle
       state.roomId = payload.roomId;
       state.players = payload.players;
       state.timeLeftSec = payload.timeLeftSec;
+      // Phase 5: SFX hook for new bullets (shooting)
+      const oldBulletIds = new Set(state.bullets?.map(b => b.id) || []);
+      const newBullets = payload.bullets.filter(b => !oldBulletIds.has(b.id) && !b.isRope && !b.isAmmoPass && !b.isHealPass && !b.isFlagPass);
+      if (newBullets.length > 0) {
+        soundManager.play("shoot", 0.6); // slight volume reduction for spam
+      }
+
+      // Phase 5: SFX hook for Item and Flag pickup by self
+      const oldMe = state.players?.find(p => p.id === state.selfId);
+      const newMe = payload.players.find(p => p.id === state.selfId);
+      if (oldMe && newMe) {
+        const ammoPicked = newMe.ammo > oldMe.ammo && !((oldMe as any).respawnCooldownUntil > Date.now());
+        const bombPicked = newMe.hasBomb && !oldMe.hasBomb;
+        const ropePicked = (newMe.ropeCount || 0) > (oldMe.ropeCount || 0);
+        const bootsPicked = (newMe.bootsCharges || 0) > 0 && (oldMe.bootsCharges || 0) === 0;
+        if (ammoPicked || bombPicked || ropePicked || bootsPicked) {
+          soundManager.play("item_pickup");
+        }
+      }
+
+      // Phase 5: SFX hook for flag pickup
+      if (payload.flags && state.flags && newMe) {
+        payload.flags.forEach(newFlag => {
+          const oldFlag = state.flags!.find(f => f.team === newFlag.team);
+          if (oldFlag && oldFlag.carrierId !== state.selfId && newFlag.carrierId === state.selfId) {
+            soundManager.play("item_pickup"); // Using item pickup sound for grabbing the flag
+          }
+        });
+      }
+
+      // Phase 5: SFX hook for flag score (return)
+      if (state.teamScores && payload.teamScores) {
+        if (payload.teamScores.red > state.teamScores.red || payload.teamScores.blue > state.teamScores.blue) {
+          soundManager.play("flag_pickup"); // Using flag pickup sound for scoring
+        }
+      }
+
       state.bullets = payload.bullets;
       state.explosions = payload.explosions.map((e) => ({ ...e, startedAt: Date.now() }));
       state.mapData = payload.mapData;
@@ -97,6 +135,10 @@ export const handleServerMessage = (message: ServerToClientMessage, deps: Handle
             const isFirstSpawn = lastHp === 0 && p.team !== null;
             if (!isRespawn && !isFirstSpawn) {
               state.floatingTexts.push({ id: Math.random().toString(), text: `+${p.hp - lastHp}`, color: "#7aad55", x: p.position.x, y: p.position.y - 25, startedAt: now });
+              // Phase 5: SFX hook for HP pickup
+              if (p.id === state.selfId) {
+                soundManager.play("item_pickup");
+              }
             }
           }
         }
@@ -152,6 +194,7 @@ export const handleServerMessage = (message: ServerToClientMessage, deps: Handle
       deps.showError(message.payload.message);
       break;
     case "explosion": {
+      soundManager.play("explosion");
       state.explosions.push({ ...message.payload, startedAt: Date.now() });
       const numParticles = message.payload.radius > 30 ? 12 : 6;
       for (let i = 0; i < numParticles; i++) {

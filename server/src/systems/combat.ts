@@ -144,9 +144,14 @@ export function tryShoot(p: PlayerRuntime, dir: Vector2) {
   if (now < p.cooldownUntil) return;
   if (p.isMoving) return;
 
-  if (p.ammo <= 0) return;
+  const isBombShot = p.hasBomb;
 
-  p.ammo -= 1;
+  if (!isBombShot && p.ammo <= 0) return;
+
+  if (!isBombShot) {
+    p.ammo -= 1;
+  }
+
   p.fired += 1;
 
   if (p.roomId) {
@@ -157,7 +162,6 @@ export function tryShoot(p: PlayerRuntime, dir: Vector2) {
     }
   }
 
-  const isBombShot = p.hasBomb;
   if (isBombShot) {
     p.hasBomb = false;
   }

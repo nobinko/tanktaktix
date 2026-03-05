@@ -8,10 +8,34 @@ import { attachKeyboardInput } from "./input/keyboard";
 import { attachMouseInput } from "./input/mouse";
 import { initModalHandlers, showConfirmDialog, showInfoDialog, showModal, showPromptDialog } from "./ui/modal";
 import { startTitleRenderer, stopTitleRenderer } from "./render/titleRenderer";
+import { soundManager } from "./audio/SoundManager";
 
 initAppHtml();
 initModalHandlers();
 startTitleRenderer();
+
+// Phase 5: Initialize SoundManager on first user interaction
+const initSound = () => {
+  soundManager.init();
+  document.removeEventListener("click", initSound);
+  document.removeEventListener("keydown", initSound);
+};
+document.addEventListener("click", initSound);
+document.addEventListener("keydown", initSound);
+
+// Phase 5: Global UI sounds
+document.addEventListener("mouseover", (e) => {
+  const target = (e.target as HTMLElement).closest("button");
+  if (target && !target.disabled) {
+    soundManager.play("ui_hover", 0.3);
+  }
+});
+document.addEventListener("mousedown", (e) => {
+  const target = (e.target as HTMLElement).closest("button");
+  if (target && !target.disabled) {
+    soundManager.play("ui_click", 0.5);
+  }
+});
 
 const { canvas, ctx } = getCanvasAndCtx();
 const leaveBtn = document.querySelector("#game-leave-btn") as HTMLButtonElement;
@@ -89,15 +113,36 @@ const showHelp = () => showModal({
 
 const showSetting = async () => {
   const currentName = localStorage.getItem("tt_name") ?? state.name;
+
+  const handleSettingClicks = (e: MouseEvent) => {
+    const target = e.target as HTMLElement;
+    if (target.id === "toggle-se-btn") {
+      const isMuted = soundManager.toggleMute();
+      target.textContent = `Sound Effects (SE): ${isMuted ? 'OFF 🔇' : 'ON 🔊'}`;
+    }
+  };
+  document.addEventListener('click', handleSettingClicks);
+
   const result = await showModal({
     title: "Setting",
-    bodyHtml: `<p>将来拡張用: 音量・表示設定の受け皿です。</p><p style="font-size:12px;color:#9fb;">BGM/SEスライダーはプレースホルダ実装です。</p>`,
+    bodyHtml: `
+      <div style="margin-bottom: 20px;">
+        <p style="margin-bottom: 10px; font-weight: bold; color: #aaa;">Audio</p>
+        <button id="toggle-se-btn" style="width: 100%; padding: 10px; background: #2a2a2a; border: 1px solid #444; color: #eee; border-radius: 4px; cursor: pointer; text-align: left; transition: 0.2s;">
+            Sound Effects (SE): ${soundManager.isMuted() ? 'OFF 🔇' : 'ON 🔊'}
+        </button>
+      </div>
+      <p style="margin-bottom: 10px; font-weight: bold; color: #aaa;">Profile</p>
+    `,
     inputPlaceholder: "Player name",
     initialValue: currentName,
     confirmText: "Save",
     cancelText: "Close",
     showCancel: true,
   });
+
+  document.removeEventListener('click', handleSettingClicks);
+
   if (!result.confirmed) return;
   const name = result.value.trim();
   if (!name) return;
