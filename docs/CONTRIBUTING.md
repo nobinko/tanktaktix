@@ -50,7 +50,7 @@ npm run start
 
 - [ ] `docs/ACCEPTANCE.md` の A ランク項目を手動確認した
 - [ ] 変更した機能に対応する `scripts/verify_*.ts` で動作確認した（または新規作成した）
-- [ ] `docs/GAME_MECHANICS.md` / `docs/PROTOCOL.md` に影響する変更は該当ドキュメントを更新した
+- [ ] `docs/domain/` 以下の対応するファイル（combat.md / network.md 等）に影響する変更は該当ドキュメントを更新した
 
 ---
 
@@ -92,5 +92,5 @@ npx ts-node scripts/simulate_4v4.ts
 ### 注意事項
 
 - **サーバ権威を維持する**: ゲームロジック（移動・弾道・HP・スコア）はすべてサーバで計算する
-- **`shared/src/index.ts` を変更したら `docs/PROTOCOL.md` も更新する**
-- `server/src/constants.ts` の定数（クールダウン値・マップサイズ等）を変更したら `docs/GAME_MECHANICS.md` も更新する
+- **`shared/src/index.ts` を変更したら `docs/domain/network.md` も更新する**
+- `server/src/constants.ts` の定数を変更したら対応する `docs/domain/` ファイルも更新する（combat.md / movement.md / maps.md 等）

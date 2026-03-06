@@ -1,43 +1,84 @@
-# TankTaktix ドキュメント一覧
+# TankTaktix ドキュメント
 
-プロジェクト全体のドキュメント構成。各ドキュメントの役割と参照先を整理する。
+TankTaktix は Node.js + TypeScript のリアルタイム多人数タンクシューター。
+サーバ権威モデル、20Hz tick、WebSocket JSON 同期。
+
+**コードと本ドキュメントに乖離がある場合は常にコードを優先すること。**
 
 ---
 
-## ゲーム仕様
+## AIへの読み方ガイド
 
-| ドキュメント | 内容 |
+タスクの種類に応じて読むべきファイルを示す。
+
+| タスク | 読むべきファイル |
 |---|---|
-| [GAME_MECHANICS.md](./GAME_MECHANICS.md) | ゲームメカニクス仕様（パラメータ・ルール・アイテム・地形） |
-| [PROTOCOL.md](./PROTOCOL.md) | WebSocket プロトコル仕様（メッセージ型・ペイロード） |
-| [SE_SPEC.md](./SE_SPEC.md) | SE（効果音）確定仕様 |
+| 射撃・ダメージ・クールダウンの実装・変更 | `domain/combat.md` |
+| 移動・旋回・カメラの実装・変更 | `domain/movement.md` |
+| アイテム・AIMアクションの実装・変更 | `domain/items.md` |
+| マップ・地形・CTF旗の実装・変更 | `domain/maps.md` |
+| WebSocketメッセージ・型定義の変更 | `domain/network.md` |
+| UI・デザイン・サウンドの実装・変更 | `domain/ui.md` |
+| ロビー・ルーム・再接続・ゲームモードの変更 | `domain/session.md` |
+| システム全体の構成・アーキテクチャの確認 | `architecture.md` |
+| 設計判断の理由を確認・変更前の意図確認 | `decisions.md` |
+| 進捗確認・残タスク確認 | `roadmap.md` |
+| PR・マージの可否確認 | `acceptance.md` |
+| 開発環境・ブランチ・スクリプト | `contributing.md` |
 
-## プロジェクト管理
+---
 
-| ドキュメント | 内容 |
+## ドキュメントマップ
+
+```
+docs/
+├── INDEX.md              # ← いまここ
+├── inbox.md              # アイデア雑多受け（フォーマット不要）
+├── decisions.md          # 設計判断ログ（なぜそう決めたか）
+├── roadmap.md            # Phase進捗
+├── acceptance.md         # 受入条件（A/B/Cランク）
+├── architecture.md       # システム構成・内部型・定数・デプロイ・スケーリング
+├── contributing.md       # セットアップ・ブランチ・スクリプト
+│
+├── domain/               # ドメイン別仕様（実装の Source of Truth）
+│   ├── combat.md         # 射撃・ダメージ・クールダウン・HP・リスポーン
+│   ├── movement.md       # 移動・ピボットターン・カメラ
+│   ├── items.md          # アイテム種別・スポーン・AIMアクション
+│   ├── maps.md           # マップ一覧・地形・隠密・CTF旗
+│   ├── network.md        # WebSocketプロトコル・型定義・サーバ権威
+│   ├── ui.md             # デザイン・カラー・フォント・SE・アセット戦略
+│   └── session.md        # ゲームモード・ルームオプション・ロビー・再接続
+│
+├── test/
+│   ├── README.md
+│   ├── spec/             # テスト仕様
+│   └── reports/          # テスト実行レポート
+│
+└── archive/              # 歴史的参照（読む必要はほぼない）
+    ├── deep-research-report.md
+    ├── phase3_summary.md
+    └── WALKTHROUGH.md
+```
+
+---
+
+## プロジェクト概要
+
+| 項目 | 内容 |
 |---|---|
-| [ROADMAP.md](./ROADMAP.md) | ロードマップ（機能・デザイン統合） |
-| [ACCEPTANCE.md](./ACCEPTANCE.md) | 受入条件（A/B/Cランク） |
-| [CONTRIBUTING.md](./CONTRIBUTING.md) | 開発ガイド（セットアップ・ブランチ戦略・PR条件） |
+| ゲームジャンル | リアルタイム多人数タクティカルタンクシューター |
+| プレイスタイル | ブラウザ（Canvas 2D） |
+| サーバ | Node.js + Express + WebSocket（ws） |
+| 共有型 | `@tanktaktix/shared` |
+| デプロイ | Render.com |
+| 現在のフェーズ | Phase 5 進行中（`roadmap.md` を参照） |
 
-## 設計・技術
+---
 
-| ドキュメント | 内容 |
-|---|---|
-| [ARCHITECTURE.md](./ARCHITECTURE.md) | アーキテクチャ概要（技術スタック・構成・データ構造） |
-| [DESIGN.md](./DESIGN.md) | ビジュアルデザインコンセプト（カラーパレット・タイポグラフィ） |
-| [SCALE.md](./SCALE.md) | スケーリング方針（パフォーマンス目標・最適化戦略） |
+## 制約（すべての実装で守ること）
 
-## テスト
-
-| ドキュメント | 内容 |
-|---|---|
-| [test/README.md](./test/README.md) | テスト体系（仕様・レポート一覧） |
-
-## アーカイブ
-
-| ドキュメント | 内容 |
-|---|---|
-| [archive/deep-research-report.md](./archive/deep-research-report.md) | 初期リサーチレポート（TankMatch/TankMania 調査） |
-| [archive/phase3_summary.md](./archive/phase3_summary.md) | Phase 3 完了サマリー |
-| [archive/WALKTHROUGH.md](./archive/WALKTHROUGH.md) | MVP 検証ウォークスルー |
+- ゲームロジック（移動・弾道・HP・スコア）はすべてサーバで計算する
+- `shared/src/index.ts` の型を変更したら `domain/network.md` も更新する
+- `server/src/constants.ts` の定数を変更したら対応する domain/ ファイルも更新する
+- 距離ベース AOI は採用しない（`decisions.md` DEC-004 参照）
+- BGM は実装しない（`decisions.md` DEC-005 参照）
