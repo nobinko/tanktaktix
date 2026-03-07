@@ -40,12 +40,8 @@ export function updateCTF(room: Room, now: number) {
             else if (carrier.team === "blue") room.scoreBlue += FLAG_SCORE;
 
             // Return flag to its original base
-            const flagSrcOrig = room.mapData.flagPositions ?? room.mapData.spawnPoints;
-            const originalBase = flagSrcOrig.find(s => s.team === f.team);
-            if (originalBase) {
-              f.x = originalBase.x;
-              f.y = originalBase.y;
-            }
+            f.x = f.baseX;
+            f.y = f.baseY;
             f.carrierId = null;
 
             // Update stats
@@ -69,24 +65,20 @@ export function updateCTF(room: Room, now: number) {
       }
     } else {
       // NEW LOGIC: Instantly return dropped flag to base
-      const flagSrc = room.mapData.flagPositions ?? room.mapData.spawnPoints;
-      const basePos = flagSrc.find(s => s.team === f.team);
-      if (basePos) {
-        if (Math.abs(f.x - basePos.x) > 1 || Math.abs(f.y - basePos.y) > 1) {
-          f.x = basePos.x;
-          f.y = basePos.y;
-          f.droppedById = undefined;
-          broadcastRoom(room.id, {
-            type: "chat",
-            payload: {
-              from: "SYSTEM",
-              message: `🏠 The ${f.team} flag returned to base.`,
-              timestamp: now
-            }
-          });
-        }
+      if (Math.abs(f.x - f.baseX) > 1 || Math.abs(f.y - f.baseY) > 1) {
+        f.x = f.baseX;
+        f.y = f.baseY;
+        f.droppedById = undefined;
+        broadcastRoom(room.id, {
+          type: "chat",
+          payload: {
+            from: "SYSTEM",
+            message: `🏠 The ${f.team} flag returned to base.`,
+            timestamp: now
+          }
+        });
       }
-
     }
+
   }
 }

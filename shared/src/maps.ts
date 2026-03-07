@@ -51,195 +51,101 @@ function createBase(x: number, y: number, size: number, entranceType: "top-botto
     return walls;
 }
 
-/** alpha — クラシック: 縦壁2本＋角カバー＋中央アイランド */
-export const MAP_ALPHA: MapData = {
-    id: "alpha",
-    width: 1800,
-    height: 1040,
-    walls: [
-        { x: 600, y: 200, width: 60, height: 440 },  // 左縦壁
-        { x: 1140, y: 400, width: 60, height: 440 },  // 右縦壁（下寄せ）
-        { x: 180, y: 160, width: 220, height: 60 },  // 左上カバー
-        { x: 1400, y: 820, width: 220, height: 60 },  // 右下カバー
-        { x: 840, y: 460, width: 120, height: 120 },  // 中央アイランド
-    ],
-    spawnPoints: [
-        { team: "red", x: 120, y: 520 },
-        { team: "blue", x: 1680, y: 520 },
-    ],
-    flagPositions: [
-        { team: "red", x: 270, y: 520 },
-        { team: "blue", x: 1530, y: 520 },
-    ],
-};
-
-/** beta — アーバン: 6本縦ピラーで3コリドー＋左右カバー */
-export const MAP_BETA: MapData = {
-    id: "beta",
-    width: 1800,
-    height: 1040,
-    walls: [
-        { x: 400, y: 180, width: 60, height: 280 },  // 左上ピラー
-        { x: 400, y: 580, width: 60, height: 280 },  // 左下ピラー
-        { x: 870, y: 120, width: 60, height: 340 },  // 中央上ピラー
-        { x: 870, y: 580, width: 60, height: 340 },  // 中央下ピラー
-        { x: 1340, y: 180, width: 60, height: 280 },  // 右上ピラー
-        { x: 1340, y: 580, width: 60, height: 280 },  // 右下ピラー
-        { x: 160, y: 460, width: 180, height: 60 },  // 左横カバー
-        { x: 1460, y: 520, width: 180, height: 60 },  // 右横カバー
-    ],
-    spawnPoints: [
-        { team: "red", x: 80, y: 520 },
-        { team: "blue", x: 1720, y: 520 },
-    ],
-    flagPositions: [
-        { team: "red", x: 230, y: 520 },
-        { team: "blue", x: 1570, y: 520 },
-    ],
-};
-
-/** gamma — フォート: 中央要塞＋外側カバー2個 */
-export const MAP_GAMMA: MapData = {
-    id: "gamma",
-    width: 1800,
-    height: 1040,
-    walls: [
-        { x: 560, y: 200, width: 60, height: 260 },  // 要塞 左上縦
-        { x: 1180, y: 200, width: 60, height: 260 },  // 要塞 右上縦
-        { x: 560, y: 580, width: 60, height: 260 },  // 要塞 左下縦
-        { x: 1180, y: 580, width: 60, height: 260 },  // 要塞 右下縦
-        { x: 620, y: 200, width: 560, height: 60 },  // 要塞 上辺
-        { x: 620, y: 780, width: 560, height: 60 },  // 要塞 下辺
-        { x: 200, y: 440, width: 240, height: 60 },  // 左外カバー
-        { x: 1360, y: 540, width: 240, height: 60 },  // 右外カバー
-    ],
-    spawnPoints: [
-        { team: "red", x: 100, y: 520 },
-        { team: "blue", x: 1700, y: 520 },
-    ],
-    flagPositions: [
-        { team: "red", x: 250, y: 520 },
-        { team: "blue", x: 1550, y: 520 },
-    ],
-};
-
-/** delta — 自然: ブッシュと水場が点対称に配置 */
-export const MAP_DELTA: MapData = {
-    id: "delta",
-    width: 1800,
-    height: 1040,
-    walls: [
-        // 左上ブッシュ (Red側隠れ家)
-        { x: 250, y: 170, width: 250, height: 300, type: "bush" },
-        // 左下水場
-        { x: 250, y: 570, width: 250, height: 300, type: "water" },
-        // 右下ブッシュ (Blue側隠れ家) — 点対称
-        { x: 1300, y: 570, width: 250, height: 300, type: "bush" },
-        // 右上水場 — 点対称
-        { x: 1300, y: 170, width: 250, height: 300, type: "water" },
-        // 中央壁（上下対称）
-        { x: 850, y: 100, width: 100, height: 280, type: "wall" },
-        { x: 850, y: 660, width: 100, height: 280, type: "wall" },
-    ],
-    spawnPoints: [
-        { team: "red", x: 100, y: 520 },
-        { team: "blue", x: 1700, y: 520 },
-    ],
-    flagPositions: [
-        { team: "red", x: 250, y: 520 },
-        { team: "blue", x: 1550, y: 520 },
-    ],
-};
-
-/** epsilon — テスト: 障害物検証用マップ (Playable & Symmetric) */
-export const MAP_EPSILON: MapData = {
-    id: "epsilon",
-    width: 1800,
-    height: 1040,
-    walls: [
-        // Red Base Protections ( [ shaped )
-        ...createBase(25, 420, 200, "open-right", 30, "house"),
-
-        // Blue Base Protections (Point Symmetric to Red, ] shaped )
-        ...createBase(1575, 420, 200, "open-left", 30, "house"),
-
-        // Central One-Way Corridors
-        { x: 800, y: 300, width: 20, height: 150, type: "oneway", direction: "right" },
-        { x: 980, y: 590, width: 20, height: 150, type: "oneway", direction: "left" },
-        { x: 800, y: 700, width: 150, height: 20, type: "oneway", direction: "up" },
-        { x: 850, y: 320, width: 150, height: 20, type: "oneway", direction: "down" },
-
-        // Obstacles
-        { x: 860, y: 480, width: 80, height: 80, type: "house" }, // Center block
-        { x: 350, y: 150, width: 200, height: 60, type: "wall" }, // Top structure
-        { x: 1250, y: 830, width: 200, height: 60, type: "wall" }, // Bottom structure
-
-        // Additional symmetry covers
-        { x: 450, y: 750, width: 60, height: 150, type: "bush" },
-        { x: 1290, y: 140, width: 60, height: 150, type: "bush" },
-    ],
-    spawnPoints: [
-        { team: "red", x: 125, y: 520 },
-        { team: "blue", x: 1675, y: 520 },
-    ],
-    flagPositions: [
-        { team: "red", x: 275, y: 520 },
-        { team: "blue", x: 1525, y: 520 },
-    ],
-};
-
-export const MAP_TEST_S: MapData = {
-    id: "test-s",
-    width: 1000,
-    height: 1000,
-    walls: [],
-    spawnPoints: [
-        { team: "red", x: 100, y: 500 },
-        { team: "blue", x: 900, y: 500 },
-    ],
-    flagPositions: [
-        { team: "red", x: 250, y: 500 },
-        { team: "blue", x: 750, y: 500 },
-    ],
-};
-
-export const MAP_TEST_M: MapData = {
-    id: "test-m",
-    width: 1200,
+/** riverside — 川戦場  点対称中心: (800, 600) */
+export const MAP_RIVERSIDE: MapData = {
+    id: "riverside",
+    width: 1600,
     height: 1200,
-    walls: [],
+    walls: [
+        // === 川 ===
+        { x: 760, y: 0, width: 80, height: 350, type: "river" },
+        { x: 760, y: 450, width: 80, height: 300, type: "river" },
+        { x: 760, y: 850, width: 80, height: 350, type: "river" },
+        // === 橋 ===
+        { x: 740, y: 330, width: 120, height: 140, type: "bridge", passable: true },
+        { x: 740, y: 730, width: 120, height: 140, type: "bridge", passable: true },
+        // === 遮蔽（点対称ペア）===
+        { x: 200, y: 150, width: 120, height: 70, type: "house" },
+        { x: 1280, y: 980, width: 120, height: 70, type: "house" },
+        { x: 200, y: 980, width: 120, height: 70, type: "house" },
+        { x: 1280, y: 150, width: 120, height: 70, type: "house" },
+        { x: 450, y: 530, width: 60, height: 140, type: "wall" },
+        { x: 1090, y: 530, width: 60, height: 140, type: "wall" },
+        // === 橋付近ブッシュ（橋のy/高さに揃える）===
+        { x: 620, y: 330, width: 100, height: 140, type: "bush" },   // 北橋の西
+        { x: 880, y: 730, width: 100, height: 140, type: "bush" },   // 南橋の東（点対称）
+        { x: 880, y: 330, width: 100, height: 140, type: "bush" },   // 北橋の東
+        { x: 620, y: 730, width: 100, height: 140, type: "bush" },   // 南橋の西（点対称）
+        // === 小カバー ===
+        { x: 550, y: 200, width: 60, height: 40, type: "house" },
+        { x: 990, y: 960, width: 60, height: 40, type: "house" },
+        // === ワンウェイ（斜め、大ハウスと小ハウスの間）===
+        { x: 465, y: 65, width: 20, height: 120, type: "oneway", rotation: 37, direction: "right" },
+        { x: 1115, y: 1015, width: 20, height: 120, type: "oneway", rotation: 37, direction: "left" },
+    ],
     spawnPoints: [
-        { team: "red", x: 100, y: 600 },
-        { team: "blue", x: 1100, y: 600 },
+        { team: "red", x: 150, y: 600 },
+        { team: "blue", x: 1450, y: 600 },
     ],
     flagPositions: [
-        { team: "red", x: 250, y: 600 },
-        { team: "blue", x: 950, y: 600 },
+        { team: "red", x: 550, y: 600 },
+        { team: "blue", x: 1050, y: 600 },
     ],
 };
 
-export const MAP_TEST_L: MapData = {
-    id: "test-l",
-    width: 1500,
-    height: 1500,
-    walls: [],
+/** fortress — 二つの砦  点対称中心: (900, 600) */
+export const MAP_FORTRESS: MapData = {
+    id: "fortress",
+    width: 1800,
+    height: 1200,
+    walls: [
+        // === Red基地(左,右開口) ↔ Blue基地(右,左開口) ===
+        { x: 50, y: 400, width: 200, height: 20, type: "wall" },
+        { x: 1550, y: 780, width: 200, height: 20, type: "wall" },
+        { x: 50, y: 780, width: 200, height: 20, type: "wall" },
+        { x: 1550, y: 400, width: 200, height: 20, type: "wall" },
+        { x: 50, y: 420, width: 20, height: 130, type: "wall" },
+        { x: 1730, y: 650, width: 20, height: 130, type: "wall" },
+        { x: 50, y: 650, width: 20, height: 130, type: "wall" },
+        { x: 1730, y: 420, width: 20, height: 130, type: "wall" },
+        // === 中央 ===
+        { x: 840, y: 540, width: 120, height: 120, type: "house" },
+        // === カバー ===
+        { x: 600, y: 300, width: 60, height: 40, type: "house" },
+        { x: 1140, y: 860, width: 60, height: 40, type: "house" },
+        { x: 600, y: 860, width: 60, height: 40, type: "house" },
+        { x: 1140, y: 300, width: 60, height: 40, type: "house" },
+        // === ブッシュ ===
+        { x: 750, y: 150, width: 300, height: 120, type: "bush" },
+        { x: 750, y: 930, width: 300, height: 120, type: "bush" },
+        // === 水場 ===
+        { x: 0, y: 0, width: 200, height: 150, type: "water" },
+        { x: 1600, y: 1050, width: 200, height: 150, type: "water" },
+        { x: 1600, y: 0, width: 200, height: 150, type: "water" },
+        { x: 0, y: 1050, width: 200, height: 150, type: "water" },
+        // === 前哨 ===
+        { x: 320, y: 550, width: 80, height: 100, type: "wall" },
+        { x: 1400, y: 550, width: 80, height: 100, type: "wall" },
+        // === ワンウェイ ===
+        { x: 850, y: 380, width: 100, height: 20, type: "oneway", direction: "down" },
+        { x: 850, y: 800, width: 100, height: 20, type: "oneway", direction: "up" },
+
+    ],
     spawnPoints: [
-        { team: "red", x: 100, y: 750 },
-        { team: "blue", x: 1400, y: 750 },
+        { team: "red", x: 150, y: 600 },
+        { team: "blue", x: 1650, y: 600 },
     ],
     flagPositions: [
-        { team: "red", x: 250, y: 750 },
-        { team: "blue", x: 1250, y: 750 },
+        { team: "red", x: 730, y: 190 },
+        { team: "red", x: 300, y: 400 },
+        { team: "blue", x: 1070, y: 1010 },
+        { team: "blue", x: 1500, y: 800 },
     ],
 };
+
 
 export const MAPS: Record<string, MapData> = {
-    alpha: MAP_ALPHA,
-    beta: MAP_BETA,
-    gamma: MAP_GAMMA,
-    delta: MAP_DELTA,
-    epsilon: MAP_EPSILON,
-    "test-s": MAP_TEST_S,
-    "test-m": MAP_TEST_M,
-    "test-l": MAP_TEST_L,
+    riverside: MAP_RIVERSIDE,
+    fortress: MAP_FORTRESS,
 };
+

@@ -34,7 +34,7 @@ export const ITEM_POOL: { type: ItemType; count: number }[] = [
   { type: "rope", count: 2 },
   { type: "boots", count: 2 },
 ];
-export const DEFAULT_MAP = MAPS["alpha"];
+export const DEFAULT_MAP = MAPS["riverside"];
 export const MAX_MOVE_DIST = 300;
 export const COOLDOWN_THRESHOLD = 200;
 export const COOLDOWN_SHORT_MS = 1500;

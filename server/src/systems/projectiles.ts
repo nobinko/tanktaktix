@@ -47,13 +47,9 @@ export function updateBullets(room: Room, dtSec: number, now: number) {
         // Check if thrown flag hits an item -> RESET to base but NO explosion, NO item destruction
         const hitItem = room.items.find(i => Math.hypot(i.x - curr.x, i.y - curr.y) < ITEM_RADIUS + 10);
         if (hitItem) {
-          const flagSrc = room.mapData.flagPositions ?? room.mapData.spawnPoints;
-          const basePos = flagSrc.find(s => s.team === f.team);
-          if (basePos) {
-            f.x = basePos.x;
-            f.y = basePos.y;
-            exploded = true;
-          }
+          f.x = f.baseX;
+          f.y = f.baseY;
+          exploded = true;
         }
       }
     }

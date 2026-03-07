@@ -1,5 +1,7 @@
 import { MAPS } from "./maps.js";
 export { MAPS };
+export { PREFAB_REGISTRY, expandMapObjects } from "./prefabs.js";
+export type { PrefabDefinition, PrefabPart } from "./prefabs.js";
 export type Vector2 = {
   x: number;
   y: number;
@@ -7,7 +9,7 @@ export type Vector2 = {
 
 export type Team = "red" | "blue" | null;
 export type ItemType = "medic" | "ammo" | "heart" | "bomb" | "rope" | "boots";
-export type WallType = "wall" | "bush" | "water" | "house" | "oneway";
+export type WallType = "wall" | "bush" | "water" | "house" | "oneway" | "river" | "bridge";
 
 export type Item = {
   id: string;
@@ -23,7 +25,27 @@ export type Wall = {
   width: number;
   height: number;
   type?: WallType;
-  direction?: "up" | "down" | "left" | "right";
+  direction?: "up" | "down" | "left" | "right"; // レガシー（移行後は rotation で代替）
+  rotation?: number;     // 自由角度（度）
+  passable?: boolean;    // ブリッジ用: true なら通行許可ゾーン
+};
+
+export type PrefabType =
+  | "house-s" | "house-m" | "house-l"
+  | "base-1open" | "base-2open-opposite" | "base-2open-adjacent" | "base-3open"
+  | "river-s" | "river-m" | "river-l"
+  | "river-elbow-gentle-s" | "river-elbow-gentle-l"
+  | "river-elbow-mid-s" | "river-elbow-mid-l"
+  | "river-elbow-sharp-s" | "river-elbow-sharp-l"
+  | "bridge-s" | "bridge-l"
+  | "oneway"
+  | "bush";
+
+export type MapObject = {
+  type: PrefabType;
+  x: number;
+  y: number;
+  rotation?: number; // 度
 };
 
 export type MapData = {
@@ -31,8 +53,12 @@ export type MapData = {
   width: number;
   height: number;
   walls: Wall[];
+  objects?: MapObject[];           // プレハブオブジェクト配置
+  dynamicBushes?: { x: number; y: number }[];  // 動的ブッシュ
   spawnPoints: { team: Team; x: number; y: number }[];
   flagPositions?: { team: Team; x: number; y: number }[]; // CTF flag locations (defaults to spawnPoints if omitted)
+  itemMode?: "random" | "manual";
+  itemSpawns?: { x: number; y: number; type: ItemType }[];
 };
 
 export type PlayerSummary = {
@@ -149,6 +175,8 @@ export type Flag = {
   team: Team; // "red" or "blue"
   x: number;
   y: number;
+  baseX: number; // original home position
+  baseY: number;
   carrierId: string | null; // ID of player holding it
   droppedById?: string; // Phase 4-5: ID of player who dropped it, to prevent immediate re-pickup
 };

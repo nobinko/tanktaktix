@@ -93,14 +93,8 @@ export const initAppHtml = () => {
             </label>
             <label class="cr-label">Map
               <select id="map-select">
-                <option value="alpha">Alpha (Classic)</option>
-                <option value="beta">Beta (Urban)</option>
-                <option value="gamma">Gamma (Fort)</option>
-                <option value="delta">Delta (Nature)</option>
-                <option value="epsilon">Epsilon (Obstacles)</option>
-                <option value="test-s">Test Map S (1000×1000)</option>
-                <option value="test-m">Test Map M (1200×1200)</option>
-                <option value="test-l">Test Map L (1500×1500)</option>
+                <option value="riverside" selected>Riverside (River)</option>
+                <option value="fortress">Fortress (Bases)</option>
               </select>
             </label>
           </div>
@@ -261,6 +255,8 @@ export const drawMapDataThumbnail = (canvas: HTMLCanvasElement, mapData: { width
     else if (type === "water") ctx.fillStyle = "rgba(70, 100, 120, 0.6)";
     else if (type === "house") ctx.fillStyle = "#c4a070";
     else if (type === "oneway") ctx.fillStyle = "rgba(180, 140, 40, 0.6)";
+    else if (type === "river") ctx.fillStyle = "rgba(50, 90, 140, 0.6)";
+    else if (type === "bridge") ctx.fillStyle = "rgba(120, 130, 145, 0.75)";
     else ctx.fillStyle = "#c4b4a0";
     ctx.fillRect(wall.x * scaleX, wall.y * scaleY, Math.max(1, wall.width * scaleX), Math.max(1, wall.height * scaleY));
   }

@@ -95,7 +95,7 @@ export const handleServerMessage = (message: ServerToClientMessage, deps: Handle
       // Phase 5: SFX hook for flag pickup
       if (payload.flags && state.flags && newMe) {
         payload.flags.forEach(newFlag => {
-          const oldFlag = state.flags!.find(f => f.team === newFlag.team);
+          const oldFlag = state.flags!.find(f => f.team === newFlag.team && f.baseX === newFlag.baseX && f.baseY === newFlag.baseY);
           if (oldFlag && oldFlag.carrierId !== state.selfId && newFlag.carrierId === state.selfId) {
             soundManager.play("item_pickup"); // Using item pickup sound for grabbing the flag
           }
