@@ -436,7 +436,8 @@ type RoomOptions = {
 |---|---|---|
 | `welcome` | `{ id }` | 接続確認・プレイヤー ID 通知 |
 | `lobby` | `LobbyState` | ロビー状態（ルーム一覧・オンラインプレイヤー） |
-| `room` | `RoomState` | ルーム状態（20Hz で配信） |
+| `roomInit` | `RoomInitState` | ルーム参加時の初回大容量データ（マップ構造全体など） |
+| `room` | `RoomState` | ルーム状態（20Hz で配信、マップデータ等は差分化） |
 | `explosion` | `Explosion` | 爆発イベント（即時配信、VFX トリガー用） |
 | `chat` | `ChatMessage` | チャットメッセージ |
 | `gameEnd` | `{ roomId, winners, results }` | ゲーム終了通知 |
@@ -454,10 +455,11 @@ Client                              Server
   │                                   │
   │── createRoom { ..., gameMode } ──▶│ ルーム作成 → lobby ブロードキャスト
   │── joinRoom { roomId } ───────────▶│ チーム割当・スポーン
-  │◀─ room { players, items,          │ 参加成功
-  │         flags, mapData, ... } ─────│
+  │◀─ roomInit { mapData, ... } ──────│ 参加成功・初回大容量データ送信
+  │◀─ room { players, items,          │
+  │         flags, ... } ──────────────│
   │                                   │
-  │    ← 20Hz で room ブロードキャスト ──│ tick ごとに状態同期
+  │    ← 20Hz で room ブロードキャスト ──│ tick ごとに状態同期（差分ペイロード）
   │                                   │
   │── move { target } ───────────────▶│ moveQueue に追加
   │── shoot { direction } ───────────▶│ 弾丸生成・クールダウン開始
@@ -581,10 +583,10 @@ Render Web Service
 
 > **今は実装しない。** 方向性だけ固定し、将来の設計判断に使う。
 
-優先アプローチ:
-- **Delta 配信**: 差分のみ送信し、フルスナップショットを減らす
-- **送信頻度の分離（LOD）**: 低速エンティティは送信頻度を下げる。弾丸・爆発は高優先維持
-- **空間インデックス**: Grid / Spatial Hash で弾丸×プレイヤーの衝突判定を O(B×P) から O(B×k) に削減
+優先アプローチ (一部実装済み):
+- **Delta 配信 (完了)**: `roomInit` と `room` に分け、差分のみ送信しフルスナップショットを減らす。ブロードキャスト文字列のキャッシュ化導入済み。
+- **空間インデックス (部分完了)**: 完全なSpatial Hash Gridは未導入だが、マンハッタン距離を用いた Early Reject により弾丸×プレイヤーの衝突判定の `O(N^2)` を大幅に削減。
+- **スポーンの面配置 (完了)**: スポーン位置をただの「点」ではなく `radius`（半径）を持つ「面（エリア）」とし、無敵時間中のすり抜けにより、多数のプレイヤーが同時に湧いてもスタックしない仕組みを実装。
 
 採用しないこと:
 - Rollback（巻き戻し同期）: 複雑度が高く、現行の権威モデルで十分

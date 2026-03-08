@@ -60,31 +60,33 @@ export function assignTeam(room: Room): Team {
 export function spawnPlayer(p: PlayerRuntime, room: Room) {
   const map = room.mapData;
   const teamSpawns = map.spawnPoints.filter(sp => sp.team === p.team);
-  let baseX: number;
-  let baseY: number;
+  let baseX: number = 0;
+  let baseY: number = 0;
+  let radius = 40;
   const otherPlayers = Array.from(room.playerIds).map(id => players.get(id)).filter(other => other && other.id !== p.id && other.hp > 0 && other.respawnAt === null);
   let foundSpot = false;
   let attempts = 0;
   while (attempts < 20 && !foundSpot) {
     if (teamSpawns.length > 0) {
-      const sp = teamSpawns[Math.floor(Math.random() * teamSpawns.length)];
+      const sp = teamSpawns[Math.floor(Math.random() * teamSpawns.length)] as any;
       baseX = sp.x;
       baseY = sp.y;
+      if (sp.radius) radius = sp.radius;
     } else {
       baseX = 150 + Math.random() * 200;
       baseY = 150 + Math.random() * 200;
     }
-    const tx = clamp(baseX + (Math.random() * 80 - 40), TANK_SIZE, map.width - TANK_SIZE);
-    const ty = clamp(baseY + (Math.random() * 80 - 40), TANK_SIZE, map.height - TANK_SIZE);
+    const angle = Math.random() * Math.PI * 2;
+    const dist = Math.random() * radius;
+    const tx = clamp(baseX + Math.cos(angle) * dist, TANK_SIZE, map.width - TANK_SIZE);
+    const ty = clamp(baseY + Math.sin(angle) * dist, TANK_SIZE, map.height - TANK_SIZE);
+
     if (checkWallCollision(tx, ty, TANK_SIZE, map.walls)) {
       attempts++;
       continue;
     }
-    const tooClose = otherPlayers.some(other => other ? Math.hypot(tx - other.x, ty - other.y) < TANK_SIZE * 2.2 : false);
-    if (tooClose) {
-      attempts++;
-      continue;
-    }
+    // Phase E: Removed `tooClose` player proximity check to allow spawning in same area. 
+    // They will pass through each other due to spawn immunity in tick.ts.
     p.x = tx;
     p.y = ty;
     foundSpot = true;
@@ -101,6 +103,7 @@ export function spawnPlayer(p: PlayerRuntime, room: Room) {
   p.hp = maxHp;
   p.ammo = 20;
   p.respawnAt = null;
+  p.respawnCooldownUntil = Date.now() + 1500; // Phase E: Give initial spawn immunity to allow dispersing
   p.pendingMove = null;
   p.moveQueue = [];
   p.isMoving = false;
@@ -193,7 +196,8 @@ export function joinRoom(p: PlayerRuntime, roomId: string, password?: string, re
   }
 
   p.score = 0; p.kills = 0; p.deaths = 0; p.hits = 0; p.fired = 0;
-  sendRoomState(roomId);
+  // Send the initial room state containing mapData
+  sendRoomState(roomId, true);
   broadcastLobby(room.lobbyId);
 }
 

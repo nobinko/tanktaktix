@@ -908,7 +908,8 @@ button.secondary {
   margin: 24px 0;
   background: rgba(229, 220, 208, 0.6);
   border-radius: 6px;
-  overflow: hidden;
+  overflow-y: auto;
+  max-height: 50vh;
   border: 1px solid rgba(168, 148, 104, 0.3);
 }
 

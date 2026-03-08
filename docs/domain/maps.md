@@ -62,6 +62,7 @@
 
 - 各チームの陣地にフラッグ（旗）が配置される（**1チーム複数本可**）
 - 初期位置: `MapData.flagPositions`（省略時は `spawnPoints` を使用）
+- （参考）リスポーン時の密集スタックを防ぐため、`spawnPoints` には `radius`（半径）を設定可能になっており、その領域内でランダムに分散して湧く仕様です。
 - 各フラッグは `baseX`/`baseY` で固有の元位置を保持し、リセット時にその位置に戻る
 - 旗の数はセオリー上 **各2〜3本** が理想（戦略分散と集中のバランス）
 
@@ -97,7 +98,7 @@ type MapData = {
   width: number;
   height: number;
   walls: Wall[];
-  spawnPoints: { team: Team; x: number; y: number }[];
+  spawnPoints: { team: Team; x: number; y: number; radius?: number }[];
   flagPositions?: { team: Team; x: number; y: number }[]; // 省略時はspawnPointsを使用。同チーム複数可
 };
 

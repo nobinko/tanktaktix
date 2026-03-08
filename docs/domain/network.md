@@ -63,7 +63,8 @@
 |---|---|---|
 | `welcome` | `{ id: string }` | 接続時 + ログイン成功時。id はプレイヤーID |
 | `lobby` | `LobbyState` | ロビー状態。ルーム一覧 |
-| `room` | `RoomState` | ゲーム状態。20Hz（50ms）ごとにブロードキャスト |
+| `roomInit` | `RoomInitState` | 初回の重いペイロード（マップ構造等）。ルーム参加時や観戦開始時に1度だけ送信 |
+| `room` | `RoomState` | ゲーム状態。20Hz（50ms）ごとにブロードキャスト（差分化） |
 | `explosion` | `Explosion` | 爆発イベント（即時配信、VFX用） |
 | `chat` | `ChatMessage` | チャットメッセージ |
 | `gameEnd` | `{ roomId: string, winners, results }` | ゲーム終了。winners は `"red" \| "blue" \| "draw"` |
@@ -131,9 +132,18 @@ type RoomState = {
   timeLeftSec: number;
   gameMode: "deathmatch" | "ctf";
   teamScores: { red: number; blue: number };
-  mapData: MapData;
+  mapData?: MapData;     // 差分プロトコル化により通常tickでは省略される
   items: Item[];
   flags?: Flag[];        // CTF モードのみ
+};
+
+type RoomInitState = {
+  roomId: string;
+  roomName: string;
+  mapId: string;
+  room: RoomSummary;
+  mapData: MapData;
+  gameMode: "deathmatch" | "ctf";
 };
 
 type PlayerSummary = {
@@ -247,10 +257,11 @@ Client                              Server
   │                                   │
   │── createRoom { ..., gameMode } ──▶│ ルーム作成 → lobby ブロードキャスト
   │── joinRoom { roomId } ───────────▶│ チーム割当・スポーン
-  │◀─ room { players, items,          │ 参加成功
-  │         flags, mapData, ... } ─────│
+  │◀─ roomInit { mapData, ... } ──────│ 参加成功（マップ等の初回データ送信）
+  │◀─ room { players, items,          │
+  │         flags, ... } ──────────────│
   │                                   │
-  │    ← 20Hz で room ブロードキャスト ──│ tick ごとに状態同期
+  │    ← 20Hz で room ブロードキャスト ──│ tick ごとに状態同期（差分ペイロード）
   │                                   │
   │── move { target } ───────────────▶│ moveQueue に追加
   │── shoot { direction } ───────────▶│ 弾丸生成・クールダウン開始

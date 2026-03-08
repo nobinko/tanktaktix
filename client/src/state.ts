@@ -42,6 +42,7 @@ export const state = {
   mapSize: { width: 1800, height: 1040 },
   lobbyId: "",
   availableLobbies: [] as string[],
+  lastServerUpdateTime: 0,
 };
 
 export const keysDown = new Set<string>();

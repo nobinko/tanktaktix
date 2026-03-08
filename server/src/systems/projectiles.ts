@@ -153,6 +153,10 @@ export function updateBullets(room: Room, dtSec: number, now: number) {
       if (t.respawnCooldownUntil > now) continue; // Invincible to bullets during respawn CD
       if (t.hp <= 0) continue;
 
+      // Phase C-2: Early Reject Bullet-Player collision using rough distance 
+      // check to avoid expensive RayRotatedRect intersections
+      if (Math.abs(curr.x - t.x) > 60 || Math.abs(curr.y - t.y) > 60) continue;
+
       // Hitbox: Rotated Rectangle (26x20)
       const hit = checkRayRotatedRect(
         prev, curr,

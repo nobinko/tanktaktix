@@ -6,7 +6,7 @@ import type { ClientMsg, PlayerRuntime } from "../types.js";
 import { clamp, nowMs } from "../utils/math.js";
 import { newId } from "../utils/id.js";
 import { createRoom, detachFromRoom, joinLobby, joinRoom, spawnPlayer } from "../room.js";
-import { broadcastLobby, broadcastRoom, lobbyStatePayload, roomStatePayloadForSpectator, sendRoomState } from "./broadcast.js";
+import { broadcastLobby, broadcastRoom, lobbyStatePayload, roomStatePayloadForSpectator, sendRoomState, roomInitPayload } from "./broadcast.js";
 import { setAimDir, setMoveDir, setMoveTarget, stopMove } from "../systems/movement.js";
 import { tryShoot, tryUseItem } from "../systems/combat.js";
 
@@ -190,6 +190,9 @@ export function registerWsHandlers(wss: WebSocketServer) {
             room.spectatorIds.add(player.id);
             console.log(`[DEBUG] Player ${player.id} spectating room ${roomId}`);
             // Send initial room state to spectator (full visibility)
+            const initPayload = roomInitPayload(roomId);
+            if (initPayload) send(player.socket, { type: "roomInit", payload: initPayload });
+
             const statePayload = roomStatePayloadForSpectator(roomId);
             if (statePayload) send(player.socket, { type: "room", payload: statePayload });
             broadcastLobby(player.lobbyId);

@@ -1,4 +1,5 @@
 import { state } from "../state";
+import { interpolationBuffers } from "./interpolation";
 
 const drawItemSprite = (ctx: CanvasRenderingContext2D, type: string) => {
   if (type === "medic") {
@@ -39,12 +40,19 @@ export const drawEntities = (ctx: CanvasRenderingContext2D) => {
     for (const b of state.bullets) {
       ctx.save();
       const bAny = b as any;
+      const interpBuf = interpolationBuffers.bullets.get(b.id);
+      // 100ms default delay for interpolation
+      const renderTime = Date.now() - 100;
+      const interpState = interpBuf ? interpBuf.getInterpolatedState(renderTime) : null;
+      const renderX = interpState ? interpState.x : b.position.x;
+      const renderY = interpState ? interpState.y : b.position.y;
+
       if (bAny.isRope) {
-        const sx = bAny.startX ?? b.position.x;
-        const sy = bAny.startY ?? b.position.y;
+        const sx = bAny.startX ?? renderX;
+        const sy = bAny.startY ?? renderY;
         ctx.strokeStyle = "#a3752c"; ctx.lineWidth = 3; ctx.lineCap = "round";
         ctx.beginPath(); ctx.moveTo(sx, sy);
-        const dx = b.position.x - sx, dy = b.position.y - sy;
+        const dx = renderX - sx, dy = renderY - sy;
         const dist = Math.hypot(dx, dy);
         const segments = Math.max(1, Math.floor(dist / 10));
         if (dist > 0) {
@@ -56,16 +64,16 @@ export const drawEntities = (ctx: CanvasRenderingContext2D) => {
           }
         }
         ctx.stroke();
-        ctx.fillStyle = "#8b5a2b"; ctx.beginPath(); ctx.arc(b.position.x, b.position.y, 4, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#8b5a2b"; ctx.beginPath(); ctx.arc(renderX, renderY, 4, 0, Math.PI * 2); ctx.fill();
         ctx.restore();
         continue;
       }
-      if (bAny.isAmmoPass) { ctx.translate(b.position.x, b.position.y); ctx.rotate(-state.camera.rotation); drawItemSprite(ctx, "ammo"); ctx.restore(); continue; }
-      if (bAny.isHealPass) { ctx.translate(b.position.x, b.position.y); ctx.rotate(-state.camera.rotation); drawItemSprite(ctx, "medic"); ctx.restore(); continue; }
-      if (bAny.isFlagPass) { ctx.translate(b.position.x, b.position.y); ctx.rotate(-state.camera.rotation); drawFlagSprite(ctx, bAny.flagTeam || "red"); ctx.restore(); continue; }
+      if (bAny.isAmmoPass) { ctx.translate(renderX, renderY); ctx.rotate(-state.camera.rotation); drawItemSprite(ctx, "ammo"); ctx.restore(); continue; }
+      if (bAny.isHealPass) { ctx.translate(renderX, renderY); ctx.rotate(-state.camera.rotation); drawItemSprite(ctx, "medic"); ctx.restore(); continue; }
+      if (bAny.isFlagPass) { ctx.translate(renderX, renderY); ctx.rotate(-state.camera.rotation); drawFlagSprite(ctx, bAny.flagTeam || "red"); ctx.restore(); continue; }
 
       ctx.fillStyle = bAny.isBomb ? "#000000" : "#c4843a";
-      ctx.beginPath(); ctx.arc(b.position.x, b.position.y, b.radius, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(renderX, renderY, b.radius, 0, Math.PI * 2); ctx.fill();
       ctx.restore();
     }
   }
@@ -90,7 +98,11 @@ export const drawEntities = (ctx: CanvasRenderingContext2D) => {
     const pTeam = (player as any).team;
     if (pTeam === null) return; // Skip spectators / unassigned players
 
-    const { x, y } = (player as any).position ?? { x: (player as any).x, y: (player as any).y };
+    const interpBuf = interpolationBuffers.players.get(player.id);
+    const renderTime = now - 100;
+    const interpState = interpBuf ? interpBuf.getInterpolatedState(renderTime) : null;
+    const { x, y } = interpState ? interpState : ((player as any).position ?? { x: (player as any).x, y: (player as any).y });
+
     let color = "#c47030";
     if (pTeam === "red") color = "#c44040";
     else if (pTeam === "blue") color = "#4a6a8a";
@@ -99,7 +111,7 @@ export const drawEntities = (ctx: CanvasRenderingContext2D) => {
     const isFlashing = state.hitFlashes[player.id] && state.hitFlashes[player.id] > now;
     if (isFlashing) color = "#ffffff";
 
-    const hullAngle = (player as any).hullAngle ?? 0;
+    const hullAngle = interpState?.angle ?? ((player as any).hullAngle ?? 0);
     const turretAngle = (player as any).turretAngle ?? 0;
     const isInvincible = (player as any).respawnCooldownUntil && (player as any).respawnCooldownUntil > now;
 

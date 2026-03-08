@@ -99,8 +99,9 @@ export function tick() {
       let dx = 0;
       let dy = 0;
 
-      // Movement freeze applied during both normal action cooldown AND respawn cooldown
-      if (p.cooldownUntil > now || p.respawnCooldownUntil > now) {
+      // Movement freeze applied during normal action cooldown
+      // Phase E: Removed respawnCooldownUntil freeze so players can disperse during spawn immunity
+      if (p.cooldownUntil > now) {
         // In Cooldown: FREEZE movement (but moveQueue keeps accepting)
         p.isMoving = false;
         p.isRotating = false;
@@ -193,9 +194,24 @@ export function tick() {
             if (other.respawnAt) continue;
             const pdx = nextX - other.x;
             const pdy = nextY - other.y;
-            if (Math.hypot(pdx, pdy) < TANK_SIZE * 2) {
-              hitPlayer = true;
-              break;
+
+            // Phase E-4: Allow movement if players are moving AWAY from each other (resolves spawn overlap gridlocks)
+            // if ((p.respawnCooldownUntil ?? 0) > now || (other.respawnCooldownUntil ?? 0) > now) continue;
+
+            if (pdx * pdx + pdy * pdy < (TANK_SIZE * 2) * (TANK_SIZE * 2)) {
+              // They will be colliding at the NEXT position.
+              const currentPdx = p.x - other.x;
+              const currentPdy = p.y - other.y;
+              const currentDistSq = currentPdx * currentPdx + currentPdy * currentPdy;
+              const nextDistSq = pdx * pdx + pdy * pdy;
+
+              if (nextDistSq < currentDistSq) {
+                // They are moving CLOSER to each other -> BLOCK!
+                hitPlayer = true;
+                break;
+              }
+              // If nextDistSq >= currentDistSq, they are moving AWAY from each other.
+              // We ALLOW this movement to permit them to step out of existing overlaps (clumps).
             }
           }
         }

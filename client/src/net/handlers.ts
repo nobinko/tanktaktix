@@ -1,6 +1,7 @@
 import type { ServerToClientMessage } from "@tanktaktix/shared";
 import { state } from "../state.js";
 import { soundManager } from "../audio/SoundManager";
+import { interpolationBuffers, clearInterpolationBuffers, StateBuffer } from "../render/interpolation";
 
 export type HandlerDeps = {
   setScreen: (phase: "login" | "lobby" | "room") => void;
@@ -46,29 +47,40 @@ export const handleServerMessage = (message: ServerToClientMessage, deps: Handle
         state.players = [];
         state.bullets = [];
         state.explosions = [];
+        clearInterpolationBuffers();
       }
       break;
+    case "roomInit": {
+      const payload = message.payload;
+      state.roomId = payload.roomId;
+
+      // Store map data which is only sent once
+      state.mapData = payload.mapData;
+      state.mapSize.width = payload.mapData.width;
+      state.mapSize.height = payload.mapData.height;
+
+      // Reset dynamic arrays for safety
+      state.players = [];
+      state.bullets = [];
+      state.explosions = [];
+      state.items = [];
+      state.flags = [];
+      clearInterpolationBuffers();
+
+      if (state.isSpectator) {
+        state.camera.x = 0; state.camera.y = 0;
+      }
+      state.camera.zoom = 1;
+      state.camera.rotation = 0;
+
+      deps.setScreen("room");
+      deps.setupRoom();
+      break;
+    }
     case "room": {
       const payload = message.payload;
       if (payload.roomId === state.leavingRoomId) return;
-      const isFirstRoomMessage = !state.roomId;
-      state.mapSize.width = payload.mapData.width;
-      state.mapSize.height = payload.mapData.height;
-      if (isFirstRoomMessage) {
-        if (state.isSpectator) {
-          state.camera.x = 0; state.camera.y = 0;
-        } else {
-          // Camera logic moved to render loop or per-frame update,
-          // but if we want instant snap on join/team-select:
-          const me = payload.players.find((p) => p.id === state.selfId);
-          if (me && me.team !== null) {
-            state.camera.x = me.position.x - state.mapSize.width / 2;
-            state.camera.y = me.position.y - state.mapSize.height / 2;
-          }
-        }
-        state.camera.zoom = 1;
-        state.camera.rotation = 0;
-      }
+
       state.roomId = payload.roomId;
       state.players = payload.players;
       state.timeLeftSec = payload.timeLeftSec;
@@ -111,46 +123,65 @@ export const handleServerMessage = (message: ServerToClientMessage, deps: Handle
 
       state.bullets = payload.bullets;
       state.explosions = payload.explosions.map((e) => ({ ...e, startedAt: Date.now() }));
-      state.mapData = payload.mapData;
       state.teamScores = payload.teamScores;
       state.items = payload.items;
       state.flags = payload.flags || [];
 
+      // Update Interpolation Buffers
+      const serverTime = Date.now();
+      state.lastServerUpdateTime = serverTime;
+
+      for (const p of payload.players) {
+        let buf = interpolationBuffers.players.get(p.id);
+        if (!buf) {
+          buf = new StateBuffer();
+          interpolationBuffers.players.set(p.id, buf);
+        }
+        buf.addState({ x: p.position.x, y: p.position.y, angle: p.hullAngle }, serverTime);
+      }
+
+      for (const b of payload.bullets) {
+        let buf = interpolationBuffers.bullets.get(b.id);
+        if (!buf) {
+          buf = new StateBuffer();
+          interpolationBuffers.bullets.set(b.id, buf);
+        }
+        buf.addState({ x: b.position.x, y: b.position.y }, serverTime);
+      }
+
+      // Cleanup stale buffers
+      const activePlayerIds = new Set(payload.players.map((p: any) => p.id));
+      for (const id of interpolationBuffers.players.keys()) {
+        if (!activePlayerIds.has(id)) interpolationBuffers.players.delete(id);
+      }
+      const activeBulletIds = new Set(payload.bullets.map((b: any) => b.id));
+      for (const id of interpolationBuffers.bullets.keys()) {
+        if (!activeBulletIds.has(id)) interpolationBuffers.bullets.delete(id);
+      }
+
       // Phase 4-6: Check for HP drops to trigger damage flashes
       const now = Date.now();
       for (const p of payload.players) {
-        if (isFirstRoomMessage) {
+        const lastHp = state.lastHpMap[p.id];
+        if (lastHp === undefined) {
           state.lastHpMap[p.id] = p.hp;
           continue;
         }
-        const lastHp = state.lastHpMap[p.id];
-        if (lastHp !== undefined) {
-          if (p.hp < lastHp && p.hp > 0) {
-            state.hitFlashes[p.id] = now + 150;
-            state.floatingTexts.push({ id: Math.random().toString(), text: `-${lastHp - p.hp}`, color: "#d45555", x: p.position.x, y: p.position.y - 25, startedAt: now });
-          } else if (p.hp > lastHp) {
-            // respawnCooldownUntilが未来ならリスポーン直後 → +テキスト出さない
-            const isRespawn = (p as any).respawnCooldownUntil > now;
-            // チーム未所属(0)から所属(100/20)への変化も回復ではないので出さない
-            const isFirstSpawn = lastHp === 0 && p.team !== null;
-            if (!isRespawn && !isFirstSpawn) {
-              state.floatingTexts.push({ id: Math.random().toString(), text: `+${p.hp - lastHp}`, color: "#7aad55", x: p.position.x, y: p.position.y - 25, startedAt: now });
-              // Phase 5: SFX hook for HP pickup
-              if (p.id === state.selfId) {
-                soundManager.play("item_pickup");
-              }
+        if (p.hp < lastHp && p.hp > 0) {
+          state.hitFlashes[p.id] = now + 150;
+          state.floatingTexts.push({ id: Math.random().toString(), text: `-${lastHp - p.hp}`, color: "#d45555", x: p.position.x, y: p.position.y - 25, startedAt: now });
+        } else if (p.hp > lastHp) {
+          const isRespawn = (p as any).respawnCooldownUntil > now;
+          const isFirstSpawn = lastHp === 0 && p.team !== null;
+          if (!isRespawn && !isFirstSpawn) {
+            state.floatingTexts.push({ id: Math.random().toString(), text: `+${p.hp - lastHp}`, color: "#7aad55", x: p.position.x, y: p.position.y - 25, startedAt: now });
+            if (p.id === state.selfId) {
+              soundManager.play("item_pickup");
             }
           }
         }
         state.lastHpMap[p.id] = p.hp;
-
       }
-
-      if (state.phase !== "room") {
-        deps.setScreen("room");
-        deps.setupRoom();
-      }
-
       // Phase 5-12: Team Select Overlay
       const me = payload.players.find((p) => p.id === state.selfId);
       const tsOverlay = document.querySelector("#team-select-overlay") as HTMLElement;

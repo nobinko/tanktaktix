@@ -83,9 +83,15 @@ export function roomStatePayloadForPlayer(roomId: string, recipient: PlayerRunti
   const room = rooms.get(roomId);
   if (!room) return null;
   const timeLeftSec = Math.max(0, Math.ceil((room.endsAt - nowMs()) / 1000));
-  const ps = [...room.playerIds].map(pid => players.get(pid)).filter((p): p is PlayerRuntime => !!p).filter(p => p.id === recipient.id || p.team === recipient.team || !p.isHidden).map(toPlayerPublic);
+  const ps = [...room.playerIds].map(pid => players.get(pid)).filter((p): p is PlayerRuntime => !!p).filter(p => !p.isHidden || p.id === recipient.id || p.team === recipient.team).map(toPlayerPublic);
   const bs = room.bullets.map(toBulletPublic);
-  return { roomId: room.id, roomName: room.name, mapId: room.mapId, room: toRoomSummary(room), timeLeftSec, players: ps, bullets: bs, projectiles: bs, explosions: room.explosions, gameMode: room.gameMode, teamScores: { red: room.scoreRed, blue: room.scoreBlue }, mapData: room.mapData, flags: room.gameMode === "ctf" ? room.flags : undefined, items: room.items };
+  return { roomId: room.id, roomName: room.name, mapId: room.mapId, room: toRoomSummary(room), timeLeftSec, players: ps, bullets: bs, projectiles: bs, explosions: room.explosions, gameMode: room.gameMode, teamScores: { red: room.scoreRed, blue: room.scoreBlue }, flags: room.gameMode === "ctf" ? room.flags : undefined, items: room.items };
+}
+
+export function roomInitPayload(roomId: string) {
+  const room = rooms.get(roomId);
+  if (!room) return null;
+  return { roomId: room.id, roomName: room.name, mapId: room.mapId, room: toRoomSummary(room), mapData: room.mapData, gameMode: room.gameMode };
 }
 
 export function roomStatePayloadForSpectator(roomId: string) {
@@ -94,7 +100,7 @@ export function roomStatePayloadForSpectator(roomId: string) {
   const timeLeftSec = Math.max(0, Math.ceil((room.endsAt - nowMs()) / 1000));
   const ps = [...room.playerIds].map(pid => players.get(pid)).filter((p): p is PlayerRuntime => !!p).map(toPlayerPublic);
   const bs = room.bullets.map(toBulletPublic);
-  return { roomId: room.id, roomName: room.name, mapId: room.mapId, room: toRoomSummary(room), timeLeftSec, players: ps, bullets: bs, projectiles: bs, explosions: room.explosions, gameMode: room.gameMode, teamScores: { red: room.scoreRed, blue: room.scoreBlue }, mapData: room.mapData, flags: room.gameMode === "ctf" ? room.flags : undefined, items: room.items };
+  return { roomId: room.id, roomName: room.name, mapId: room.mapId, room: toRoomSummary(room), timeLeftSec, players: ps, bullets: bs, projectiles: bs, explosions: room.explosions, gameMode: room.gameMode, teamScores: { red: room.scoreRed, blue: room.scoreBlue }, flags: room.gameMode === "ctf" ? room.flags : undefined, items: room.items };
 }
 
 export function broadcastLobby(lobbyId: string) {
@@ -115,19 +121,54 @@ export function broadcastRoom(roomId: string, msg: ServerMsg) {
   }
 }
 
-export function sendRoomState(roomId: string) {
+export function sendRoomState(roomId: string, isInit = false) {
   const room = rooms.get(roomId);
   if (!room) return;
+
+  if (isInit) {
+    const initPayload = roomInitPayload(roomId);
+    if (!initPayload) return;
+    const msg = { type: "roomInit", payload: initPayload };
+    for (const pid of room.playerIds) {
+      const p = players.get(pid);
+      if (p && p.roomId === roomId) send(p.socket, msg);
+    }
+    for (const sid of room.spectatorIds) {
+      const s = players.get(sid);
+      if (s && s.roomId === roomId) send(s.socket, msg);
+    }
+    return;
+  }
+
+  // Pre-calculate full visibility state (spectator view essentially)
+  const fullPayload = roomStatePayloadForSpectator(roomId);
+  if (!fullPayload) return;
+
+  // Cache the stringified full payload since stringify is expensive O(N)
+  const fullPayloadStr = JSON.stringify({ type: "room", payload: fullPayload });
+
   for (const pid of room.playerIds) {
     const p = players.get(pid);
-    if (!p || p.roomId !== roomId) continue;
-    const payload = roomStatePayloadForPlayer(roomId, p);
-    if (payload) send(p.socket, { type: "room", payload });
+    if (!p || p.roomId !== roomId || !p.socket || p.socket.readyState !== 1) continue;
+
+    // Fast-path: if player can see everything (e.g. no enemies are hidden) or we just send the full payload
+    // In TankTaktix, usually we want to hide players in bushes. 
+    // For 50vs50 optimization, calculating per-player visibility is O(N^2).
+    // Let's check if anyone is actually hidden:
+    const anyHidden = fullPayload.players.some(op => room.playerIds.has(op.id) && players.get(op.id)?.isHidden && p.team !== players.get(op.id)?.team && p.id !== op.id);
+
+    if (!anyHidden) {
+      p.socket.send(fullPayloadStr);
+    } else {
+      // Slow-path: custom payload for this player because some enemies are hidden from them
+      const payload = roomStatePayloadForPlayer(roomId, p);
+      if (payload) send(p.socket, { type: "room", payload });
+    }
   }
+
   for (const sid of room.spectatorIds) {
     const s = players.get(sid);
-    if (!s || s.roomId !== roomId) continue;
-    const payload = roomStatePayloadForSpectator(roomId);
-    if (payload) send(s.socket, { type: "room", payload });
+    if (!s || s.roomId !== roomId || !s.socket || s.socket.readyState !== 1) continue;
+    s.socket.send(fullPayloadStr);
   }
 }

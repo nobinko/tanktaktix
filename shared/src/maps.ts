@@ -84,8 +84,8 @@ export const MAP_RIVERSIDE: MapData = {
         { x: 1115, y: 1015, width: 20, height: 120, type: "oneway", rotation: 37, direction: "left" },
     ],
     spawnPoints: [
-        { team: "red", x: 150, y: 600 },
-        { team: "blue", x: 1450, y: 600 },
+        { team: "red", x: 150, y: 600, radius: 120 },
+        { team: "blue", x: 1450, y: 600, radius: 120 },
     ],
     flagPositions: [
         { team: "red", x: 550, y: 600 },
@@ -132,8 +132,8 @@ export const MAP_FORTRESS: MapData = {
 
     ],
     spawnPoints: [
-        { team: "red", x: 150, y: 600 },
-        { team: "blue", x: 1650, y: 600 },
+        { team: "red", x: 150, y: 600, radius: 120 },
+        { team: "blue", x: 1650, y: 600, radius: 120 },
     ],
     flagPositions: [
         { team: "red", x: 730, y: 190 },

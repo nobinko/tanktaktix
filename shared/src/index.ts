@@ -55,7 +55,7 @@ export type MapData = {
   walls: Wall[];
   objects?: MapObject[];           // プレハブオブジェクト配置
   dynamicBushes?: { x: number; y: number }[];  // 動的ブッシュ
-  spawnPoints: { team: Team; x: number; y: number }[];
+  spawnPoints: { team: Team; x: number; y: number; radius?: number }[];
   flagPositions?: { team: Team; x: number; y: number }[]; // CTF flag locations (defaults to spawnPoints if omitted)
   itemMode?: "random" | "manual";
   itemSpawns?: { x: number; y: number; type: ItemType }[];
@@ -166,9 +166,18 @@ export type RoomState = {
   timeLeftSec: number;
   gameMode: "deathmatch" | "ctf";
   teamScores: { red: number; blue: number };
-  mapData: MapData;
+  mapData?: MapData; // Made optional for delta sync
   flags?: Flag[]; // Only for CTF
   items: Item[];
+};
+
+export type RoomInitState = {
+  roomId: string;
+  roomName: string;
+  mapId: string;
+  room: RoomSummary;
+  mapData: MapData;
+  gameMode: "deathmatch" | "ctf";
 };
 
 export type Flag = {
@@ -271,6 +280,10 @@ export type ServerToClientMessage =
   | {
     type: "lobby";
     payload: LobbyState;
+  }
+  | {
+    type: "roomInit";
+    payload: RoomInitState;
   }
   | {
     type: "room";
