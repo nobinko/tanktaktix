@@ -118,11 +118,126 @@ export const drawEntities = (ctx: CanvasRenderingContext2D) => {
     ctx.save();
     if (isInvincible) ctx.globalAlpha = 0.5;
     ctx.translate(x, y); ctx.rotate(hullAngle);
-    ctx.fillStyle = isFlashing ? "#ffffff" : "#7a6a5a"; ctx.fillRect(-13, -10, 26, 20);
-    ctx.fillStyle = color; ctx.fillRect(-11, -8, 22, 16);
+    // 1. 履帯 (基準位置固定)
+    ctx.fillStyle = isFlashing ? "#ffffff" : "#7a6a5a";
+    ctx.strokeStyle = isFlashing ? "#ffffff" : "#3a2a1a";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.rect(-13, -10, 26, 20); ctx.fill(); // まず全体を塗りつぶし（元の仕様に近い）
+    ctx.fillRect(-13, -10, 26, 20); // Fallback for original code logic just in case
+
+    // 2. 車体 (ベース四角形から「控えめに」非対称に削る)
+    ctx.fillStyle = color;
+    ctx.strokeStyle = isFlashing ? "#ffffff" : "#3a2a1a"; // 枠線色
+    ctx.lineWidth = 1.5;
+
+    // HPに応じて形状を削る
+    const hp = (player as any).hp ?? 100;
+
+    if (hp > 80) {
+      // 100% ベース完全体
+      ctx.moveTo(-11, -8); ctx.lineTo(11, -8); ctx.lineTo(11, 8); ctx.lineTo(-11, 8); ctx.closePath();
+    }
+    else if (hp > 60) {
+      // 80% 左上がほんの少し欠ける
+      ctx.moveTo(-9, -8); ctx.lineTo(11, -8); ctx.lineTo(11, 8);
+      ctx.lineTo(-11, 8); ctx.lineTo(-11, -5); ctx.closePath();
+    }
+    else if (hp > 40) {
+      // 60% 左上がもう少し欠け、左下はごくわずかに。
+      ctx.moveTo(-7, -8); ctx.lineTo(11, -8); ctx.lineTo(11, 8);
+      ctx.lineTo(-9, 8); ctx.lineTo(-11, 5); ctx.lineTo(-11, -3); ctx.closePath();
+    }
+    else if (hp > 20) {
+      // 40% 左側は全体的に下がるが、全体の面積の8割は維持。非対称。
+      ctx.moveTo(-5, -8); ctx.lineTo(11, -8); ctx.lineTo(11, 8);
+      ctx.lineTo(-11, 8); ctx.lineTo(-11, 5); ctx.lineTo(-9, 4); ctx.lineTo(-9, 0); ctx.lineTo(-8, -4); ctx.closePath();
+    }
+    else {
+      // 20% 以下 さらに凹みを作るが、ベースの四角形感は維持。
+      ctx.moveTo(-1, -8); ctx.lineTo(11, -8); ctx.lineTo(11, 8);
+      ctx.lineTo(-8, 8); ctx.lineTo(-11, 4); ctx.lineTo(-11, 1); ctx.lineTo(-6, -1); ctx.lineTo(-5, -5); ctx.closePath();
+    }
+    ctx.fill(); ctx.stroke();
+
+    // 進行方向インジケーター
     ctx.fillStyle = isFlashing ? "#ff0000" : "#3a2a1a"; ctx.globalAlpha = isInvincible ? 0.35 : 0.7;
     ctx.beginPath(); ctx.moveTo(11, -3); ctx.lineTo(15, 0); ctx.lineTo(11, 3); ctx.closePath(); ctx.fill();
     ctx.globalAlpha = isInvincible ? 0.5 : 1.0;
+
+    // 3. 剥き出しの骨組み・ひしゃげた線 (控えめに)
+    if (!isFlashing) {
+      ctx.strokeStyle = "#3a2a1a";
+      ctx.lineWidth = 1.5;
+
+      if (hp <= 80 && hp > 60) {
+        ctx.beginPath(); ctx.moveTo(-10, -7); ctx.lineTo(-15, -12); ctx.stroke();
+        // 前方の微細なめくれ
+        ctx.beginPath(); ctx.moveTo(11, -5); ctx.lineTo(14, -7); ctx.stroke();
+      }
+      else if (hp <= 60 && hp > 40) {
+        ctx.beginPath(); ctx.moveTo(-9, -6); ctx.lineTo(-15, -10); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(-11, -4); ctx.lineTo(-16, -6); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(-10, 7); ctx.lineTo(-14, 11); ctx.stroke();
+        // 前方のめくれ
+        ctx.beginPath(); ctx.moveTo(11, -6); ctx.lineTo(16, -9); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(11, 4); ctx.lineTo(15, 6); ctx.stroke();
+      }
+      else if (hp <= 40 && hp > 20) {
+        ctx.beginPath(); ctx.moveTo(-6, -6); ctx.lineTo(-14, -13); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(-9, -1); ctx.lineTo(-16, -4); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(-10, 6); ctx.lineTo(-16, 12); ctx.stroke();
+        // 前方にも激しめのめくれ
+        ctx.beginPath(); ctx.moveTo(11, -4); ctx.lineTo(17, -8); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(11, 6); ctx.lineTo(18, 11); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(11, 1); ctx.lineTo(15, 2); ctx.stroke();
+      }
+      else if (hp <= 20) {
+        ctx.beginPath(); ctx.moveTo(-3, -7); ctx.lineTo(-12, -15); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(-6, -3); ctx.lineTo(-16, -8); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(-8, 0); ctx.lineTo(-17, 3); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(-9, 6); ctx.lineTo(-16, 13); ctx.stroke();
+        // 前方から複数の装甲板がめくれ出ている
+        ctx.beginPath(); ctx.moveTo(11, -7); ctx.lineTo(18, -12); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(11, -2); ctx.lineTo(19, -4); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(11, 3); ctx.lineTo(18, 6); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(11, 8); ctx.lineTo(17, 14); ctx.stroke();
+      }
+    }
+
+    // 4. 車体内（欠損空間）の炎上アニメーション
+    if (hp <= 40 && !isFlashing) {
+      ctx.save();
+      const t = now / 100;
+
+      let cx = -7, cy = -2; // 炎の基準座標
+
+      if (hp > 20) {
+        // 40% 小さな炎
+        const s = 1.0 + Math.sin(t) * 0.5;
+        ctx.fillStyle = "rgba(40,40,40,0.8)";
+        ctx.beginPath(); ctx.arc(cx, cy, 2.5, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = (Math.floor(t * 2) % 2 === 0) ? "rgba(255,100,0,0.8)" : "rgba(200,50,0,0.8)";
+        ctx.beginPath(); ctx.arc(cx, cy, s, 0, Math.PI * 2); ctx.fill();
+      }
+      else {
+        // 20% 少し大きめの乱れる炎
+        const f1x = cx + Math.sin(t * 1.3) * 0.5;
+        const f1y = cy + Math.cos(t * 1.5) * 0.5;
+        const f1r = 2 + Math.sin(t * 2) * 0.5;
+
+        const f2x = cx - 1 + Math.sin(t * 1.7) * 0.5;
+        const f2y = cy + 1.5 + Math.cos(t * 1.1) * 0.5;
+        const f2r = 1.5 + Math.sin(t * 2.5) * 0.5;
+
+        ctx.fillStyle = "rgba(30,30,30,0.7)";
+        ctx.beginPath(); ctx.arc(cx - 1, cy + 1, 3.5, 0, Math.PI * 2); ctx.fill();
+
+        ctx.fillStyle = (Math.floor(t * 3) % 2 === 0) ? "rgba(255,180,0,0.9)" : "rgba(255,80,0,0.9)";
+        ctx.beginPath(); ctx.arc(f1x, f1y, f1r, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(f2x, f2y, f2r, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.restore();
+    }
 
     if ((player as any).hasBomb) {
       ctx.fillStyle = "#7a6a5a"; ctx.beginPath(); ctx.arc(-8, 0, 5, 0, Math.PI * 2); ctx.fill();
@@ -146,7 +261,8 @@ export const drawEntities = (ctx: CanvasRenderingContext2D) => {
     if (isInvincible) ctx.globalAlpha = 0.5;
     ctx.translate(x, y); ctx.rotate(-state.camera.rotation);
     ctx.fillStyle = "#3a2a1a"; ctx.fillText(player.name, 24, 4);
-    ctx.fillStyle = "#5c8a3a"; ctx.fillRect(-20, -28, ((player as any).hp / 100) * 40, 4);
+    // HPバーの描画を削除
+
 
     const lockStep = (player as any).actionLockStep ?? 0;
     if (lockStep > 0 && player.id === state.selfId) {

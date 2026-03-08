@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Damage Visual Preview (Subtle Asymmetric V6)</title>
+    <style>
+        body {
+            background-color: #baa285;
+            color: #333;
+            font-family: sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        canvas {
+            background-color: transparent;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+
+        .hint {
+            color: #555;
+            text-align: left;
+            max-width: 650px;
+            margin-bottom: 10px;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>ダメージ表現 (控えめ・非対称版)</h1>
+    <div class="hint">
+        ・**やりすぎ感を抑制**: 「戦車の原型」をしっかり保つように、欠損範囲をかなり控えめに抑えました。<br>
+        ・**非対称は維持**: 上下非対称な削れ方を保ち、意図的に「いびつに壊れている」感を残しています。<br>
+        ・**炎上アニメ付き**: 削れた凹みに小さく収まる炎上アニメーション（超軽量）を組み合わせています。
+    </div>
+    <canvas id="previewCanvas" width="500" height="400"></canvas>
+
+    <script>
+        const canvas = document.getElementById('previewCanvas');
+        const ctx = canvas.getContext('2d');
+
+        function drawTank(ctx, x, y, hp, time, isRedTeam) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.scale(2.5, 2.5);
+
+            const trackColor = "#333333";
+            const bodyColor = isRedTeam ? "#ca4c4c" : "#4c4cca";
+            const turretColor = "#e0e0e0";
+            const barrelColor = "#ffffff";
+            const outlineColor = "#000000";
+
+            // 1. 履帯 (基準位置固定)
+            ctx.fillStyle = trackColor;
+            ctx.strokeStyle = outlineColor;
+            ctx.lineWidth = 1.5;
+            ctx.beginPath(); ctx.rect(-12, -9, 24, 4); ctx.fill(); ctx.stroke();
+            ctx.beginPath(); ctx.rect(-12, 5, 24, 4); ctx.fill(); ctx.stroke();
+
+            // 2. 車体 (ベース四角形から「控えめに」非対称に削る)
+            ctx.fillStyle = bodyColor;
+            ctx.strokeStyle = outlineColor;
+            ctx.lineWidth = 1.5;
+
+            ctx.beginPath();
+
+            if (hp === 100) {
+                // ベース完全体
+                ctx.moveTo(-9, -6); ctx.lineTo(11, -6); ctx.lineTo(11, 6); ctx.lineTo(-9, 6); ctx.closePath();
+            }
+            else if (hp === 80) {
+                // 左上がほんの少し欠ける
+                ctx.moveTo(-7, -6); ctx.lineTo(11, -6); ctx.lineTo(11, 6); ctx.lineTo(-9, 6); ctx.lineTo(-9, -4); ctx.closePath();
+            }
+            else if (hp === 60) {
+                // 左上がもう少し欠け、左下はごくわずかに。
+                ctx.moveTo(-5, -6); ctx.lineTo(11, -6); ctx.lineTo(11, 6); ctx.lineTo(-7, 6); ctx.lineTo(-9, 4); ctx.lineTo(-9, -2); ctx.closePath();
+            }
+            else if (hp === 40) {
+                // 左側は全体的に下がるが、全体の面積の8割は維持。非対称。
+                ctx.moveTo(-3, -6); ctx.lineTo(11, -6); ctx.lineTo(11, 6); ctx.lineTo(-9, 6); ctx.lineTo(-9, 4); ctx.lineTo(-7, 3); ctx.lineTo(-7, 0); ctx.lineTo(-6, -3); ctx.closePath();
+            }
+            else if (hp <= 20) {
+                // さらに凹みを作るが、ベースの四角形感は維持。
+                ctx.moveTo(1, -6); ctx.lineTo(11, -6); ctx.lineTo(11, 6); ctx.lineTo(-6, 6); ctx.lineTo(-9, 3); ctx.lineTo(-9, 1); ctx.lineTo(-4, -1); ctx.lineTo(-3, -4); ctx.closePath();
+            }
+
+            ctx.fill(); ctx.stroke();
+
+            // 前面インジケータ (基準位置固定)
+            ctx.fillStyle = "#3a2a1a";
+            ctx.globalAlpha = 0.7;
+            ctx.beginPath(); ctx.moveTo(11, -3); ctx.lineTo(15, 0); ctx.lineTo(11, 3); ctx.closePath(); ctx.fill();
+            ctx.globalAlpha = 1.0;
+
+            // 3. 剥き出しの骨組み・ひしゃげた線 (控えめに)
+            ctx.strokeStyle = outlineColor;
+            ctx.lineWidth = 1.5;
+
+            if (hp === 80) {
+                ctx.beginPath(); ctx.moveTo(-8, -5); ctx.lineTo(-10, -7); ctx.stroke();
+            }
+            else if (hp === 60) {
+                ctx.beginPath(); ctx.moveTo(-7, -4); ctx.lineTo(-10, -7); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(-9, -2); ctx.lineTo(-11, -2); ctx.stroke();
+                // 下
+                ctx.beginPath(); ctx.moveTo(-8, 5); ctx.lineTo(-10, 7); ctx.stroke();
+            }
+            else if (hp === 40) {
+                ctx.beginPath(); ctx.moveTo(-4, -4); ctx.lineTo(-10, -8); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(-7, 0); ctx.lineTo(-11, -1); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(-8, 4); ctx.lineTo(-12, 6); ctx.stroke();
+            }
+            else if (hp <= 20) {
+                ctx.beginPath(); ctx.moveTo(-1, -5); ctx.lineTo(-7, -10); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(-4, -2); ctx.lineTo(-10, -4); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(-6, 1); ctx.lineTo(-11, 3); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(-7, 4); ctx.lineTo(-10, 8); ctx.stroke();
+            }
+
+            // 4. 車体内（欠損空間）の炎上アニメーション
+            if (hp <= 40) {
+                ctx.save();
+                const t = time / 100;
+
+                let cx, cy;
+                if (hp === 40) {
+                    cx = -7; cy = -2; // 少しえぐれた所
+                } else {
+                    cx = -5; cy = -1; // もう少しえぐれた所
+                }
+
+                if (hp === 40) {
+                    const s = 1.0 + Math.sin(t) * 0.5;
+                    ctx.fillStyle = "rgba(40,40,40,0.8)";
+                    ctx.beginPath(); ctx.arc(cx, cy, 2.5, 0, Math.PI * 2); ctx.fill();
+                    ctx.fillStyle = (Math.floor(t * 2) % 2 === 0) ? "rgba(255,100,0,0.8)" : "rgba(200,50,0,0.8)";
+                    ctx.beginPath(); ctx.arc(cx, cy, s, 0, Math.PI * 2); ctx.fill();
+                }
+
+                if (hp <= 20) {
+                    const f1x = cx + Math.sin(t * 1.3) * 0.5;
+                    const f1y = cy + Math.cos(t * 1.5) * 0.5;
+                    const f1r = 2 + Math.sin(t * 2) * 0.5;
+
+                    const f2x = cx - 1 + Math.sin(t * 1.7) * 0.5;
+                    const f2y = cy + 1.5 + Math.cos(t * 1.1) * 0.5;
+                    const f2r = 1.5 + Math.sin(t * 2.5) * 0.5;
+
+                    ctx.fillStyle = "rgba(30,30,30,0.7)";
+                    ctx.beginPath(); ctx.arc(cx - 1, cy + 1, 3.5, 0, Math.PI * 2); ctx.fill();
+
+                    ctx.fillStyle = (Math.floor(t * 3) % 2 === 0) ? "rgba(255,180,0,0.9)" : "rgba(255,80,0,0.9)";
+                    ctx.beginPath(); ctx.arc(f1x, f1y, f1r, 0, Math.PI * 2); ctx.fill();
+                    ctx.beginPath(); ctx.arc(f2x, f2y, f2r, 0, Math.PI * 2); ctx.fill();
+                }
+                ctx.restore();
+            }
+
+            // 5. 砲塔 (基準位置完全固定)
+            ctx.fillStyle = turretColor;
+            ctx.beginPath(); ctx.arc(0, 0, 5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+            ctx.fillStyle = "#3a2a1a";
+            ctx.beginPath(); ctx.arc(0, 0, 3, 0, Math.PI * 2); ctx.fill();
+
+            // 砲身
+            ctx.fillStyle = barrelColor;
+            ctx.beginPath(); ctx.rect(5, -1.5, 14, 3); ctx.fill(); ctx.stroke();
+
+            ctx.restore();
+        }
+
+        function draw(time) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const startX = 150;
+            const startY = 50;
+            const spacingY = 75;
+            const hps = [100, 80, 60, 40, 20];
+
+            for (let i = 0; i < hps.length; i++) {
+                const hp = hps[i];
+                const y = startY + i * spacingY;
+
+                ctx.fillStyle = "#333";
+                ctx.font = "bold 16px sans-serif";
+                ctx.textAlign = "right";
+
+                let stateText = hp === 100 ? "無傷" : hp === 80 ? "微小角欠損" : hp === 60 ? "小ダメージ" : hp === 40 ? "中破＋炎" : "大破＋大炎";
+                ctx.fillText(`HP ${hp}%`, 80, y + 2);
+                ctx.font = "12px sans-serif";
+                ctx.fillStyle = "#666";
+                ctx.fillText(stateText, 80, y + 16);
+
+                drawTank(ctx, startX, y, hp, time, false);
+                drawTank(ctx, startX + 120, y, hp, time, true);
+            }
+
+            requestAnimationFrame(draw);
+        }
+
+        requestAnimationFrame(draw);
+    </script>
+</body>
+
+</html>
