@@ -66,7 +66,7 @@ tanktaktix/
 │
 ├── shared/src/
 │   ├── index.ts              # 共通型定義（メッセージ・エンティティ型）
-│   └── maps.ts               # マップ定義（5マップ + 3テストマップ）
+│   └── maps.ts               # マップ定義（riverside, fortress の 2 マップ）
 │
 ├── scripts/                  # 検証・テストスクリプト
 │   ├── verify_*.ts           # 機能別検証スクリプト
@@ -118,7 +118,7 @@ tanktaktix/
 - `systems/combat.ts`: 射撃処理・爆発トリガー・ダメージ計算・キル処理・アイテム使用（rope / ammoPass / healPass / flagPass）
 - `systems/projectiles.ts`: 弾丸の飛翔・壁衝突・プレイヤー命中・パス弾のキャッチ判定
 - `systems/movement.ts`: 移動目標キューイング・ピボットターン・AIM 方向設定
-- `systems/ctf.ts`: CTF フラッグ追従・キャプチャ判定・ドロップ時の即座帰還
+- `systems/ctf.ts`: CTF フラッグ追従・キャプチャ判定・ドロップ時に即座に基地帰還
 - `utils/`: 衝突判定（AABB, Liang-Barsky, ブッシュ判定）、ID 生成、数学ユーティリティ
 - 隠密状態管理: ブッシュに完全侵入で `isHidden = true`（射撃しても解除されない）
 - 観戦モード: `spectatorIds` で管理。隠密フィルタなしで全プレイヤーを表示
@@ -194,7 +194,7 @@ Server (20Hz = 50ms ごと):
          e. アイテム拾得判定（所持上限チェック → 効果適用 → リスポーン）
          f. フラッグ拾得判定（CTF モード時、敵旗取得 / 自旗回収）
       5. CTF 判定 ← systems/ctf.ts
-         - フラッグ追従・キャプチャ（自陣 + 停止で得点）・ドロップ即帰還
+         - フラッグ追従・キャプチャ（自陣 + 停止で得点）・ドロップ時に即座に基地帰還
       6. 弾丸処理 ← systems/projectiles.ts
          - 飛翔・壁衝突・プレイヤー命中・爆発トリガー
          - 特殊弾: bomb / rope / ammoPass / healPass / flagPass
@@ -296,7 +296,7 @@ type PlayerRuntime = {
 type Room = {
   id: string;
   name: string;
-  mapId: string;               // マップ ID（"alpha" | "beta" | ... ）
+  mapId: string;               // マップ ID（"riverside" | "fortress"）
   mapData: MapData;            // マップ定義（壁・スポーン地点）
   lobbyId: string;             // 所属ロビー ID
   passwordProtected: boolean;

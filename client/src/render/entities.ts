@@ -299,7 +299,8 @@ export const drawEntities = (ctx: CanvasRenderingContext2D) => {
   if (state.aiming && state.aimPoint) {
     const self = getSelf();
     if (self) {
-      const sx = (self as any).position.x, sy = (self as any).position.y;
+      const selfPos = (self as any).position ?? { x: (self as any).x ?? 0, y: (self as any).y ?? 0 };
+      const sx = selfPos.x, sy = selfPos.y;
       const dragX = state.aimPoint.x - sx, dragY = state.aimPoint.y - sy;
       const dragDist = Math.hypot(dragX, dragY);
       const CANCEL_DIST = 18;

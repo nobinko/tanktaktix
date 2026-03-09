@@ -295,7 +295,7 @@ const createRoomModal = document.querySelector("#create-room-modal") as HTMLElem
   state.leavingRoomId = "";
   const id = (document.querySelector("#room-id") as HTMLInputElement).value.trim() || Math.floor(Math.random() * 10000).toString().padStart(4, "0");
   const name = (document.querySelector("#room-name") as HTMLInputElement).value.trim();
-  const mapId = (document.querySelector("#map-select") as HTMLSelectElement)?.value || "alpha";
+  const mapId = (document.querySelector("#map-select") as HTMLSelectElement)?.value || "riverside";
   const options = {
     teamSelect: (document.querySelector("#opt-team-select") as HTMLInputElement).checked,
     instantKill: (document.querySelector("#opt-instant-kill") as HTMLInputElement).checked,
