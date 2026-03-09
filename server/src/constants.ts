@@ -24,6 +24,9 @@ export const FLAG_RADIUS = 25;
 export const FLAG_SCORE = 5;
 export const SPAWN_ZONE_HALF = 100;
 export const ITEM_RADIUS = 15;
+export const SMOKE_RADIUS = 130;
+export const SMOKE_DURATION_MS = 20000;
+export const SMOKE_THROW_RANGE = 250;
 export const MEDIC_HEAL_AMOUNT = 20;
 export const AMMO_REFILL_AMOUNT = 10;
 export const ITEM_POOL: { type: ItemType; count: number }[] = [
@@ -31,6 +34,7 @@ export const ITEM_POOL: { type: ItemType; count: number }[] = [
   { type: "ammo", count: 2 },
   { type: "heart", count: 2 },
   { type: "bomb", count: 2 },
+  { type: "smoke", count: 2 },
   { type: "rope", count: 2 },
   { type: "boots", count: 2 },
 ];

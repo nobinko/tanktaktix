@@ -32,6 +32,7 @@ export type PlayerRuntime = {
   respawnCooldownUntil: number;
   isHidden: boolean;
   hasBomb: boolean;
+  hasSmoke: boolean;
   ropeCount: number;
   bootsCharges: number;
   socket: WebSocket | null;
@@ -56,6 +57,7 @@ export type Bullet = {
   isAmmoPass?: boolean;
   isHealPass?: boolean;
   isFlagPass?: boolean;
+  isSmoke?: boolean;
   flagTeam?: Team;
 };
 
@@ -83,6 +85,7 @@ export type Room = {
   spectatorIds: Set<string>;
   bullets: Bullet[];
   explosions: Explosion[];
+  smokeClouds: import("@tanktaktix/shared").SmokeCloud[];
   items: Item[];
   lastItemSpawnAt: number;
   flags: Flag[];

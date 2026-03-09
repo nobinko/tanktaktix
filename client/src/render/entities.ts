@@ -25,6 +25,9 @@ const drawItemSprite = (ctx: CanvasRenderingContext2D, type: string) => {
     ctx.fillStyle = "#6b6b9a"; ctx.fillRect(-8, -4, 10, 12); ctx.fillRect(-8, 4, 16, 6);
     ctx.strokeStyle = "#8a8ab5"; ctx.lineWidth = 1; ctx.beginPath();
     ctx.moveTo(-12, 0); ctx.lineTo(-16, 0); ctx.moveTo(-12, 4); ctx.lineTo(-18, 4); ctx.moveTo(-12, 8); ctx.lineTo(-15, 8); ctx.stroke();
+  } else if (type === "smoke") {
+    ctx.fillStyle = "#999999"; ctx.beginPath(); ctx.arc(0, 0, 8, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "#dddddd"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, 5, 0, Math.PI * 1.5); ctx.stroke();
   }
 };
 
@@ -71,6 +74,7 @@ export const drawEntities = (ctx: CanvasRenderingContext2D) => {
       if (bAny.isAmmoPass) { ctx.translate(renderX, renderY); ctx.rotate(-state.camera.rotation); drawItemSprite(ctx, "ammo"); ctx.restore(); continue; }
       if (bAny.isHealPass) { ctx.translate(renderX, renderY); ctx.rotate(-state.camera.rotation); drawItemSprite(ctx, "medic"); ctx.restore(); continue; }
       if (bAny.isFlagPass) { ctx.translate(renderX, renderY); ctx.rotate(-state.camera.rotation); drawFlagSprite(ctx, bAny.flagTeam || "red"); ctx.restore(); continue; }
+      if (bAny.isSmoke) { ctx.translate(renderX, renderY); ctx.rotate(-state.camera.rotation); drawItemSprite(ctx, "smoke"); ctx.restore(); continue; }
 
       ctx.fillStyle = bAny.isBomb ? "#000000" : "#c4843a";
       ctx.beginPath(); ctx.arc(renderX, renderY, b.radius, 0, Math.PI * 2); ctx.fill();
@@ -322,5 +326,64 @@ export const drawEntities = (ctx: CanvasRenderingContext2D) => {
       }
       ctx.restore();
     }
+  }
+
+  // Draw smoke clouds OVER tanks
+  if (state.room?.smokeClouds && Array.isArray(state.room.smokeClouds)) {
+    const now = Date.now();
+    state.room.smokeClouds.forEach((smoke: any) => {
+      ctx.save();
+      try {
+        const timeRemaining = (smoke.expiresAt || 0) - now;
+        if (timeRemaining <= 0) return;
+
+        const radius = Math.max(1, (typeof smoke.radius === "number" && !isNaN(smoke.radius)) ? smoke.radius : 130);
+        let opacity = 0.55;
+        if (timeRemaining > 19000) {
+          opacity *= Math.max(0, (20000 - timeRemaining) / 1000);
+        } else if (timeRemaining < 2000) {
+          opacity *= Math.max(0, timeRemaining / 2000);
+        }
+        opacity = Math.max(0, Math.min(1, opacity));
+        if (isNaN(opacity) || !isFinite(opacity)) opacity = 0.55;
+
+        const sx = typeof smoke.x === "number" && !isNaN(smoke.x) ? smoke.x : 0;
+        const sy = typeof smoke.y === "number" && !isNaN(smoke.y) ? smoke.y : 0;
+
+        ctx.translate(sx, sy);
+
+        const gradient = ctx.createRadialGradient(0, 0, radius * 0.2, 0, 0, radius);
+        gradient.addColorStop(0, `rgba(110, 110, 110, ${opacity})`);
+        gradient.addColorStop(0.6, `rgba(140, 140, 140, ${opacity * 0.8})`);
+        gradient.addColorStop(1, `rgba(150, 150, 150, 0)`);
+
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.arc(0, 0, radius, 0, Math.PI * 2);
+        ctx.fill();
+
+        const t = now / 2500;
+        for (let i = 0; i < 3; i++) {
+          const offsetAngle = t + (i * Math.PI * 2 / 3);
+          const dist = radius * 0.35;
+          const px = Math.cos(offsetAngle) * dist;
+          const py = Math.sin(offsetAngle) * dist;
+          const puffRadius = radius * 0.7;
+
+          const puffGrad = ctx.createRadialGradient(px, py, 0, px, py, puffRadius);
+          puffGrad.addColorStop(0, `rgba(150, 150, 150, ${opacity * 0.4})`);
+          puffGrad.addColorStop(1, `rgba(150, 150, 150, 0)`);
+
+          ctx.fillStyle = puffGrad;
+          ctx.beginPath();
+          ctx.arc(px, py, puffRadius, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      } catch (err) {
+        console.error("smoke render error", err);
+      } finally {
+        ctx.restore();
+      }
+    });
   }
 };

@@ -112,6 +112,7 @@ export function spawnPlayer(p: PlayerRuntime, room: Room) {
   p.hullAngle = 0;
   p.turretAngle = 0;
   p.hasBomb = false;
+  p.hasSmoke = false;
   p.ropeCount = 0;
   p.bootsCharges = 0;
 }
@@ -144,6 +145,8 @@ export function canPlayerPickupItem(p: PlayerRuntime, type: ItemType, room: Room
     if (p.ammo >= 40) return false;
   } else if (type === "bomb") {
     if (p.hasBomb) return false;
+  } else if (type === "smoke") {
+    if (p.hasSmoke) return false;
   } else if (type === "rope") {
     if (p.ropeCount >= 2) return false;
   } else if (type === "boots") {
@@ -158,6 +161,7 @@ export function applyItemEffect(p: PlayerRuntime, item: Item, room: Room) {
   else if (item.type === "ammo") p.ammo = Math.min(40, p.ammo + AMMO_REFILL_AMOUNT);
   else if (item.type === "heart") p.hp = maxHp;
   else if (item.type === "bomb") p.hasBomb = true;
+  else if (item.type === "smoke") p.hasSmoke = true;
   else if (item.type === "rope") p.ropeCount = Math.min(2, p.ropeCount + 1);
   else if (item.type === "boots") p.bootsCharges = 3;
 
@@ -212,7 +216,7 @@ export function createRoom(roomData: { roomName: string; roomId: string; mapId: 
   const flagSrc = mapData.flagPositions ?? mapData.spawnPoints;
   const flags = roomData.gameMode === "ctf" ? flagSrc.map(s => ({ team: s.team as "red" | "blue", x: s.x, y: s.y, baseX: s.x, baseY: s.y, carrierId: null as string | null })) : [];
   const defaultOptions: RoomOptions = { teamSelect: false, instantKill: false, noItemRespawn: false, noShooting: false };
-  const room: Room = { id: roomData.roomId, name: roomData.roomName, mapId: resolvedMapId, mapData, lobbyId: roomData.lobbyId, passwordProtected: roomData.passwordProtected, password: roomData.password, maxPlayers: roomData.maxPlayers, timeLimitSec: roomData.timeLimitSec, createdAt, endsAt, ended: false, gameMode: roomData.gameMode, options: roomData.options || defaultOptions, playerIds: new Set(), spectatorIds: new Set(), bullets: [], explosions: [], items: [], lastItemSpawnAt: createdAt, flags, scoreRed: 0, scoreBlue: 0, hostId: roomData.hostId, history: new Map() };
+  const room: Room = { id: roomData.roomId, name: roomData.roomName, mapId: resolvedMapId, mapData, lobbyId: roomData.lobbyId, passwordProtected: roomData.passwordProtected, password: roomData.password, maxPlayers: roomData.maxPlayers, timeLimitSec: roomData.timeLimitSec, createdAt, endsAt, ended: false, gameMode: roomData.gameMode, options: roomData.options || defaultOptions, playerIds: new Set(), spectatorIds: new Set(), bullets: [], explosions: [], smokeClouds: [], items: [], lastItemSpawnAt: createdAt, flags, scoreRed: 0, scoreBlue: 0, hostId: roomData.hostId, history: new Map() };
   rooms.set(roomData.roomId, room);
   initializeItems(room);
   broadcastLobby(room.lobbyId);

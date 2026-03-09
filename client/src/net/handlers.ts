@@ -86,7 +86,7 @@ export const handleServerMessage = (message: ServerToClientMessage, deps: Handle
       state.timeLeftSec = payload.timeLeftSec;
       // Phase 5: SFX hook for new bullets (shooting)
       const oldBulletIds = new Set(state.bullets?.map(b => b.id) || []);
-      const newBullets = payload.bullets.filter(b => !oldBulletIds.has(b.id) && !b.isRope && !b.isAmmoPass && !b.isHealPass && !b.isFlagPass);
+      const newBullets = payload.bullets.filter(b => !oldBulletIds.has(b.id) && !b.isRope && !b.isAmmoPass && !b.isHealPass && !b.isFlagPass && !b.isSmoke);
       if (newBullets.length > 0) {
         soundManager.play("shoot", 0.6); // slight volume reduction for spam
       }
@@ -99,7 +99,8 @@ export const handleServerMessage = (message: ServerToClientMessage, deps: Handle
         const bombPicked = newMe.hasBomb && !oldMe.hasBomb;
         const ropePicked = (newMe.ropeCount || 0) > (oldMe.ropeCount || 0);
         const bootsPicked = (newMe.bootsCharges || 0) > 0 && (oldMe.bootsCharges || 0) === 0;
-        if (ammoPicked || bombPicked || ropePicked || bootsPicked) {
+        const smokePicked = newMe.hasSmoke && !oldMe.hasSmoke;
+        if (ammoPicked || bombPicked || ropePicked || bootsPicked || smokePicked) {
           soundManager.play("item_pickup");
         }
       }
@@ -122,10 +123,14 @@ export const handleServerMessage = (message: ServerToClientMessage, deps: Handle
       }
 
       state.bullets = payload.bullets;
-      state.explosions = payload.explosions.map((e) => ({ ...e, startedAt: Date.now() }));
+      state.explosions = payload.explosions.map((e: any) => ({ ...e, startedAt: Date.now() }));
       state.teamScores = payload.teamScores;
       state.items = payload.items;
       state.flags = payload.flags || [];
+      state.room = payload.room;
+      if (state.room) {
+        state.room.smokeClouds = payload.smokeClouds;
+      }
 
       // Update Interpolation Buffers
       const serverTime = Date.now();
@@ -180,6 +185,16 @@ export const handleServerMessage = (message: ServerToClientMessage, deps: Handle
             }
           }
         }
+
+        // Item Pickup floating text (Phase 5 + Smoke)
+        const oldMe = state.players?.find(op => op.id === p.id);
+        if (oldMe) {
+          if (p.hasBomb && !oldMe.hasBomb) state.floatingTexts.push({ id: Math.random().toString(), text: "+BOMB", color: "#d4a843", x: p.position.x, y: p.position.y - 40, startedAt: now });
+          if ((p.ropeCount || 0) > (oldMe.ropeCount || 0)) state.floatingTexts.push({ id: Math.random().toString(), text: "+ROPE", color: "#a3752c", x: p.position.x, y: p.position.y - 40, startedAt: now });
+          if ((p.bootsCharges || 0) > 0 && (oldMe.bootsCharges || 0) === 0) state.floatingTexts.push({ id: Math.random().toString(), text: "+BOOTS", color: "#a8a8c8", x: p.position.x, y: p.position.y - 40, startedAt: now });
+          if (p.hasSmoke && !oldMe.hasSmoke) state.floatingTexts.push({ id: Math.random().toString(), text: "+SMOKE", color: "#cccccc", x: p.position.x, y: p.position.y - 40, startedAt: now });
+        }
+
         state.lastHpMap[p.id] = p.hp;
       }
       // Phase 5-12: Team Select Overlay

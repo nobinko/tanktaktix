@@ -8,7 +8,7 @@ export type Vector2 = {
 };
 
 export type Team = "red" | "blue" | null;
-export type ItemType = "medic" | "ammo" | "heart" | "bomb" | "rope" | "boots";
+export type ItemType = "medic" | "ammo" | "heart" | "bomb" | "rope" | "boots" | "smoke";
 export type WallType = "wall" | "bush" | "water" | "house" | "oneway" | "river" | "bridge";
 
 export type Item = {
@@ -85,6 +85,7 @@ export type PlayerSummary = {
   isHidden: boolean;      // True if the player is in a bush and not visible to enemies
   // Phase 4: Item state
   hasBomb?: boolean;
+  hasSmoke?: boolean; // Added for Phase 4-7 smoke item
   ropeCount?: number;
   bootsCharges?: number;
   ping?: number;
@@ -151,7 +152,16 @@ export type BulletPublic = {
   isAmmoPass?: boolean;
   isHealPass?: boolean;
   isFlagPass?: boolean;
+  isSmoke?: boolean; // Smoke grenade
   flagTeam?: Team;
+};
+
+export type SmokeCloud = {
+  id: string;
+  x: number;
+  y: number;
+  radius: number;
+  expiresAt: number;
 };
 
 export type RoomState = {
@@ -169,6 +179,7 @@ export type RoomState = {
   mapData?: MapData; // Made optional for delta sync
   flags?: Flag[]; // Only for CTF
   items: Item[];
+  smokeClouds?: SmokeCloud[];
 };
 
 export type RoomInitState = {
@@ -244,7 +255,7 @@ export type ClientToServerMessage =
   }
   | {
     type: "useItem"; // Phase 4-7: Secondary Aim Action
-    payload: { item: string; direction: Vector2 };
+    payload: { item: string; direction: Vector2; isThrow?: boolean };
   }
   | {
     type: "moveCancelOne";

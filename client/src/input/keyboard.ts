@@ -45,6 +45,37 @@ export const attachKeyboardInput = (deps: {
       return;
     }
 
+    // Smoke Item Use (s)
+    if (key === "s" && !state.isSpectator) {
+      event.preventDefault();
+      const me = state.players.find((p) => p.id === state.selfId);
+      if (me) {
+        let dirX = 0, dirY = 0;
+        let isThrow = false;
+
+        if (state.aiming && state.aimPoint) {
+          // Slingshot: Opposite of drag vector
+          dirX = -(state.aimPoint.x - me.position.x);
+          dirY = -(state.aimPoint.y - me.position.y);
+          isThrow = true;
+        } else {
+          // Regular: Turret direction
+          const ta = (me as any).turretAngle || 0;
+          dirX = Math.cos(ta);
+          dirY = Math.sin(ta);
+          // isThrow = false when no explicit aiming drag is active
+        }
+
+        const len = Math.hypot(dirX, dirY);
+        // Even if length is 0, we can drop smoke, but let's provide a default normalized vector
+        const finalDirX = len > 0 ? dirX / len : 1;
+        const finalDirY = len > 0 ? dirY / len : 0;
+
+        sendMessage({ type: "useItem", payload: { item: "smoke", direction: { x: finalDirX, y: finalDirY }, isThrow } });
+      }
+      return;
+    }
+
     // Item / Flag Actions (R, A, H, F)
     const aimKeys = ["r", "a", "h", "f"];
     if (aimKeys.includes(key) && !state.isSpectator) {
