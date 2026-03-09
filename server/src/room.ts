@@ -203,15 +203,16 @@ export function joinRoom(p: PlayerRuntime, roomId: string, password?: string, re
 
 import { MAPS, expandMapObjects } from "@tanktaktix/shared";
 
-export function createRoom(roomData: { roomName: string; roomId: string; mapId: string; passwordProtected: boolean; password?: string; maxPlayers: number; timeLimitSec: number; gameMode: "deathmatch" | "ctf"; lobbyId: string; hostId: string; options?: RoomOptions; }) {
+export function createRoom(roomData: { roomName: string; roomId: string; mapId: string; customMapData?: MapData; passwordProtected: boolean; password?: string; maxPlayers: number; timeLimitSec: number; gameMode: "deathmatch" | "ctf"; lobbyId: string; hostId: string; options?: RoomOptions; }) {
   const createdAt = nowMs();
   const endsAt = createdAt + roomData.timeLimitSec * 1000;
-  const rawMapData = MAPS[roomData.mapId] || DEFAULT_MAP;
+  const rawMapData = roomData.customMapData ?? MAPS[roomData.mapId] ?? DEFAULT_MAP;
+  const resolvedMapId = roomData.customMapData?.id ?? roomData.mapId;
   const mapData = expandMapObjects(rawMapData);
   const flagSrc = mapData.flagPositions ?? mapData.spawnPoints;
   const flags = roomData.gameMode === "ctf" ? flagSrc.map(s => ({ team: s.team as "red" | "blue", x: s.x, y: s.y, baseX: s.x, baseY: s.y, carrierId: null as string | null })) : [];
   const defaultOptions: RoomOptions = { teamSelect: false, instantKill: false, noItemRespawn: false, noShooting: false };
-  const room: Room = { id: roomData.roomId, name: roomData.roomName, mapId: roomData.mapId, mapData, lobbyId: roomData.lobbyId, passwordProtected: roomData.passwordProtected, password: roomData.password, maxPlayers: roomData.maxPlayers, timeLimitSec: roomData.timeLimitSec, createdAt, endsAt, ended: false, gameMode: roomData.gameMode, options: roomData.options || defaultOptions, playerIds: new Set(), spectatorIds: new Set(), bullets: [], explosions: [], items: [], lastItemSpawnAt: createdAt, flags, scoreRed: 0, scoreBlue: 0, hostId: roomData.hostId, history: new Map() };
+  const room: Room = { id: roomData.roomId, name: roomData.roomName, mapId: resolvedMapId, mapData, lobbyId: roomData.lobbyId, passwordProtected: roomData.passwordProtected, password: roomData.password, maxPlayers: roomData.maxPlayers, timeLimitSec: roomData.timeLimitSec, createdAt, endsAt, ended: false, gameMode: roomData.gameMode, options: roomData.options || defaultOptions, playerIds: new Set(), spectatorIds: new Set(), bullets: [], explosions: [], items: [], lastItemSpawnAt: createdAt, flags, scoreRed: 0, scoreBlue: 0, hostId: roomData.hostId, history: new Map() };
   rooms.set(roomData.roomId, room);
   initializeItems(room);
   broadcastLobby(room.lobbyId);
