@@ -29,6 +29,7 @@ export function toPlayerPublic(p: PlayerRuntime) {
     hits: p.hits,
     fired: p.fired,
     hasBomb: p.hasBomb,
+    hasSmoke: p.hasSmoke,
     ropeCount: p.ropeCount,
     bootsCharges: p.bootsCharges,
     ping: p.ping,
@@ -50,6 +51,7 @@ function toBulletPublic(b: Bullet): BulletPublic {
     isAmmoPass: b.isAmmoPass || false,
     isHealPass: b.isHealPass || false,
     isFlagPass: b.isFlagPass || false,
+    isSmoke: b.isSmoke || false,
     flagTeam: b.flagTeam,
   };
 }
@@ -85,7 +87,7 @@ export function roomStatePayloadForPlayer(roomId: string, recipient: PlayerRunti
   const timeLeftSec = Math.max(0, Math.ceil((room.endsAt - nowMs()) / 1000));
   const ps = [...room.playerIds].map(pid => players.get(pid)).filter((p): p is PlayerRuntime => !!p).filter(p => !p.isHidden || p.id === recipient.id || p.team === recipient.team).map(toPlayerPublic);
   const bs = room.bullets.map(toBulletPublic);
-  return { roomId: room.id, roomName: room.name, mapId: room.mapId, room: toRoomSummary(room), timeLeftSec, players: ps, bullets: bs, projectiles: bs, explosions: room.explosions, gameMode: room.gameMode, teamScores: { red: room.scoreRed, blue: room.scoreBlue }, flags: room.gameMode === "ctf" ? room.flags : undefined, items: room.items };
+  return { roomId: room.id, roomName: room.name, mapId: room.mapId, room: toRoomSummary(room), timeLeftSec, players: ps, bullets: bs, projectiles: bs, explosions: room.explosions, smokeClouds: room.smokeClouds, gameMode: room.gameMode, teamScores: { red: room.scoreRed, blue: room.scoreBlue }, flags: room.gameMode === "ctf" ? room.flags : undefined, items: room.items };
 }
 
 export function roomInitPayload(roomId: string) {
@@ -100,7 +102,7 @@ export function roomStatePayloadForSpectator(roomId: string) {
   const timeLeftSec = Math.max(0, Math.ceil((room.endsAt - nowMs()) / 1000));
   const ps = [...room.playerIds].map(pid => players.get(pid)).filter((p): p is PlayerRuntime => !!p).map(toPlayerPublic);
   const bs = room.bullets.map(toBulletPublic);
-  return { roomId: room.id, roomName: room.name, mapId: room.mapId, room: toRoomSummary(room), timeLeftSec, players: ps, bullets: bs, projectiles: bs, explosions: room.explosions, gameMode: room.gameMode, teamScores: { red: room.scoreRed, blue: room.scoreBlue }, flags: room.gameMode === "ctf" ? room.flags : undefined, items: room.items };
+  return { roomId: room.id, roomName: room.name, mapId: room.mapId, room: toRoomSummary(room), timeLeftSec, players: ps, bullets: bs, projectiles: bs, explosions: room.explosions, smokeClouds: room.smokeClouds, gameMode: room.gameMode, teamScores: { red: room.scoreRed, blue: room.scoreBlue }, flags: room.gameMode === "ctf" ? room.flags : undefined, items: room.items };
 }
 
 export function broadcastLobby(lobbyId: string) {

@@ -1,5 +1,5 @@
 import type { Vector2, Explosion } from "@tanktaktix/shared";
-import { ACTION_COOLDOWN_MS, AMMO_REFILL_AMOUNT, BULLET_RADIUS, BULLET_SPEED, BULLET_TTL_MS, EXPLOSION_DAMAGE, EXPLOSION_RADIUS, FLAG_RADIUS, HIT_RADIUS, ITEM_RADIUS, MEDIC_HEAL_AMOUNT, RESPAWN_COOLDOWN_MS, TANK_SIZE } from "../constants.js";
+import { ACTION_COOLDOWN_MS, AMMO_REFILL_AMOUNT, BULLET_RADIUS, BULLET_SPEED, BULLET_TTL_MS, EXPLOSION_DAMAGE, EXPLOSION_RADIUS, FLAG_RADIUS, HIT_RADIUS, ITEM_RADIUS, MEDIC_HEAL_AMOUNT, RESPAWN_COOLDOWN_MS, SMOKE_DURATION_MS, SMOKE_RADIUS, SMOKE_THROW_RANGE, TANK_SIZE } from "../constants.js";
 import { players, rooms } from "../state.js";
 import type { Bullet, PlayerRuntime, Room } from "../types.js";
 import { broadcastRoom, sendRoomState } from "../network/broadcast.js";
@@ -124,6 +124,14 @@ export function triggerExplosion(room: Room, x: number, y: number, shooterId: st
 
       if (item.type === "bomb") {
         triggerExplosion(room, item.x, item.y, shooterId, true);
+      } else if (item.type === "smoke") {
+        room.smokeClouds.push({
+          id: newId(),
+          x: item.x,
+          y: item.y,
+          radius: SMOKE_RADIUS,
+          expiresAt: nowMs() + SMOKE_DURATION_MS
+        });
       }
     }
   }
@@ -196,7 +204,7 @@ export function tryShoot(p: PlayerRuntime, dir: Vector2) {
   sendRoomState(p.roomId);
 }
 
-export function tryUseItem(p: PlayerRuntime, item: string, dir: Vector2) {
+export function tryUseItem(p: PlayerRuntime, item: string, dir: Vector2, isThrow?: boolean) {
   if (!p.roomId) return;
   const now = nowMs();
 
@@ -213,7 +221,37 @@ export function tryUseItem(p: PlayerRuntime, item: string, dir: Vector2) {
   const bx = p.x + d.x * 20;
   const by = p.y + d.y * 20;
 
-  if (item === "rope" && p.ropeCount > 0) {
+  if (item === "smoke" && p.hasSmoke) {
+    p.hasSmoke = false;
+    // We purposely DO NOT trigger p.cooldownUntil
+
+    if (isThrow) {
+      const throwSpeed = BULLET_SPEED;
+      room.bullets.push({
+        id: newId(),
+        shooterId: p.id,
+        x: bx,
+        y: by,
+        vx: d.x * throwSpeed,
+        vy: d.y * throwSpeed,
+        radius: 6,
+        startX: bx,
+        startY: by,
+        expiresAt: now + (SMOKE_THROW_RANGE / throwSpeed) * 1000,
+        isSmoke: true
+      });
+      p.turretAngle = Math.atan2(d.y, d.x);
+    } else {
+      // Drop immediately based on player coordinates
+      room.smokeClouds.push({
+        id: newId(),
+        x: p.x,
+        y: p.y,
+        radius: SMOKE_RADIUS,
+        expiresAt: now + SMOKE_DURATION_MS
+      });
+    }
+  } else if (item === "rope" && p.ropeCount > 0) {
     const ropeRange = p.ropeCount === 2 ? 300 : 200;
     p.cooldownUntil = now + ACTION_COOLDOWN_MS;
 

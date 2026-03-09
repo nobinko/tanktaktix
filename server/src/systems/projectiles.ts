@@ -1,5 +1,5 @@
 import type { Vector2, Explosion } from "@tanktaktix/shared";
-import { ACTION_COOLDOWN_MS, AMMO_REFILL_AMOUNT, BULLET_RADIUS, BULLET_SPEED, BULLET_TTL_MS, EXPLOSION_DAMAGE, EXPLOSION_RADIUS, HIT_RADIUS, ITEM_RADIUS, MEDIC_HEAL_AMOUNT, RESPAWN_COOLDOWN_MS, TANK_SIZE } from "../constants.js";
+import { ACTION_COOLDOWN_MS, AMMO_REFILL_AMOUNT, BULLET_RADIUS, BULLET_SPEED, BULLET_TTL_MS, EXPLOSION_DAMAGE, EXPLOSION_RADIUS, HIT_RADIUS, ITEM_RADIUS, MEDIC_HEAL_AMOUNT, RESPAWN_COOLDOWN_MS, SMOKE_DURATION_MS, SMOKE_RADIUS, TANK_SIZE } from "../constants.js";
 import { players, rooms } from "../state.js";
 import type { Bullet, Room } from "../types.js";
 import { broadcastRoom, sendRoomState } from "../network/broadcast.js";
@@ -24,7 +24,11 @@ export function updateBullets(room: Room, dtSec: number, now: number) {
       if (b.isAmmoPass || b.isHealPass || b.isFlagPass) {
         passFinished = true;
       } else if (!b.isRope) {
-        triggerExplosion(room, b.x, b.y, b.shooterId, b.isBomb);
+        if (b.isSmoke) {
+          room.smokeClouds.push({ id: newId(), x: b.x, y: b.y, radius: SMOKE_RADIUS, expiresAt: now + SMOKE_DURATION_MS });
+        } else {
+          triggerExplosion(room, b.x, b.y, b.shooterId, b.isBomb);
+        }
       }
       exploded = true;
     }
@@ -108,7 +112,11 @@ export function updateBullets(room: Room, dtSec: number, now: number) {
       if (b.isAmmoPass || b.isHealPass || b.isFlagPass) {
         passFinished = true;
       } else if (!b.isRope) {
-        triggerExplosion(room, curr.x, curr.y, b.shooterId, b.isBomb);
+        if (b.isSmoke) {
+          room.smokeClouds.push({ id: newId(), x: curr.x, y: curr.y, radius: SMOKE_RADIUS, expiresAt: now + SMOKE_DURATION_MS });
+        } else {
+          triggerExplosion(room, curr.x, curr.y, b.shooterId, b.isBomb);
+        }
       }
       exploded = true;
     }
@@ -119,7 +127,11 @@ export function updateBullets(room: Room, dtSec: number, now: number) {
         if (f.carrierId) continue; // Carried flags don't have hitboxes
         const dist = Math.hypot(curr.x - f.x, curr.y - f.y);
         if (dist < b.radius + 20) { // FLAG_HITBOX_RADIUS approx 20
-          triggerExplosion(room, curr.x, curr.y, b.shooterId, b.isBomb);
+          if (b.isSmoke) {
+            room.smokeClouds.push({ id: newId(), x: curr.x, y: curr.y, radius: SMOKE_RADIUS, expiresAt: now + SMOKE_DURATION_MS });
+          } else {
+            triggerExplosion(room, curr.x, curr.y, b.shooterId, b.isBomb);
+          }
           exploded = true;
           break;
         }
@@ -131,7 +143,13 @@ export function updateBullets(room: Room, dtSec: number, now: number) {
       if (b.isAmmoPass || b.isHealPass || b.isFlagPass) {
         passFinished = true;
       } else if (!b.isRope) {
-        triggerExplosion(room, Math.max(0, Math.min(curr.x, room.mapData.width)), Math.max(0, Math.min(curr.y, room.mapData.height)), b.shooterId, b.isBomb);
+        const cx = Math.max(0, Math.min(curr.x, room.mapData.width));
+        const cy = Math.max(0, Math.min(curr.y, room.mapData.height));
+        if (b.isSmoke) {
+          room.smokeClouds.push({ id: newId(), x: cx, y: cy, radius: SMOKE_RADIUS, expiresAt: now + SMOKE_DURATION_MS });
+        } else {
+          triggerExplosion(room, cx, cy, b.shooterId, b.isBomb);
+        }
       }
       exploded = true;
     }
@@ -198,7 +216,11 @@ export function updateBullets(room: Room, dtSec: number, now: number) {
           if (h) h.hits = shooter.hits;
         }
 
-        triggerExplosion(room, curr.x, curr.y, b.shooterId, b.isBomb);
+        if (b.isSmoke) {
+          room.smokeClouds.push({ id: newId(), x: curr.x, y: curr.y, radius: SMOKE_RADIUS, expiresAt: now + SMOKE_DURATION_MS });
+        } else {
+          triggerExplosion(room, curr.x, curr.y, b.shooterId, b.isBomb);
+        }
         exploded = true;
         break;
       }
@@ -238,7 +260,11 @@ export function updateBullets(room: Room, dtSec: number, now: number) {
         room.items.splice(hitIdx, 1);
         respawnItem(room, destroyed.type);
         // If it's a bomb item, trigger a bomb explosion!
-        triggerExplosion(room, curr.x, curr.y, b.shooterId, b.isBomb || destroyed.type === "bomb");
+        if (destroyed.type === "smoke") {
+          room.smokeClouds.push({ id: newId(), x: destroyed.x, y: destroyed.y, radius: SMOKE_RADIUS, expiresAt: now + SMOKE_DURATION_MS });
+        } else {
+          triggerExplosion(room, curr.x, curr.y, b.shooterId, b.isBomb || destroyed.type === "bomb");
+        }
         exploded = true;
       }
     }

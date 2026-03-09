@@ -104,7 +104,7 @@ const showHelp = () => showModal({
   bodyHtml: `
     <p><strong>操作:</strong> 左クリック移動、右クリックAIM、Tでチャット、矢印キーでカメラ、+/-でズーム</p>
     <p><strong>AIM派生:</strong> R=ロープ / A=アモ投擲 / H=ヘルス投擲 / F=フラッグ投げ</p>
-    <p><strong>アイテム:</strong> heart(全回復), bomb(次弾強化), rope(遠隔取得), boots(3回移動加速)</p>
+    <p><strong>アイテム:</strong> heart(全回復), bomb(次弾強化), rope(遠隔取得), boots(3回移動加速), smoke(エスで煙幕配置/エイム+エスで投擲 - 弾や爆風でも起爆)</p>
     <p><strong>CTF:</strong> 敵旗を持ち帰ると得点。落ちた旗は接触で回収。</p>
     <p><strong>キーバインド:</strong> Q/E 回転, Esc でキャンセル系操作（環境依存）</p>
   `,

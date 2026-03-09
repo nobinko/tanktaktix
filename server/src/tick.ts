@@ -91,7 +91,18 @@ export function tick() {
       if (p.respawnAt && p.respawnAt > now) continue;
 
       // Update visibility (B-2/B-5) — bush内は常に隠密、射撃で解除しない
-      const inBush = isPointInBush(p.x, p.y, room.mapData.walls);
+      let inBush = isPointInBush(p.x, p.y, room.mapData.walls);
+
+      if (!inBush) {
+        // Phase 4: SmokeCloud visibility mechanism
+        for (const smoke of room.smokeClouds) {
+          if (Math.hypot(p.x - smoke.x, p.y - smoke.y) <= smoke.radius) {
+            inBush = true;
+            break;
+          }
+        }
+      }
+
       p.isHidden = inBush;
 
       // Movement Logic (with pivot-turn phase)
@@ -305,6 +316,9 @@ export function tick() {
         }
       }
     } // This closes the `for (const pid of room.playerIds)` loop at line 91.
+
+    // Cleanup expired smoke clouds
+    room.smokeClouds = room.smokeClouds.filter(s => s.expiresAt > now);
 
     if (room.gameMode === "ctf") {
       updateCTF(room, now);

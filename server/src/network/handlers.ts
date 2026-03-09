@@ -46,6 +46,7 @@ export function registerWsHandlers(wss: WebSocketServer) {
       isHidden: false,
       // Phase 4 item state
       hasBomb: false,
+      hasSmoke: false,
       ropeCount: 0,
       bootsCharges: 0,
       lives: 0,
@@ -267,7 +268,8 @@ export function registerWsHandlers(wss: WebSocketServer) {
           const pld = isRecord(payload) ? payload : {};
           const item = pickString(pld.item, "rope");
           const shootDir = pickVector2(pld.direction, player.aimDir);
-          tryUseItem(player, item, shootDir);
+          const isThrow = pld.isThrow === true;
+          tryUseItem(player, item, shootDir, isThrow);
           break;
         }
         case "chat": {

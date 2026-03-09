@@ -19,6 +19,7 @@ export const state = {
   name: "",
   rooms: [] as RoomSummary[],
   roomId: "" as string | "",
+  room: null as any, // Store current mapped room state
   players: [] as PlayerSummary[],
   timeLeftSec: 0,
   chat: [] as ChatMessage[],
