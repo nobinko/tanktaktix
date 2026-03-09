@@ -1,6 +1,7 @@
 import "./style.css";
 import { createRenderer } from "./render/renderer";
 import { state } from "./state";
+import type { MapData } from "@tanktaktix/shared";
 import { initAppHtml, dom, getCanvasAndCtx, renderRooms, setScreen } from "./ui/dom";
 import { connectWs, sendWsMessage, waitForWsOpen, closeWs } from "./net/wsClient";
 import { handleServerMessage } from "./net/handlers";
@@ -290,19 +291,56 @@ const createRoomModal = document.querySelector("#create-room-modal") as HTMLElem
   createRoomModal?.classList.add("hidden");
 });
 
+// Custom map JSON
+const customMapArea = document.querySelector("#custom-map-area") as HTMLElement;
+const customMapJson = document.querySelector("#custom-map-json") as HTMLTextAreaElement;
+const customMapStatus = document.querySelector("#custom-map-status") as HTMLSpanElement;
+(document.querySelector("#map-select") as HTMLSelectElement)?.addEventListener("change", (e) => {
+  customMapArea?.classList.toggle("hidden", (e.target as HTMLSelectElement).value !== "custom");
+});
+function validateCustomMapJson(json: string): { valid: boolean; data?: MapData; error?: string } {
+  try {
+    const parsed = JSON.parse(json);
+    if (!parsed.width || !parsed.height || !Array.isArray(parsed.walls) || !Array.isArray(parsed.spawnPoints)) {
+      return { valid: false, error: "Required: width, height, walls[], spawnPoints[]" };
+    }
+    if (parsed.spawnPoints.length < 2) {
+      return { valid: false, error: "spawnPoints needs at least 2 entries" };
+    }
+    return { valid: true, data: parsed as MapData };
+  } catch {
+    return { valid: false, error: "Invalid JSON" };
+  }
+}
+customMapJson?.addEventListener("input", () => {
+  const result = validateCustomMapJson(customMapJson.value);
+  customMapStatus.textContent = result.valid ? "✓ Valid" : `✗ ${result.error}`;
+  customMapStatus.style.color = result.valid ? "#7bc67a" : "#e07070";
+});
+
 // Create Room
 (document.querySelector("#create-room") as HTMLButtonElement).addEventListener("click", () => {
   state.leavingRoomId = "";
   const id = (document.querySelector("#room-id") as HTMLInputElement).value.trim() || Math.floor(Math.random() * 10000).toString().padStart(4, "0");
   const name = (document.querySelector("#room-name") as HTMLInputElement).value.trim();
   const mapId = (document.querySelector("#map-select") as HTMLSelectElement)?.value || "riverside";
+  let customMapData: MapData | undefined;
+  if (mapId === "custom") {
+    const result = validateCustomMapJson(customMapJson.value.trim());
+    if (!result.valid) {
+      customMapStatus.textContent = `✗ ${result.error}`;
+      customMapStatus.style.color = "#e07070";
+      return;
+    }
+    customMapData = result.data;
+  }
   const options = {
     teamSelect: (document.querySelector("#opt-team-select") as HTMLInputElement).checked,
     instantKill: (document.querySelector("#opt-instant-kill") as HTMLInputElement).checked,
     noItemRespawn: (document.querySelector("#opt-no-item-respawn") as HTMLInputElement).checked,
     noShooting: (document.querySelector("#opt-no-shooting") as HTMLInputElement).checked,
   };
-  sendWsMessage({ type: "createRoom", payload: { roomId: id, name: name, mapId, maxPlayers: parseInt((document.querySelector("#max-players") as HTMLInputElement).value) || 4, timeLimitSec: parseInt((document.querySelector("#time-limit") as HTMLInputElement).value) || 240, gameMode: ((document.querySelector("#game-mode") as HTMLSelectElement).value || "ctf") as "deathmatch" | "ctf", password: (document.querySelector("#room-password") as HTMLInputElement).value.trim() || undefined, options } });
+  sendWsMessage({ type: "createRoom", payload: { roomId: id, name: name, mapId, customMapData, maxPlayers: parseInt((document.querySelector("#max-players") as HTMLInputElement).value) || 4, timeLimitSec: parseInt((document.querySelector("#time-limit") as HTMLInputElement).value) || 240, gameMode: ((document.querySelector("#game-mode") as HTMLSelectElement).value || "ctf") as "deathmatch" | "ctf", password: (document.querySelector("#room-password") as HTMLInputElement).value.trim() || undefined, options } });
   createRoomModal?.classList.add("hidden");
 });
 
