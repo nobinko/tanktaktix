@@ -89,6 +89,8 @@ export const drawEntities = (ctx: CanvasRenderingContext2D) => {
 
   if (state.flags) {
     state.flags.forEach(f => {
+      // Skip flags currently in flight as a pass bullet (already rendered above)
+      if (state.bullets.some(b => (b as any).isFlagPass && (b as any).flagTeam === f.team)) return;
       ctx.save(); ctx.translate(f.x, f.y); ctx.rotate(-state.camera.rotation);
       if (f.team) drawFlagSprite(ctx, f.team);
       ctx.restore();

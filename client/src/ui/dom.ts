@@ -95,8 +95,15 @@ export const initAppHtml = () => {
               <select id="map-select">
                 <option value="riverside" selected>Riverside (River)</option>
                 <option value="fortress">Fortress (Bases)</option>
+                <option value="custom">Custom Map (Paste JSON)</option>
               </select>
             </label>
+          </div>
+          <div id="custom-map-area" class="hidden" style="margin-bottom: 8px;">
+            <label class="cr-label">Map JSON
+              <textarea id="custom-map-json" rows="5" placeholder='{"id":"my-map","width":1600,"height":1200,"walls":[...],"spawnPoints":[...]}' style="width:100%;font-size:11px;font-family:monospace;resize:vertical;background:#1a1a1a;color:#d4c4a8;border:1px solid rgba(168,148,104,0.4);border-radius:4px;padding:6px;box-sizing:border-box;"></textarea>
+            </label>
+            <span id="custom-map-status" style="font-size:11px;"></span>
           </div>
           <label class="cr-label">Password <span class="cr-hint">optional</span>
             <input id="room-password" placeholder="Leave blank for public" />

@@ -90,6 +90,61 @@
 
 ---
 
+## カスタムマップ（JSON インポート）
+
+部屋作成モーダルでマップセレクトを **「Custom Map (Paste JSON)」** に切り替えると、任意の `MapData` JSON を貼り付けてそのマップで遊べる。
+
+### UI フロー
+
+1. `+ NEW GAME` → Map 選択で「Custom Map (Paste JSON)」を選択
+2. 表示される textarea に JSON を貼り付け
+3. リアルタイムバリデーション（`✓ Valid` / `✗ エラー内容`）
+4. CREATE を押すと部屋が作成される
+
+### 必須フィールド
+
+| フィールド | 型 | 説明 |
+|---|---|---|
+| `width` | number | マップの幅（px） |
+| `height` | number | マップの高さ（px） |
+| `walls` | Wall[] | 地形オブジェクト配列（空配列可） |
+| `spawnPoints` | SpawnPoint[] | 2エントリ以上必須（red・blue各1以上） |
+
+`id`・`flagPositions` など他フィールドは省略可（省略時はサーバーのデフォルト値を使用）。
+
+### JSON 例（riverside マップをベースにした最小構成）
+
+```json
+{
+  "id": "my-map",
+  "width": 1600,
+  "height": 1200,
+  "walls": [
+    { "x": 760, "y": 0, "width": 80, "height": 350, "type": "river" }
+  ],
+  "spawnPoints": [
+    { "team": "red", "x": 150, "y": 600, "radius": 120 },
+    { "team": "blue", "x": 1450, "y": 600, "radius": 120 }
+  ],
+  "flagPositions": [
+    { "team": "red", "x": 550, "y": 600 },
+    { "team": "blue", "x": 1050, "y": 600 }
+  ]
+}
+```
+
+### 実装詳細
+
+| 処理 | 場所 |
+|---|---|
+| クライアントバリデーション | `client/src/main.ts` – `validateCustomMapJson()` |
+| UI（textarea・ステータス表示） | `client/src/ui/dom.ts` `#custom-map-area` |
+| 送信フィールド | `shared/src/index.ts` `createRoom.payload.customMapData` |
+| サーバー受信 | `server/src/network/handlers.ts` `createRoom` ケース |
+| マップ解決 | `server/src/room.ts` – `customMapData ?? MAPS[mapId] ?? DEFAULT_MAP` |
+
+---
+
 ## MapData 型
 
 ```typescript

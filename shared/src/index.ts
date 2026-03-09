@@ -222,6 +222,7 @@ export type ClientToServerMessage =
       roomId: string;
       name: string;
       mapId: string;
+      customMapData?: MapData;
       maxPlayers: number;
       timeLimitSec: number;
       gameMode?: "deathmatch" | "ctf";
