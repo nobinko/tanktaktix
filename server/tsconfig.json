@@ -13,7 +13,10 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "baseUrl": "."
+    "baseUrl": ".",
+    "paths": {
+      "@tanktaktix/shared": ["../shared/dist/index.d.ts"]
+    }
   },
   "include": [
     "src"

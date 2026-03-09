@@ -64,7 +64,7 @@ export function updateCTF(room: Room, now: number) {
         f.carrierId = null;
       }
     } else {
-      // NEW LOGIC: Instantly return dropped flag to base
+      // Flag is unclaimed: instantly return to base
       if (Math.abs(f.x - f.baseX) > 1 || Math.abs(f.y - f.baseY) > 1) {
         f.x = f.baseX;
         f.y = f.baseY;
