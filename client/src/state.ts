@@ -44,6 +44,7 @@ export const state = {
   lobbyId: "",
   availableLobbies: [] as string[],
   lastServerUpdateTime: 0,
+  mapEditing: false,
 };
 
 export const keysDown = new Set<string>();

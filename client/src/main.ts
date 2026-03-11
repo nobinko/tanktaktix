@@ -3,6 +3,7 @@ import { createRenderer } from "./render/renderer";
 import { state } from "./state";
 import type { MapData } from "@tanktaktix/shared";
 import { initAppHtml, dom, getCanvasAndCtx, renderRooms, setScreen } from "./ui/dom";
+import { openMapEditor } from "./ui/mapEditor";
 import { connectWs, sendWsMessage, waitForWsOpen, closeWs } from "./net/wsClient";
 import { handleServerMessage } from "./net/handlers";
 import { attachKeyboardInput } from "./input/keyboard";
@@ -346,6 +347,7 @@ customMapJson?.addEventListener("input", () => {
 
 (document.querySelector("#lobby-help") as HTMLButtonElement).addEventListener("click", () => void showHelp());
 (document.querySelector("#lobby-setting") as HTMLButtonElement).addEventListener("click", () => void showSetting());
+(document.querySelector("#map-editor-btn") as HTMLButtonElement)?.addEventListener("click", () => openMapEditor());
 
 dom.lobbySelect()?.addEventListener("change", (e) => {
   const lobbyId = (e.target as HTMLSelectElement).value;
