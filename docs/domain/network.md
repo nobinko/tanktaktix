@@ -46,7 +46,7 @@
 {
   roomId: string;        // ルームID（空白時はサーバが自動生成）
   name: string;          // 表示名
-  mapId: string;         // "alpha" | "beta" | "gamma" | "delta" | "epsilon"
+  mapId: string;         // "riverside" | "fortress"
   maxPlayers: number;    // 2〜16（clamp される）
   timeLimitSec: number;  // 5〜3600（clamp される）
   gameMode?: "deathmatch" | "ctf";  // 省略時は "ctf"
@@ -68,6 +68,7 @@
 | `explosion` | `Explosion` | 爆発イベント（即時配信、VFX用） |
 | `chat` | `ChatMessage` | チャットメッセージ |
 | `gameEnd` | `{ roomId: string, winners, results }` | ゲーム終了。winners は `"red" \| "blue" \| "draw"` |
+| `leaderboard` | `{ players: PlayerSummary[] }` | リーダーボード |
 | `error` | `{ message: string }` | エラー通知（Room not found / Invalid password / Room is full など） |
 | `pong` | `{ timestamp: number }` | Ping 応答 |
 
@@ -78,8 +79,8 @@
 ```typescript
 type Vector2 = { x: number; y: number };
 type Team = "red" | "blue" | null;
-type ItemType = "medic" | "ammo" | "heart" | "bomb" | "rope" | "boots";
-type WallType = "wall" | "bush" | "water" | "house" | "oneway";
+type ItemType = "medic" | "ammo" | "heart" | "bomb" | "rope" | "boots" | "smoke";
+type WallType = "wall" | "bush" | "water" | "house" | "oneway" | "river" | "bridge";
 
 type RoomOptions = {
   teamSelect: boolean;
@@ -102,13 +103,17 @@ type Wall = {
   width: number;
   height: number;
   type?: WallType;       // 省略時は "wall"
-  direction?: "up" | "down" | "left" | "right"; // oneway の場合のみ
+  direction?: "up" | "down" | "left" | "right"; // レガシー（移行後は rotation で代替）
+  rotation?: number;     // 自由角度（度）
+  passable?: boolean;    // ブリッジ用: true なら通行許可ゾーン
 };
 
 type Flag = {
   team: Team;
   x: number;
   y: number;
+  baseX: number;
+  baseY: number;         // 元位置（複数フラッグ対応）
   carrierId: string | null;
   droppedById?: string;  // 即座再取得防止用
 };
@@ -135,6 +140,15 @@ type RoomState = {
   mapData?: MapData;     // 差分プロトコル化により通常tickでは省略される
   items: Item[];
   flags?: Flag[];        // CTF モードのみ
+  smokeClouds?: SmokeCloud[];
+};
+
+type SmokeCloud = {
+  id: string;
+  x: number;
+  y: number;
+  radius: number;
+  expiresAt: number;
 };
 
 type RoomInitState = {
@@ -169,6 +183,7 @@ type PlayerSummary = {
   respawnCooldownUntil: number | null;
   isHidden: boolean;             // bush 内で隠密中
   hasBomb?: boolean;
+  hasSmoke?: boolean;
   ropeCount?: number;
   bootsCharges?: number;
   ping?: number;
@@ -188,6 +203,7 @@ type BulletPublic = {
   isAmmoPass?: boolean;
   isHealPass?: boolean;
   isFlagPass?: boolean;
+  isSmoke?: boolean;
   flagTeam?: Team;
 };
 
