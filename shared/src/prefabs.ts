@@ -298,8 +298,7 @@ export const PREFAB_REGISTRY: Record<PrefabType, PrefabDefinition> = {
 // 展開ロジック
 // ---------------------------------------------------------------------------
 
-const MAX_OBJECTS = 100;
-const MAX_WALLS_TOTAL = 500;
+import { MAX_OBJECTS, MAX_WALLS_TOTAL } from "./validation.js";
 
 /**
  * 度をラジアンに変換
