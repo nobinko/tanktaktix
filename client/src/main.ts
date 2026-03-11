@@ -2,6 +2,7 @@ import "./style.css";
 import { createRenderer } from "./render/renderer";
 import { state } from "./state";
 import type { MapData } from "@tanktaktix/shared";
+import { validateMapData } from "@tanktaktix/shared";
 import { initAppHtml, dom, getCanvasAndCtx, renderRooms, setScreen } from "./ui/dom";
 import { openMapEditor } from "./ui/mapEditor";
 import { connectWs, sendWsMessage, waitForWsOpen, closeWs } from "./net/wsClient";
@@ -300,18 +301,20 @@ const customMapStatus = document.querySelector("#custom-map-status") as HTMLSpan
   customMapArea?.classList.toggle("hidden", (e.target as HTMLSelectElement).value !== "custom");
 });
 function validateCustomMapJson(json: string): { valid: boolean; data?: MapData; error?: string } {
+  let parsed: unknown;
   try {
-    const parsed = JSON.parse(json);
-    if (!parsed.width || !parsed.height || !Array.isArray(parsed.walls) || !Array.isArray(parsed.spawnPoints)) {
-      return { valid: false, error: "Required: width, height, walls[], spawnPoints[]" };
-    }
-    if (parsed.spawnPoints.length < 2) {
-      return { valid: false, error: "spawnPoints needs at least 2 entries" };
-    }
-    return { valid: true, data: parsed as MapData };
+    parsed = JSON.parse(json);
   } catch {
     return { valid: false, error: "Invalid JSON" };
   }
+  const result = validateMapData(parsed);
+  if (result.valid) {
+    return { valid: true, data: result.data };
+  }
+  const shown = result.errors.slice(0, 5);
+  const more = result.errors.length - shown.length;
+  const suffix = more > 0 ? `; ... and ${more} more` : "";
+  return { valid: false, error: shown.join("; ") + suffix };
 }
 customMapJson?.addEventListener("input", () => {
   const result = validateCustomMapJson(customMapJson.value);

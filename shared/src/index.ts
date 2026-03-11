@@ -2,6 +2,8 @@ import { MAPS } from "./maps.js";
 export { MAPS };
 export { PREFAB_REGISTRY, expandMapObjects } from "./prefabs.js";
 export type { PrefabDefinition, PrefabPart } from "./prefabs.js";
+export { validateMapData, MAX_OBJECTS, MAX_WALLS_TOTAL } from "./validation.js";
+export type { ValidationResult } from "./validation.js";
 export type Vector2 = {
   x: number;
   y: number;

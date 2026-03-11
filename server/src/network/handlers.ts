@@ -1,5 +1,6 @@
 import { WebSocketServer } from "ws";
-import type { Vector2 } from "@tanktaktix/shared";
+import type { Vector2, MapData } from "@tanktaktix/shared";
+import { validateMapData } from "@tanktaktix/shared";
 import { AVAILABLE_LOBBIES } from "../constants.js";
 import { players, rooms, send } from "../state.js";
 import type { ClientMsg, PlayerRuntime } from "../types.js";
@@ -123,7 +124,15 @@ export function registerWsHandlers(wss: WebSocketServer) {
           const nameRaw = pickString(pld.name ?? pld.roomName, "");
           const roomName = nameRaw.trim() ? nameRaw.trim() : roomId;
           const mapId = pickString(pld.mapId, "riverside");
-          const customMapData = isRecord(pld.customMapData) ? pld.customMapData as import("@tanktaktix/shared").MapData : undefined;
+          let customMapData: MapData | undefined;
+          if (isRecord(pld.customMapData)) {
+            const vr = validateMapData(pld.customMapData);
+            if (!vr.valid) {
+              send(socket, { type: "error", payload: { message: `Invalid map: ${vr.errors.slice(0, 5).join("; ")}` } });
+              return;
+            }
+            customMapData = vr.data;
+          }
           const maxPlayers = (clamp(pickNumber(pld.maxPlayers, 4), 2, 100) >> 1) << 1; // even 2-100
           const timeLimitSec = clamp(pickNumber(pld.timeLimitSec ?? pld.timeLimit, 240), 30, 3600);
           const password = pickString(pld.password, "");
