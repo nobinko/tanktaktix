@@ -18,6 +18,7 @@ export type PrefabPart = {
     height: number;
     wallType: WallType;
     passable?: boolean;
+    partRotation?: number; // パーツ固有の回転（度）— オブジェクト回転に加算
 };
 
 export type PrefabDefinition = {
@@ -193,6 +194,8 @@ function createRiverElbowSegments(radius: number, segments: number): PrefabPart[
         const cx = radius * Math.sin(midAngle);
         const cy = -radius * (1 - Math.cos(midAngle));
         const arcLen = radius * angleStep + 10; // 少しオーバーラップさせて隙間防止
+        // 接線方向に合わせた回転: midAngle=0 で水平(90°)、midAngle=π/4 で45°
+        const partRotation = 90 - midAngle * (180 / Math.PI);
 
         parts.push({
             dx: cx,
@@ -200,6 +203,7 @@ function createRiverElbowSegments(radius: number, segments: number): PrefabPart[
             width: RIVER_WIDTH,
             height: Math.max(arcLen, RIVER_WIDTH),
             wallType: "river",
+            partRotation,
         });
     }
     return parts;
@@ -361,13 +365,14 @@ export function expandMapObjects(mapData: MapData): MapData {
             // パーツの中心をオブジェクトの座標に回転配置
             const rotated = rotatePoint(part.dx, part.dy, objRotRad);
 
+            const totalRotation = (obj.rotation || 0) + (part.partRotation || 0);
             const wall: Wall = {
                 x: obj.x + rotated.x - part.width / 2,
                 y: obj.y + rotated.y - part.height / 2,
                 width: part.width,
                 height: part.height,
                 type: part.wallType,
-                rotation: obj.rotation || 0,
+                rotation: totalRotation || undefined,
             };
 
             if (part.passable) {
