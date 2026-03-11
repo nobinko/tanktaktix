@@ -62,7 +62,7 @@ npm run start
 ドキュメント一覧は [docs/INDEX.md](./docs/INDEX.md) を参照してください。
 詳細なロードマップは [docs/ROADMAP.md](./docs/ROADMAP.md) を、受入条件は [docs/ACCEPTANCE.md](./docs/ACCEPTANCE.md) を、スケール方針は [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) を参照してください。
 
-**Phase 1〜4 完了。Phase 5 進行中（17項目中15項目完了）。**
+**Phase 1〜4 完了。Phase 5 進行中（17項目中16項目完了）。**
 
 - **Phase 1**: WebSocket同期、ルーム管理、チャット、ロビー
 - **Phase 2**: 移動・射撃・当たり判定・チームデスマッチ・HUD
@@ -76,7 +76,7 @@ npm run start
 - [x] サウンドエフェクト (5-2)
 - [x] マルチロビー (5-3)
 - [ ] 実況配信連携 — NOW ON AIR (5-4)
-- [ ] マップエディタ / DB保存 (5-5)
+- [x] マップエディタ (5-5)
 - [x] ゲームプレイルール調整 / UI整理 (5-6)
 - [ ] 簡易Bot / 戦術コマンド設計 (5-7)
 - [x] カスタムマップ制作 (5-8)
