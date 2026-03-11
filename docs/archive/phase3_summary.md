@@ -47,4 +47,4 @@
 - **B-5/B-6**: 観戦モードの実装やさらなる地形詳細の追加。
 - **Cランク**: マップエディタやミニマップの高度化。
 
-詳細は各 [ACCEPTANCE.md](file:///c:/Users/moske/tanktaktix/docs/ACCEPTANCE.md) および [ROADMAP.md](file:///c:/Users/moske/tanktaktix/docs/ROADMAP.md) をご確認ください。
+詳細は各 [ACCEPTANCE.md](../ACCEPTANCE.md) および [ROADMAP.md](../ROADMAP.md) をご確認ください。

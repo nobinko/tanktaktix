@@ -54,7 +54,7 @@ tanktaktix/
 │   │   └── handlers.ts       # サーバメッセージハンドラ
 │   ├── render/
 │   │   ├── renderer.ts       # メインレンダラー（rAF ループ）
-│   │   ├── world.ts          # 地形描画（壁・ブッシュ・水場・家・ワンウェイ）
+│   │   ├── world.ts          # 地形描画（壁・ブッシュ・水場・家・ワンウェイ・川・橋）
 │   │   ├── entities.ts       # エンティティ描画（タンク・弾丸・アイテム・フラッグ）
 │   │   ├── hud.ts            # HUD 描画（HP・弾薬・スコア・ミニマップ・チャット）
 │   │   ├── effects.ts        # 爆発 VFX（ローカル管理）
@@ -206,10 +206,10 @@ Server (20Hz = 50ms ごと):
 Client (60fps rAF):
   draw() {
     カメラ変換（zoom / rotation / pan）
-    地形描画（壁・bush・water・house・oneway・グリッド）
+    地形描画（壁・bush・water・house・oneway・river・bridge・グリッド）
     弾丸描画（通常弾 / bomb / rope / ammoPass / healPass / flagPass）
     爆発エフェクト（VFX、ローカル管理）
-    アイテム（medic / ammo / heart / bomb / rope / boots）を描画
+    アイテム（medic / ammo / heart / bomb / smoke / rope / boots）を描画
     フラッグ（CTF の旗）を描画
     各プレイヤー（ハル + 砲塔 + ダメージ可視化（多角形欠損・炎上） + アイテム表示 + 旗インジケーター）を描画
     移動予約マーカーを描画
@@ -278,6 +278,7 @@ type PlayerRuntime = {
 
   // アイテム所持状態
   hasBomb: boolean;            // bomb 所持中（次の射撃がボムショットになる）
+  hasSmoke: boolean;           // smoke 所持中
   ropeCount: number;           // rope 所持本数（0〜2）
   bootsCharges: number;        // boots 残り回数（0 = 未所持, 1〜3 = 残り）
 
@@ -319,7 +320,7 @@ type Room = {
   spectatorIds: Set<string>;   // 観戦者 ID セット
   bullets: Bullet[];
   explosions: Explosion[];     // 1 tick だけ保持しブロードキャスト後クリア
-  items: Item[];               // マップ上のアイテム（固定プール制、各種 2 個ずつ = 12 個）
+  items: Item[];               // マップ上のアイテム（固定プール制、各種 2 個ずつ = 14 個）
   lastItemSpawnAt: number;     // 最後のアイテムスポーン時刻
   flags: Flag[];               // CTF の旗（CTF モード時のみ使用）
   scoreRed: number;
@@ -368,8 +369,8 @@ type Bullet = {
 
 ```typescript
 type Team = "red" | "blue" | null;
-type ItemType = "medic" | "ammo" | "heart" | "bomb" | "rope" | "boots";
-type WallType = "wall" | "bush" | "water" | "house" | "oneway";
+type ItemType = "medic" | "ammo" | "heart" | "bomb" | "rope" | "boots" | "smoke";
+type WallType = "wall" | "bush" | "water" | "house" | "oneway" | "river" | "bridge";
 
 type Item = {
   id: string; x: number; y: number;
@@ -379,19 +380,26 @@ type Item = {
 type Wall = {
   x: number; y: number; width: number; height: number;
   type?: WallType;     // 省略時は "wall"
-  direction?: "up" | "down" | "left" | "right"; // oneway 用
+  direction?: "up" | "down" | "left" | "right"; // レガシー（移行後は rotation で代替）
+  rotation?: number;     // 自由角度（度）
+  passable?: boolean;    // ブリッジ用: true なら通行許可ゾーン
 };
 
 type MapData = {
   id: string; width: number; height: number;
   walls: Wall[];
-  spawnPoints: { team: Team; x: number; y: number }[];
+  objects?: MapObject[];           // プレハブオブジェクト配置
+  dynamicBushes?: { x: number; y: number }[];  // 動的ブッシュ
+  spawnPoints: { team: Team; x: number; y: number; radius?: number }[];
   flagPositions?: { team: Team; x: number; y: number }[];
+  itemMode?: "random" | "manual";
+  itemSpawns?: { x: number; y: number; type: ItemType }[];
 };
 
 type Flag = {
   team: Team;
   x: number; y: number;
+  baseX: number; baseY: number;  // 元位置（複数フラッグ対応）
   carrierId: string | null;
   droppedById?: string;        // 即座再拾得防止用
 };
@@ -500,7 +508,7 @@ Client                              Server
 | `MEDIC_HEAL_AMOUNT` | 20 | medic の回復量 |
 | `AMMO_REFILL_AMOUNT` | 10 | ammo の補充量 |
 
-### アイテムプール（固定 12 個）
+### アイテムプール（固定 14 個）
 
 | アイテム | 個数 | 効果 |
 |---|---|---|
@@ -508,6 +516,7 @@ Client                              Server
 | ammo | 2 | 弾薬 +10 補充 |
 | heart | 2 | HP 全回復 |
 | bomb | 2 | 次の射撃がボムショット（3 倍爆発半径） |
+| smoke | 2 | 煙幕展開（半径 130px、20 秒間隠蔽） |
 | rope | 2 | ロープ弾（敵を引き寄せる、最大 2 本所持） |
 | boots | 2 | 移動速度 1.5 倍（3 回分） |
 
