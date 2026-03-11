@@ -1,6 +1,6 @@
 # Maps
 
-> 対応コード: `shared/src/maps.ts`, `server/src/utils/collision.ts`, `client/src/render/world.ts`
+> 対応コード: `shared/src/maps.ts`, `shared/src/prefabs.ts`, `server/src/utils/collision.ts`, `client/src/render/world.ts`, `client/src/ui/mapEditor.ts`
 > コードと本ドキュメントに乖離がある場合はコードを優先すること。
 
 ---
@@ -142,6 +142,86 @@
 | 送信フィールド | `shared/src/index.ts` `createRoom.payload.customMapData` |
 | サーバー受信 | `server/src/network/handlers.ts` `createRoom` ケース |
 | マップ解決 | `server/src/room.ts` – `customMapData ?? MAPS[mapId] ?? DEFAULT_MAP` |
+
+---
+
+## プリファブオブジェクト（MapObject）
+
+マップには Wall の他に `objects: MapObject[]` でプリファブオブジェクトを配置できる。
+`expandMapObjects()` がゲーム起動時に MapObject を Wall[] にフラット展開し、物理衝突に使用する。
+
+### PrefabType 一覧
+
+| カテゴリ | タイプ | 概要 |
+|---|---|---|
+| **HOUSES** | `house-s` / `house-m` / `house-l` | 小/中/大の建物。wall タイプの壁で構成 |
+| **BASES** | `base-1open` | 1方向が開いた要塞 |
+| | `base-2open-opposite` | 向かい合う2方向が開いた要塞 |
+| | `base-2open-adjacent` | 隣接する2方向が開いた要塞 |
+| | `base-3open` | 3方向が開いた要塞 |
+| **RIVERS** | `river-s` / `river-m` / `river-l` | 直線の川（短/中/長）|
+| | `river-elbow-gentle-s` / `-l` | 緩やかなカーブ（半径 300 / 500） |
+| | `river-elbow-mid-s` / `-l` | 中程度のカーブ（半径 200 / 350） |
+| | `river-elbow-sharp-s` / `-l` | 急カーブ（半径 120 / 180） |
+| **BRIDGES** | `bridge-s` / `bridge-l` | 短/長の橋（passable） |
+| **OTHER** | `oneway` | 単体ワンウェイ壁 |
+| | `bush` | 単体ブッシュ |
+
+### エルボー描画
+
+エルボー系（`river-elbow-*`）はエディタ上では Canvas `ctx.arc()` によるドーナツセクター形状で描画される（矩形の重ね合わせではなくスムーズな曲線）。ゲーム内衝突判定は `expandMapObjects()` が生成した Wall[] を使用。
+
+```typescript
+// MapObject の型（shared/src/index.ts）
+type MapObject = {
+  type: PrefabType;
+  x: number;       // 配置原点 X（ワールド座標）
+  y: number;       // 配置原点 Y
+  rotation?: number; // 回転（度）
+};
+```
+
+### 実装詳細
+
+| 処理 | 場所 |
+|---|---|
+| プリファブ定義 | `shared/src/prefabs.ts` – `PREFAB_REGISTRY` |
+| Wall展開 | `shared/src/prefabs.ts` – `expandMapObjects(mapData)` |
+| エディタ描画 | `client/src/ui/mapEditor.ts` – `drawRiverElbow()` / `expandObject()` |
+
+---
+
+## マップエディタ
+
+ロビーの **MAP EDITOR** ボタン（`#map-editor-btn`）から開くビジュアルエディタ。
+
+### 機能概要
+
+| 機能 | 操作 |
+|---|---|
+| マップサイズ | Small (800×600) / Medium (1200×900) / Large (1800×1200) / Custom 選択 |
+| 壁描画 | パレットから地形タイプを選択してキャンバス上でドラッグ |
+| スポーン/フラッグ/アイテム配置 | パレットから選択してクリック配置 |
+| プリファブ配置 | PREFABSセクションから選択してクリック配置 |
+| 対称配置 | NONE / H（左右）/ V（上下）/ PT（点対称） |
+| 選択・移動 | オブジェクトをクリック選択後にドラッグ |
+| リサイズ | 壁選択時に8方向ハンドルが表示される |
+| 回転 | R / Q キーで ±15° 回転（プリファブのみ有効） |
+| 削除 | Del キー または DELETE ボタン |
+| アンドゥ/リドゥ | Ctrl+Z / Ctrl+Y（最大50ステップ） |
+| グリッドスナップ | Grid Snap チェックボックス（グリッドサイズ 20px） |
+| ズーム・パン | スクロールでズーム、Space+ドラッグでパン |
+| JSON インポート | LOAD JSON ボタンで既存 MapData を読み込み |
+| JSON エクスポート | EXPORT JSON ボタンでクリップボードに書き出し |
+| プレイテスト | PLAY TEST ボタンでカスタムマップとして即座にルーム作成 |
+
+### 実装
+
+| 処理 | 場所 |
+|---|---|
+| エディタ全体 | `client/src/ui/mapEditor.ts` – `openMapEditor()` |
+| ボタン登録 | `client/src/main.ts` – `#map-editor-btn` click handler |
+| コンテナ DOM | `client/src/ui/dom.ts` – `#map-editor-container` |
 
 ---
 

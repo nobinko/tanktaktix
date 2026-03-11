@@ -59,8 +59,12 @@ export const initAppHtml = () => {
         <button id="lobby-help" class="lobby-btn">HELP</button>
         <button id="lobby-setting" class="lobby-btn">SETTING</button>
         <button id="lobby-exit" class="lobby-btn">EXIT</button>
+        <button id="map-editor-btn" class="lobby-btn">MAP EDITOR</button>
       </footer>
     </div>
+
+    <!-- Map Editor -->
+    <div id="map-editor-container" class="hidden"></div>
 
     <!-- Create Room モーダル -->
     <div id="create-room-modal" class="lobby-modal hidden">
