@@ -1,4 +1,5 @@
-import { MAPS } from "@tanktaktix/shared";
+import { compileMapGeometry, MAPS } from "@tanktaktix/shared";
+import { drawGeometryFlat } from "./terrain.js";
 
 // タイトル画面背景描画モジュール
 // MAPS["alpha"] のワールドをゆっくりスクロールさせるフォールバック映像を提供する
@@ -32,6 +33,7 @@ export const startTitleRenderer = () => {
 
     const mapData = (MAPS as any)[DEMO_MAP_KEY];
     if (!mapData) return;
+    const geometry = compileMapGeometry(mapData);
 
     const mapW: number = mapData.width || 1800;
     const mapH: number = mapData.height || 1040;
@@ -87,23 +89,7 @@ export const startTitleRenderer = () => {
         }
 
         // 壁・地形
-        if (mapData.walls) {
-            for (const wall of mapData.walls) {
-                const type = (wall as any).type || "wall";
-                if (type === "bush") ctx.fillStyle = "rgba(70, 100, 35, 0.7)";
-                else if (type === "water") ctx.fillStyle = "rgba(40, 70, 100, 0.7)";
-                else if (type === "house") ctx.fillStyle = "#7a5030";
-                else if (type === "oneway") ctx.fillStyle = "rgba(140, 110, 30, 0.6)";
-                else ctx.fillStyle = "#5a4a38";
-                ctx.fillRect(wall.x, wall.y, wall.width, wall.height);
-
-                if (type === "wall") {
-                    ctx.strokeStyle = "#403020";
-                    ctx.lineWidth = 2;
-                    ctx.strokeRect(wall.x, wall.y, wall.width, wall.height);
-                }
-            }
-        }
+        drawGeometryFlat(ctx, geometry);
 
         // スポーンゾーン（暗い色で）
         if (mapData.spawnPoints) {

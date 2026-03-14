@@ -1,5 +1,5 @@
 import { WebSocket } from "ws";
-import type { Explosion, Flag, Item, MapData, Team, Vector2 } from "@tanktaktix/shared";
+import type { Explosion, Flag, Item, MapData, RuntimeMapGeometry, Team, Vector2 } from "@tanktaktix/shared";
 
 export type ClientMsg = { type: string; payload?: unknown };
 export type ServerMsg = { type: string; payload?: unknown };
@@ -66,6 +66,7 @@ export type Room = {
   name: string;
   mapId: string;
   mapData: MapData;
+  geometry: RuntimeMapGeometry;
   lobbyId: string;
   passwordProtected: boolean;
   password?: string;

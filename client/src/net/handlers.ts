@@ -1,4 +1,4 @@
-import type { ServerToClientMessage } from "@tanktaktix/shared";
+import { compileMapGeometry, type ServerToClientMessage } from "@tanktaktix/shared";
 import { state } from "../state.js";
 import { soundManager } from "../audio/SoundManager";
 import { interpolationBuffers, clearInterpolationBuffers, StateBuffer } from "../render/interpolation";
@@ -47,6 +47,8 @@ export const handleServerMessage = (message: ServerToClientMessage, deps: Handle
         state.players = [];
         state.bullets = [];
         state.explosions = [];
+        state.mapData = null;
+        state.mapGeometry = null;
         clearInterpolationBuffers();
       }
       break;
@@ -56,6 +58,7 @@ export const handleServerMessage = (message: ServerToClientMessage, deps: Handle
 
       // Store map data which is only sent once
       state.mapData = payload.mapData;
+      state.mapGeometry = compileMapGeometry(payload.mapData);
       state.mapSize.width = payload.mapData.width;
       state.mapSize.height = payload.mapData.height;
 

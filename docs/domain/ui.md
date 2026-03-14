@@ -1,169 +1,102 @@
-# UI / Design
+# UI / デザイン
 
-> 対応コード: `client/src/render/`, `client/src/ui/`, `client/src/audio/SoundManager.ts`, `client/src/style.css`
-> コードと本ドキュメントに乖離がある場合はコードを優先すること。
+対象コード:
 
----
+- `client/src/render/`
+- `client/src/ui/`
+- `client/src/audio/SoundManager.ts`
+- `client/src/style.css`
 
-## デザインコンセプト
+## 描画レイヤ
 
-**視認性ファースト戦術インターフェース（TankMatch インスパイア）**
+### world
 
-- 明るい背景（ベージュ/クリーム）+ 強いコントラスト（ダークテキスト）
-- すべての情報が即座に認識できる設計
-- 配信・実況フレンドリー（画面が見やすく、音がうるさくない）
+本編の地形とエンティティを描きます。
 
-### やること（Do）
+主な担当:
 
-- 高コントラスト優先: 暗いテキスト × 明るい背景（WCAG AA 以上）
-- 統一パレット: ゲーム世界と UI が同じ色体系
-- フレーム構造: タン系の枠線でパネルを明確に定義
-- ゲーム性最優先: デザインのため視認性を犠牲にしない
+- `client/src/render/world.ts`
+- `client/src/render/entities.ts`
+- `client/src/render/effects.ts`
+- `client/src/render/terrain.ts`
 
-### やらないこと（Don't）
+### HUD
 
-- 低コントラスト禁止
-- ゲーム × UI がバラバラに見える色使い
-- ダーク UI 禁止（視認性が必ず低下する）
-- 過度な装飾禁止
+- HP
+- ammo
+- item
+- minimap
+- chat
+- score
 
----
+主な担当:
 
-## カラーパレット
+- `client/src/render/hud.ts`
 
-### ベース / 背景
+### DOM UI
 
-| トークン | Hex | 用途 |
-|---|---|---|
-| `bg-light` | `#f0e8d8` | ページ背景、キャンバス外 |
-| `bg-mid` | `#e5dcd0` | パネル、入力欄 |
-| `canvas-bg` | `#e8e0d4` | ゲームフィールド |
-| `panel-solid` | `#dcccc0` | モーダル、ソリッドパネル |
+- lobby
+- room create/join
+- modal
+- map editor
 
-### ボーダー / フレーム
+主な担当:
 
-| トークン | Hex | 用途 |
-|---|---|---|
-| `border-gold` | `#a89468` | プライマリボーダー |
-| `border-tan` | `#8a7348` | セカンダリボーダー |
-| `border-dark` | `#6b5a48` | 入力欄ボーダー |
+- `client/src/ui/dom.ts`
+- `client/src/ui/modal.ts`
+- `client/src/ui/mapEditor.ts`
 
-### テキスト
+## 地形描画の現仕様
 
-| トークン | Hex | 用途 | コントラスト |
-|---|---|---|---|
-| `text-primary` | `#3a2a1a` | メインテキスト | 7:1 on light |
-| `text-secondary` | `#7a6a5a` | サブテキスト | 5:1 on light |
-| `text-muted` | `#9a8a7a` | 無効化テキスト | 3:1 |
-| `text-accent` | `#8a6a2a` | アクセント | warm gold |
-| `text-title` | `#6b4a1a` | タイトル | strong |
+2026-03 時点で、本編の地形描画は expanded `Wall[]` だけを前提にしていません。
 
-### ボタン
+- `client/src/net/handlers.ts` が `roomInit.mapData` から `state.mapGeometry` を生成
+- `client/src/render/world.ts` が `state.mapGeometry.renderables` を描画
+- `client/src/render/terrain.ts` が runtime shape ごとの描画を担当
 
-| 役割 | 背景色 | ボーダー | テキスト |
-|---|---|---|---|
-| Primary | `#d4c4b0` | `#a89468` | `#3a2a1a` |
-| Secondary | `#e5dcd0` | `#8a7348` | `#3a2a1a` |
-| Danger | `#d45555` | `#a83a3a` | `#fff` |
+## river elbow
 
-### ゲーム状態
+river elbow は本編でも Canvas `arc()` を使って描画します。
 
-| 状態 | Hex | 用途 |
-|---|---|---|
-| Team Red | `#c44040` / bright: `#ff5555` | チームカラー |
-| Team Blue | `#4a6a8a` / bright: `#6a92c8` | チームカラー |
-| HP High | `#5c8a3a` | オリーブグリーン |
-| HP Mid | `#d4a832` | アンバー |
-| HP Low | `#c83a2e` | 赤 |
-| Bullet | `#c4843a` | ゴールド |
+つまり:
 
-### ワールド / マップ
+- editor だけ綺麗、ではない
+- title 背景、ルームサムネイル、ミニマップでも同じ geometry を再利用する
 
-| 要素 | Hex | 用途 |
-|---|---|---|
-| Grid | `rgba(160,130,80,0.08)` | グリッド（薄い） |
-| Wall | `#c4b4a0` fill + `#8a7a68` stroke | 壁 |
-| Bush | `rgba(90,120,50,0.5)` | ブッシュ |
-| Water | `rgba(70,100,120,0.5)` | 水 |
-| House | `#c4a070` | 建物 |
-| Oneway | `rgba(180,140,40,0.5)` | 一方通行 |
+## minimap / title / thumbnail
 
-### HUD / キャンバス UI
+同じ runtime geometry を別 UI でも使います。
 
-| 要素 | Hex | 用途 |
-|---|---|---|
-| Minimap BG | `rgba(229,220,208,0.80)` | ミニマップ背景 |
-| Chat BG | `rgba(229,220,208,0.85)` | チャット背景 |
-| Chat Text | `#3a2a1a` | チャットテキスト |
+- minimap: `client/src/render/hud.ts`
+- title background: `client/src/render/titleRenderer.ts`
+- room thumbnail: `client/src/ui/dom.ts`
 
----
+これにより、曲線地形の見た目が画面ごとにずれません。
 
-## タイポグラフィ
+## map editor
 
-| 用途 | フォント | ウェイト | カラー |
-|---|---|---|---|
-| タイトル | Cinzel Decorative | 700 | `#6b4a1a` |
-| 見出し | Cinzel | 400-700 | `#6b4a1a` |
-| 本文/ボタン | Bitter | 400-700 | `#3a2a1a` |
-| HUD/戦術表示 | Share Tech Mono | 400 | `#3a2a1a` |
+map editor は `MapData` を編集します。
 
----
+主要機能:
 
-## 画面別設計ステータス
+- 壁配置
+- prefab 配置
+- spawn point 配置
+- flag 配置
+- item 配置
+- JSON import/export
+- play test
 
-| 画面 | 状態 | 実装 |
-|---|---|---|
-| タイトル画面 | 完了 | diep.io 方式（Canvas 背景 + 半透明ログイン UI） |
-| ロビー画面 | 完了 | TankMatch 構造 × モダンカード UI |
-| マップエディタ | 完了 | `client/src/ui/mapEditor.ts`。ロビーの MAP EDITOR ボタンから起動 |
-| ゲーム画面 | 未着手 | Phase 5-13 で着手予定 |
-| モーダル/リザルト | 完了 | 独自モーダルUI。リザルトは多人数（30vs30等）時に縦スクロール可能 |
+重要仕様:
 
-### ゲーム画面 未着手 TODO（Phase 5-13）
+- 旗を置かないなら `flagPositions` を出さない
+- river elbow prefab は editor 上でも本編でも曲線として見える
 
-- チャットを T キーでトグル表示（デフォルト非表示、配信フレンドリー）
-- Shift ホールドでスコアボード表示（Tab はブラウザと競合するため不採用）
-- ミニマップをタンク位置のみに簡略化（壁・アイテム・フラッグ非表示）
-- HUD 上部バーのビジュアル強化（フレーム・フォント・アイコン）
+## UI 確認項目
 
----
+地形や editor を触ったらここを見る:
 
-## アセット戦略
-
-Canvas 描画から画像アセットへの段階的移行計画。
-
-| 方針 | 内容 |
-|---|---|
-| Canvas 継続 | ミニマップ・弾・爆発エフェクト |
-| CSS/SVG | ボタン・アイコン |
-| 将来移行 | タンクスプライト・HUD フレーム・地形テクスチャ |
-
-| Step | 内容 | 状態 |
-|---|---|---|
-| Step 1 | タンク hull / turret を PNG スプライト化（チーム色2種） | 未着手 |
-| Step 2 | HUD フレーム画像化（ライフバー枠・ミニマップ枠） | 未着手 |
-| Step 3 | 地形タイルをテクスチャ化（壁 / 草 / 水 / 家） | 未着手 |
-
----
-
-## サウンドエフェクト（SE）
-
-> BGM なし設計。SE のみで世界観と手応えを表現する。
-> 対応コード: `client/src/audio/SoundManager.ts`
-
-| ID | トリガー | 長さ | 音のイメージ |
-|---|---|---|---|
-| `shot_fire` | 弾発射（通常・ボム共通） | 0.3〜0.5秒 | 「パン」軽めの砲撃音。アタック強め・余韻短め |
-| `ammo_empty` | 弾切れで撃とうとした | 0.2〜0.3秒 | 「カチッ」乾いた空撃ちクリック。メタリックで短い |
-| `explosion_normal` | 通常弾の着弾爆発 | 0.4〜0.6秒 | 「ボフッ」小規模な破裂。中音域、丸みがある |
-| `explosion_bomb` | ボム弾の爆発（半径3倍） | 0.6〜1.0秒 | 「ドカーン」大爆発。低音のうねり＋破片の散乱感 |
-| `flag_captured` | チームが旗キャプチャ（得点） | 1.0〜1.5秒 | 「イエーイ！」ボイスSE |
-| `ui_click` | ボタンクリック汎用 | 0.1〜0.15秒 | 「カチッ」軽いUIクリック。ニュートラル |
-| `team_chat` | ゲーム中チームチャット受信 | 0.15〜0.25秒 | 仲間からの通信感。無線っぽい通知音 |
-| `lobby_chat` | ロビーチャット受信 | 0.15〜0.25秒 | 「ポコン」柔らかい通知音 |
-
-### SE の制約
-
-- ゲーム中グローバルチャットは音なし（チームチャットのみ鳴らす）
-- ロビーチャットは全メッセージに対して通知音を鳴らす
-- Setting モーダルのミュートに連動する
+- world で river elbow が滑らか
+- minimap でも同じ形に見える
+- room thumbnail でも角ばらない
+- flag 未配置マップで旗 UI が変に出ない

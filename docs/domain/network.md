@@ -1,291 +1,92 @@
-# Network
+# ネットワーク
 
-> 対応コード: `server/src/network/handlers.ts`, `server/src/network/broadcast.ts`, `shared/src/index.ts`, `client/src/net/wsClient.ts`, `client/src/net/handlers.ts`
-> **ソース of truth は `shared/src/index.ts`**。型定義と本ドキュメントに乖離が生じた場合はコードを優先すること。
+対象コード:
 
----
+- `shared/src/index.ts`
+- `server/src/network/handlers.ts`
+- `server/src/network/broadcast.ts`
+- `client/src/net/wsClient.ts`
+- `client/src/net/handlers.ts`
 
-## 基本仕様
+## 形式
 
-- エンドポイント: `ws(s)://<host>/ws`
-- フォーマット: JSON テキストフレーム
-- エンベロープ: `{ "type": string, "payload": any }`
+- WebSocket endpoint: `/ws`
+- フレーム形式: JSON
+- 形: `{ type, payload }`
 
-### 互換性ルール
+共通型の正本は `shared/src/index.ts` です。
 
-- 互換破壊が必要な変更は `shared/src/index.ts` の型を更新し、本ドキュメントも同時に改訂する
-- サーバ権威の判定（衝突・HP・スコア計算）を常に維持する
+## 主要メッセージ
 
----
+### client -> server
 
-## クライアント → サーバ（C→S）
+- `login`
+- `requestLobby`
+- `switchLobby`
+- `createRoom`
+- `joinRoom`
+- `spectateRoom`
+- `selectTeam`
+- `leaveRoom`
+- `move`
+- `moveCancelOne`
+- `stopMove`
+- `aim`
+- `shoot`
+- `useItem`
+- `chat`
+- `ping`
+- `reportPing`
 
-| type | payload | 説明 |
-|---|---|---|
-| `login` | `{ name: string, id?: string }` | ログイン。name は最大16文字。id は再接続用 |
-| `requestLobby` | なし | ロビー状態を要求する |
-| `switchLobby` | `{ lobbyId: string }` | ロビー切り替え |
-| `createRoom` | `{ roomId, name, mapId, maxPlayers, timeLimitSec, gameMode?, password?, options? }` | ルーム作成 |
-| `joinRoom` | `{ roomId: string, password?: string, requestedTeam?: "red" \| "blue" }` | ルーム参加 |
-| `spectateRoom` | `{ roomId: string, password?: string }` | 観戦モードで参加 |
-| `selectTeam` | `{ team: "red" \| "blue" }` | チーム手動選択（teamSelect モード時） |
-| `leaveRoom` | なし | ルームから退出してロビーへ戻る |
-| `move` | `{ target: Vector2 }` | クリック移動。移動中・クールダウン中でも予約として受け付ける |
-| `moveCancelOne` | なし | 移動キューの末尾を1つキャンセル（Zキー相当） |
-| `stopMove` | なし | 移動キューを全クリアして即座に停止 |
-| `aim` | `{ direction: Vector2 }` | AIMモード中の砲塔方向を更新する。direction は単位ベクトル |
-| `shoot` | `{ direction: Vector2 }` | 射撃。direction は単位ベクトル |
-| `useItem` | `{ item: string, direction: Vector2 }` | AIMアクション派生。item は `"rope"` / `"ammo"` / `"heal"` / `"flag"` |
-| `chat` | `{ message: string, channel?: "global" \| "team" }` | チャット送信。最大120文字 |
-| `ping` | `{ timestamp: number }` | Ping 計測用タイムスタンプ送信 |
-| `reportPing` | `{ ping: number }` | 計測済み Ping 値をサーバに報告 |
+### server -> client
 
-### createRoom payload 詳細
+- `welcome`
+- `lobby`
+- `roomInit`
+- `room`
+- `explosion`
+- `chat`
+- `gameEnd`
+- `leaderboard`
+- `error`
+- `pong`
 
-```typescript
-{
-  roomId: string;        // ルームID（空白時はサーバが自動生成）
-  name: string;          // 表示名
-  mapId: string;         // "riverside" | "fortress"
-  maxPlayers: number;    // 2〜16（clamp される）
-  timeLimitSec: number;  // 5〜3600（clamp される）
-  gameMode?: "deathmatch" | "ctf";  // 省略時は "ctf"
-  password?: string;     // 省略または空文字で非パスワード保護
-  options?: RoomOptions;
-}
-```
+## `roomInit` と map data
 
----
+重要:
 
-## サーバ → クライアント（S→C）
+- `roomInit.mapData` は raw `MapData` です。
+- server は compiled geometry をそのまま wire に流していません。
+- client は `roomInit.mapData` を受け取ってローカルで `compileMapGeometry(mapData)` を実行します。
 
-| type | payload | 説明 |
-|---|---|---|
-| `welcome` | `{ id: string }` | 接続時 + ログイン成功時。id はプレイヤーID |
-| `lobby` | `LobbyState` | ロビー状態。ルーム一覧 |
-| `roomInit` | `RoomInitState` | 初回の重いペイロード（マップ構造等）。ルーム参加時や観戦開始時に1度だけ送信 |
-| `room` | `RoomState` | ゲーム状態。20Hz（50ms）ごとにブロードキャスト（差分化） |
-| `explosion` | `Explosion` | 爆発イベント（即時配信、VFX用） |
-| `chat` | `ChatMessage` | チャットメッセージ |
-| `gameEnd` | `{ roomId: string, winners, results }` | ゲーム終了。winners は `"red" \| "blue" \| "draw"` |
-| `leaderboard` | `{ players: PlayerSummary[] }` | リーダーボード |
-| `error` | `{ message: string }` | エラー通知（Room not found / Invalid password / Room is full など） |
-| `pong` | `{ timestamp: number }` | Ping 応答 |
+この構成の理由:
 
----
+- wire format を既存 `MapData` のまま保てる
+- runtime-only shape を追加しやすい
+- client と server が同じ shared compiler を使える
 
-## 型定義
+## tick メッセージ
 
-```typescript
-type Vector2 = { x: number; y: number };
-type Team = "red" | "blue" | null;
-type ItemType = "medic" | "ammo" | "heart" | "bomb" | "rope" | "boots" | "smoke";
-type WallType = "wall" | "bush" | "water" | "house" | "oneway" | "river" | "bridge";
+通常の `room` メッセージは 20Hz で流れますが、地形 geometry を毎 tick で送り直す前提ではありません。
 
-type RoomOptions = {
-  teamSelect: boolean;
-  instantKill: boolean;
-  noItemRespawn: boolean;
-  noShooting: boolean;
-};
+- map は init-time data
+- プレイ中に必要なのは player, projectile, item, score, flags などの更新
 
-type Item = {
-  id: string;
-  x: number;
-  y: number;
-  type: ItemType;
-  spawnedAt: number;     // スポーン時刻 Unix ms
-};
+## createRoom と custom map
 
-type Wall = {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  type?: WallType;       // 省略時は "wall"
-  direction?: "up" | "down" | "left" | "right"; // レガシー（移行後は rotation で代替）
-  rotation?: number;     // 自由角度（度）
-  passable?: boolean;    // ブリッジ用: true なら通行許可ゾーン
-};
+custom map は `createRoom.payload.customMapData` に `MapData` を載せる形です。
 
-type Flag = {
-  team: Team;
-  x: number;
-  y: number;
-  baseX: number;
-  baseY: number;         // 元位置（複数フラッグ対応）
-  carrierId: string | null;
-  droppedById?: string;  // 即座再取得防止用
-};
+server 側では:
 
-type LobbyState = {
-  rooms: RoomSummary[];
-  onlinePlayers: { id: string; name: string }[];
-  currentLobbyId: string;
-  availableLobbies: string[];
-};
+1. `customMapData` を受け取る
+2. raw `MapData` として room に保持する
+3. 同時に `compileMapGeometry()` で runtime geometry を生成する
 
-type RoomState = {
-  roomId: string;
-  roomName: string;
-  mapId: string;
-  room: RoomSummary;
-  players: PlayerSummary[];
-  bullets: BulletPublic[];
-  projectiles: BulletPublic[];
-  explosions: Explosion[];
-  timeLeftSec: number;
-  gameMode: "deathmatch" | "ctf";
-  teamScores: { red: number; blue: number };
-  mapData?: MapData;     // 差分プロトコル化により通常tickでは省略される
-  items: Item[];
-  flags?: Flag[];        // CTF モードのみ
-  smokeClouds?: SmokeCloud[];
-};
+## 地形変更時の注意
 
-type SmokeCloud = {
-  id: string;
-  x: number;
-  y: number;
-  radius: number;
-  expiresAt: number;
-};
+地形 shape を追加するときは network protocol を先に変える必要はありません。まず `MapData` で表現できるか、もしくは prefab + compiler で runtime shape に落とせるかを確認します。
 
-type RoomInitState = {
-  roomId: string;
-  roomName: string;
-  mapId: string;
-  room: RoomSummary;
-  mapData: MapData;
-  gameMode: "deathmatch" | "ctf";
-};
+現行ではこの方針です。
 
-type PlayerSummary = {
-  id: string;
-  name: string;
-  team: Team;
-  roomId: string | null;
-  position: Vector2;
-  target: Vector2 | null;
-  moveQueue: Vector2[];
-  hp: number;
-  ammo: number;
-  score: number;
-  deaths: number;
-  kills: number;
-  hits: number;
-  fired: number;
-  nextActionAt: number;          // Unix ms（クールダウン終了時刻）
-  actionLockStep: number;        // 残りカウント表示用（0=READY）
-  hullAngle: number;
-  turretAngle: number;
-  respawnAt: number | null;
-  respawnCooldownUntil: number | null;
-  isHidden: boolean;             // bush 内で隠密中
-  hasBomb?: boolean;
-  hasSmoke?: boolean;
-  ropeCount?: number;
-  bootsCharges?: number;
-  ping?: number;
-};
-
-type BulletPublic = {
-  id: string;
-  shooterId: string;
-  x: number;
-  y: number;
-  position: Vector2;
-  radius: number;
-  startX?: number;
-  startY?: number;
-  isBomb?: boolean;
-  isRope?: boolean;
-  isAmmoPass?: boolean;
-  isHealPass?: boolean;
-  isFlagPass?: boolean;
-  isSmoke?: boolean;
-  flagTeam?: Team;
-};
-
-type Explosion = {
-  id: string;
-  x: number;
-  y: number;
-  radius: number;
-  at: number;            // 発生時刻 Unix ms
-};
-
-type ChatMessage = {
-  from: string;
-  message: string;
-  timestamp: number;
-  channel?: "global" | "team";
-};
-```
-
----
-
-## サーバ権威の検証項目
-
-クライアントの値を信用しない。以下はすべてサーバで計算・検証する。
-
-| 検証内容 | 詳細 |
-|---|---|
-| 移動距離 | 1回の移動は最大 300px（超えた場合は clamp） |
-| クールダウン中の行動 | `cooldownUntil > now` の場合は射撃・移動開始を拒否 |
-| 移動中の射撃 | `isMoving === true` の場合は射撃を拒否 |
-| 弾薬切れ | `ammo <= 0` かつ bomb 非所持の場合は射撃を拒否 |
-| 無敵期間中の被弾 | `respawnCooldownUntil > now` の場合はダメージを受けない |
-| フレンドリーファイア | 同チームへのダメージを無効化（自爆は有効） |
-| ルーム満員 | `playerIds.size >= maxPlayers` の場合は参加を拒否 |
-| パスワード | 不一致の場合は参加を拒否 |
-| 壁衝突 | 移動先が壁内部の場合は移動を中断しクールダウン発動 |
-| アイテム取得 | タンク半径内に入ったアイテムをサーバ側で判定・適用 |
-
----
-
-## マルチロビー
-
-利用可能なロビー（`constants.ts` の `AVAILABLE_LOBBIES` で管理）:
-
-| ロビーID | 説明 |
-|---|---|
-| `"Main Lobby"` | デフォルトのメインロビー |
-| `"Sub Lobby 1"` | サブロビー 1 |
-| `"Sub Lobby 2"` | サブロビー 2 |
-
-- 各 `PlayerRuntime` は `lobbyId` で所属ロビーを管理
-- 各 `Room` も `lobbyId` でロビーに紐付く
-- 接続時のデフォルトロビーは `AVAILABLE_LOBBIES[0]`
-- `switchLobby` でロビー切り替え時、現在のルームから退出される
-- `LobbyState` は同一ロビー内の全プレイヤーにのみ配信
-
----
-
-## 通信シーケンス（ルーム参加からゲーム終了まで）
-
-```
-Client                              Server
-  │                                   │
-  │── login { name, id? } ──────────▶│ プレイヤー登録 or 再接続
-  │◀─ welcome { id } ─────────────────│
-  │◀─ lobby { rooms, onlinePlayers } ─│
-  │                                   │
-  │── createRoom { ..., gameMode } ──▶│ ルーム作成 → lobby ブロードキャスト
-  │── joinRoom { roomId } ───────────▶│ チーム割当・スポーン
-  │◀─ roomInit { mapData, ... } ──────│ 参加成功（マップ等の初回データ送信）
-  │◀─ room { players, items,          │
-  │         flags, ... } ──────────────│
-  │                                   │
-  │    ← 20Hz で room ブロードキャスト ──│ tick ごとに状態同期（差分ペイロード）
-  │                                   │
-  │── move { target } ───────────────▶│ moveQueue に追加
-  │── shoot { direction } ───────────▶│ 弾丸生成・クールダウン開始
-  │◀─ explosion { ... } ──────────────│ 命中時に即時配信
-  │                                   │
-  │── useItem { item, direction } ───▶│ 特殊弾生成
-  │── chat { message, channel } ─────▶│ チャットブロードキャスト
-  │                                   │
-  │◀─ gameEnd { winners, results } ────│ endsAt 超過時
-  │── leaveRoom ─────────────────────▶│ 退出 → lobby ブロードキャスト
-```
+- 保存・通信: `MapData`
+- 実行時: `RuntimeMapGeometry`

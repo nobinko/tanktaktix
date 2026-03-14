@@ -2,6 +2,8 @@ import { MAPS } from "./maps.js";
 export { MAPS };
 export { PREFAB_REGISTRY, expandMapObjects } from "./prefabs.js";
 export type { PrefabDefinition, PrefabPart } from "./prefabs.js";
+export { compileMapGeometry } from "./geometry.js";
+export type { RectTerrainShape, RingSectorTerrainShape, RuntimeMapGeometry, TerrainShape } from "./geometry.js";
 export { validateMapData, MAX_OBJECTS, MAX_WALLS_TOTAL } from "./validation.js";
 export type { ValidationResult } from "./validation.js";
 export type Vector2 = {
@@ -58,7 +60,7 @@ export type MapData = {
   objects?: MapObject[];           // プレハブオブジェクト配置
   dynamicBushes?: { x: number; y: number }[];  // 動的ブッシュ
   spawnPoints: { team: Team; x: number; y: number; radius?: number }[];
-  flagPositions?: { team: Team; x: number; y: number }[]; // CTF flag locations (defaults to spawnPoints if omitted)
+  flagPositions?: { team: Team; x: number; y: number }[]; // CTF flag locations (omit to disable flags)
   itemMode?: "random" | "manual";
   itemSpawns?: { x: number; y: number; type: ItemType }[];
 };

@@ -1,30 +1,17 @@
-import type { Wall } from "@tanktaktix/shared";
+import type { RectTerrainShape, RingSectorTerrainShape, RuntimeMapGeometry, TerrainShape, Wall } from "@tanktaktix/shared";
+import { compileMapGeometry } from "@tanktaktix/shared";
 
-// ---------------------------------------------------------------------------
-// ユーティリティ: 回転壁のローカル座標変換
-// ---------------------------------------------------------------------------
-
-/**
- * 壁の中心座標を取得
- */
-function wallCenter(w: Wall): { cx: number; cy: number } {
+function wallCenter(w: RectTerrainShape): { cx: number; cy: number } {
   return { cx: w.x + w.width / 2, cy: w.y + w.height / 2 };
 }
 
-/**
- * 壁に rotation がある場合、点をローカル座標系に変換
- * rotation が 0 または未指定なら変換不要（AABB判定のまま使える）
- */
-function hasRotation(w: Wall): boolean {
+function hasRotation(w: RectTerrainShape): boolean {
   return w.rotation !== undefined && w.rotation !== 0;
 }
 
-/**
- * 点をローカル座標系（壁の中心を原点、回転を打ち消した空間）に変換
- */
-function toLocalSpace(px: number, py: number, w: Wall): { lx: number; ly: number } {
+function toLocalSpace(px: number, py: number, w: RectTerrainShape): { lx: number; ly: number } {
   const { cx, cy } = wallCenter(w);
-  const rad = -(w.rotation! * Math.PI) / 180; // 逆回転
+  const rad = -(w.rotation! * Math.PI) / 180;
   const dx = px - cx;
   const dy = py - cy;
   const cos = Math.cos(rad);
@@ -35,124 +22,81 @@ function toLocalSpace(px: number, py: number, w: Wall): { lx: number; ly: number
   };
 }
 
-// ---------------------------------------------------------------------------
-// 壁の通行可否タイプ判定
-// ---------------------------------------------------------------------------
-
-function isBlockingType(w: Wall): boolean {
-  const type = w.type || "wall";
-  return type === "wall" || type === "water" || type === "house" || type === "oneway" || type === "river";
+function toShapeFromWall(wall: Wall): RectTerrainShape {
+  return {
+    kind: "rect",
+    x: wall.x,
+    y: wall.y,
+    width: wall.width,
+    height: wall.height,
+    terrain: wall.type ?? "wall",
+    rotation: wall.rotation,
+    direction: wall.direction,
+    passable: wall.passable,
+  };
 }
 
-function isBulletBlockingType(w: Wall): boolean {
-  const type = w.type || "wall";
-  return type === "wall" || type === "house";
+function ensureGeometry(input: RuntimeMapGeometry | Wall[]): RuntimeMapGeometry {
+  if (Array.isArray(input)) {
+    return compileMapGeometry({ id: "legacy", width: 0, height: 0, walls: input, spawnPoints: [] });
+  }
+  return input;
 }
 
-// ---------------------------------------------------------------------------
-// checkWallCollision — 円 vs AABB/OBB
-// ---------------------------------------------------------------------------
+function normalizeAnglePositive(angle: number): number {
+  const tau = Math.PI * 2;
+  return ((angle % tau) + tau) % tau;
+}
 
-/**
- * 円（中心 x,y 半径 r）が壁と衝突しているか。
- * passable な壁（ブリッジ）は判定前にチェック。
- */
-export function checkWallCollision(x: number, y: number, r: number, walls: Wall[]): boolean {
-  // まず passable ゾーン（ブリッジ）内にいるかチェック
-  let inPassableZone = false;
-  for (const w of walls) {
-    if (!w.passable) continue;
-    if (isPointInRect(x, y, w)) {
-      inPassableZone = true;
-      break;
-    }
+function isAngleWithinSweep(angle: number, startAngle: number, sweepAngle: number): boolean {
+  if (sweepAngle >= 0) {
+    return normalizeAnglePositive(angle - startAngle) <= sweepAngle;
+  }
+  return normalizeAnglePositive(startAngle - angle) <= -sweepAngle;
+}
+
+function pointToSegmentDistance(px: number, py: number, ax: number, ay: number, bx: number, by: number): number {
+  const abx = bx - ax;
+  const aby = by - ay;
+  const denom = abx * abx + aby * aby;
+  if (denom === 0) return Math.hypot(px - ax, py - ay);
+  const t = Math.max(0, Math.min(1, ((px - ax) * abx + (py - ay) * aby) / denom));
+  const cx = ax + abx * t;
+  const cy = ay + aby * t;
+  return Math.hypot(px - cx, py - cy);
+}
+
+function distancePointToRingSector(px: number, py: number, shape: RingSectorTerrainShape): number {
+  const dx = px - shape.cx;
+  const dy = py - shape.cy;
+  const distance = Math.hypot(dx, dy);
+  const angle = Math.atan2(dy, dx);
+
+  if (isAngleWithinSweep(angle, shape.startAngle, shape.sweepAngle)) {
+    if (distance >= shape.innerRadius && distance <= shape.outerRadius) return 0;
+    if (distance < shape.innerRadius) return shape.innerRadius - distance;
+    return distance - shape.outerRadius;
   }
 
-  for (const w of walls) {
-    if (w.passable) continue;
-    if (!isBlockingType(w)) continue;
+  const endAngle = shape.startAngle + shape.sweepAngle;
+  const startInnerX = shape.cx + Math.cos(shape.startAngle) * shape.innerRadius;
+  const startInnerY = shape.cy + Math.sin(shape.startAngle) * shape.innerRadius;
+  const startOuterX = shape.cx + Math.cos(shape.startAngle) * shape.outerRadius;
+  const startOuterY = shape.cy + Math.sin(shape.startAngle) * shape.outerRadius;
+  const endInnerX = shape.cx + Math.cos(endAngle) * shape.innerRadius;
+  const endInnerY = shape.cy + Math.sin(endAngle) * shape.innerRadius;
+  const endOuterX = shape.cx + Math.cos(endAngle) * shape.outerRadius;
+  const endOuterY = shape.cy + Math.sin(endAngle) * shape.outerRadius;
 
-    // リバーの場合、ブリッジ内にいるなら判定スキップ
-    if (inPassableZone && (w.type === "river" || w.type === "water")) continue;
-
-    if (isCircleInRect(x, y, r, w)) {
-      return true;
-    }
-  }
-  return false;
+  return Math.min(
+    pointToSegmentDistance(px, py, startInnerX, startInnerY, startOuterX, startOuterY),
+    pointToSegmentDistance(px, py, endInnerX, endInnerY, endOuterX, endOuterY),
+  );
 }
 
-// ---------------------------------------------------------------------------
-// checkPointInWall — 点 vs AABB/OBB
-// ---------------------------------------------------------------------------
-
-export function checkPointInWall(x: number, y: number, walls: Wall[]): boolean {
-  for (const w of walls) {
-    if (w.passable) continue;
-    if (!isBlockingType(w)) continue;
-    if (isPointInRect(x, y, w)) {
-      return true;
-    }
-  }
-  return false;
-}
-
-// ---------------------------------------------------------------------------
-// isPointInBush — 点 vs AABB/OBB
-// ---------------------------------------------------------------------------
-
-export function isPointInBush(x: number, y: number, walls: Wall[]): boolean {
-  for (const w of walls) {
-    if (w.type !== "bush") continue;
-    if (isPointInRect(x, y, w)) {
-      return true;
-    }
-  }
-  return false;
-}
-
-// ---------------------------------------------------------------------------
-// isBulletBlockedByWall — 点 vs AABB/OBB + oneway方向判定
-// ---------------------------------------------------------------------------
-
-export function isBulletBlockedByWall(x: number, y: number, vx: number, vy: number, walls: Wall[]): boolean {
-  for (const w of walls) {
-    if (w.passable) continue;
-    const type = w.type || "wall";
-
-    if (type === "oneway") {
-      if (isPointInRect(x, y, w)) {
-        // oneway の方向判定
-        if (w.rotation !== undefined && w.rotation !== 0) {
-          // 回転ベースの方向判定: rotation=0 → 通過方向は右（+x）
-          const rad = (w.rotation * Math.PI) / 180;
-          const passDir = { x: Math.cos(rad), y: Math.sin(rad) };
-          const dot = vx * passDir.x + vy * passDir.y;
-          if (dot > 0) continue; // 通過方向なのでブロックしない
-        } else if (w.direction) {
-          // レガシー direction ベース
-          if (w.direction === "up" && vy < 0) continue;
-          if (w.direction === "down" && vy > 0) continue;
-          if (w.direction === "left" && vx < 0) continue;
-          if (w.direction === "right" && vx > 0) continue;
-        }
-        return true;
-      }
-    } else if (isBulletBlockingType(w)) {
-      if (isPointInRect(x, y, w)) {
-        return true;
-      }
-    }
-  }
-  return false;
-}
-
-// ---------------------------------------------------------------------------
-// ヘルパー: 点が矩形内にあるか（回転対応）
-// ---------------------------------------------------------------------------
-
-function isPointInRect(px: number, py: number, w: Wall): boolean {
-  let x = px, y = py;
+function isPointInRect(px: number, py: number, w: RectTerrainShape): boolean {
+  let x = px;
+  let y = py;
   if (hasRotation(w)) {
     const local = toLocalSpace(px, py, w);
     x = local.lx;
@@ -161,19 +105,14 @@ function isPointInRect(px: number, py: number, w: Wall): boolean {
   return x >= w.x && x <= w.x + w.width && y >= w.y && y <= w.y + w.height;
 }
 
-// ---------------------------------------------------------------------------
-// ヘルパー: 円が矩形と衝突しているか（回転対応）
-// 円の中心をローカル空間に変換 → 最近傍点との距離で判定
-// ---------------------------------------------------------------------------
-
-function isCircleInRect(cx: number, cy: number, r: number, w: Wall): boolean {
-  let x = cx, y = cy;
+function isCircleInRect(cx: number, cy: number, r: number, w: RectTerrainShape): boolean {
+  let x = cx;
+  let y = cy;
   if (hasRotation(w)) {
     const local = toLocalSpace(cx, cy, w);
     x = local.lx;
     y = local.ly;
   }
-  // AABB vs 円: 最近傍点との距離
   const nearestX = Math.max(w.x, Math.min(x, w.x + w.width));
   const nearestY = Math.max(w.y, Math.min(y, w.y + w.height));
   const dx = x - nearestX;
@@ -181,12 +120,83 @@ function isCircleInRect(cx: number, cy: number, r: number, w: Wall): boolean {
   return dx * dx + dy * dy <= r * r;
 }
 
-// ---------------------------------------------------------------------------
-// 既存のレイキャスト判定（弾丸の射線チェック用）
-// ---------------------------------------------------------------------------
+function isPointInShape(x: number, y: number, shape: TerrainShape): boolean {
+  if (shape.kind === "rect") return isPointInRect(x, y, shape);
+  return distancePointToRingSector(x, y, shape) === 0;
+}
+
+function isCircleInShape(x: number, y: number, r: number, shape: TerrainShape): boolean {
+  if (shape.kind === "rect") return isCircleInRect(x, y, r, shape);
+  return distancePointToRingSector(x, y, shape) <= r;
+}
+
+export function checkWallCollision(x: number, y: number, r: number, wallsOrGeometry: RuntimeMapGeometry | Wall[]): boolean {
+  const geometry = ensureGeometry(wallsOrGeometry);
+  let inPassableZone = false;
+
+  for (const shape of geometry.passable) {
+    if (isPointInShape(x, y, shape)) {
+      inPassableZone = true;
+      break;
+    }
+  }
+
+  for (const shape of geometry.blocking) {
+    if (inPassableZone && (shape.terrain === "river" || shape.terrain === "water")) continue;
+    if (isCircleInShape(x, y, r, shape)) return true;
+  }
+
+  return false;
+}
+
+export function checkPointInWall(x: number, y: number, wallsOrGeometry: RuntimeMapGeometry | Wall[]): boolean {
+  const geometry = ensureGeometry(wallsOrGeometry);
+  for (const shape of geometry.blocking) {
+    if (isPointInShape(x, y, shape)) return true;
+  }
+  return false;
+}
+
+export function isPointInBush(x: number, y: number, wallsOrGeometry: RuntimeMapGeometry | Wall[]): boolean {
+  const geometry = ensureGeometry(wallsOrGeometry);
+  for (const shape of geometry.concealment) {
+    if (isPointInShape(x, y, shape)) return true;
+  }
+  return false;
+}
+
+export function isBulletBlockedByWall(x: number, y: number, vx: number, vy: number, wallsOrGeometry: RuntimeMapGeometry | Wall[]): boolean {
+  const geometry = ensureGeometry(wallsOrGeometry);
+
+  for (const shape of geometry.bulletBlocking) {
+    if (shape.kind !== "rect") continue;
+
+    if (shape.terrain === "oneway") {
+      if (isPointInRect(x, y, shape)) {
+        if (shape.rotation !== undefined && shape.rotation !== 0) {
+          const rad = (shape.rotation * Math.PI) / 180;
+          const passDir = { x: Math.cos(rad), y: Math.sin(rad) };
+          const dot = vx * passDir.x + vy * passDir.y;
+          if (dot > 0) continue;
+        } else if (shape.direction) {
+          if (shape.direction === "up" && vy < 0) continue;
+          if (shape.direction === "down" && vy > 0) continue;
+          if (shape.direction === "left" && vx < 0) continue;
+          if (shape.direction === "right" && vx > 0) continue;
+        }
+        return true;
+      }
+    } else if (isPointInRect(x, y, shape)) {
+      return true;
+    }
+  }
+
+  return false;
+}
 
 function clipLineToRect(p1: { x: number; y: number }, p2: { x: number; y: number }, minX: number, minY: number, maxX: number, maxY: number): boolean {
-  let t0 = 0, t1 = 1;
+  let t0 = 0;
+  let t1 = 1;
   const dx = p2.x - p1.x;
   const dy = p2.y - p1.y;
   const p = [-dx, dx, -dy, dy];

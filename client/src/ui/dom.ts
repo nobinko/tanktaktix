@@ -1,6 +1,7 @@
-import { MAPS } from "@tanktaktix/shared";
-import type { RoomSummary } from "@tanktaktix/shared";
+import { compileMapGeometry, MAPS } from "@tanktaktix/shared";
+import type { MapData, RoomSummary } from "@tanktaktix/shared";
 import { state, type Phase } from "../state";
+import { drawGeometryFlat } from "../render/terrain.js";
 
 export const initAppHtml = () => {
   const app = document.querySelector<HTMLDivElement>("#app");
@@ -241,9 +242,10 @@ export const setScreen = (phase: Phase) => {
   if (hud) hud.classList.toggle("hidden", phase !== "room");
 };
 
-export const drawMapDataThumbnail = (canvas: HTMLCanvasElement, mapData: { width: number; height: number; walls: any[]; spawnPoints: any[] }) => {
+export const drawMapDataThumbnail = (canvas: HTMLCanvasElement, mapData: MapData) => {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
+  const geometry = compileMapGeometry(mapData);
   const maxW = 48;
   const maxH = 48;
   const mapW = mapData.width || 1800;
@@ -260,17 +262,10 @@ export const drawMapDataThumbnail = (canvas: HTMLCanvasElement, mapData: { width
   const scaleY = h / mapH;
   ctx.fillStyle = "rgba(229, 220, 208, 0.9)";
   ctx.fillRect(0, 0, w, h);
-  if (mapData.walls) for (const wall of mapData.walls) {
-    const type = wall.type || "wall";
-    if (type === "bush") ctx.fillStyle = "rgba(90, 120, 50, 0.6)";
-    else if (type === "water") ctx.fillStyle = "rgba(70, 100, 120, 0.6)";
-    else if (type === "house") ctx.fillStyle = "#c4a070";
-    else if (type === "oneway") ctx.fillStyle = "rgba(180, 140, 40, 0.6)";
-    else if (type === "river") ctx.fillStyle = "rgba(50, 90, 140, 0.6)";
-    else if (type === "bridge") ctx.fillStyle = "rgba(120, 130, 145, 0.75)";
-    else ctx.fillStyle = "#c4b4a0";
-    ctx.fillRect(wall.x * scaleX, wall.y * scaleY, Math.max(1, wall.width * scaleX), Math.max(1, wall.height * scaleY));
-  }
+  ctx.save();
+  ctx.scale(scaleX, scaleY);
+  drawGeometryFlat(ctx, geometry);
+  ctx.restore();
   if (mapData.spawnPoints) for (const sp of mapData.spawnPoints) {
     ctx.fillStyle = sp.team === "red" ? "rgba(196, 64, 64, 0.6)" : "rgba(74, 106, 138, 0.6)";
     ctx.beginPath(); ctx.arc(sp.x * scaleX, sp.y * scaleY, 4, 0, Math.PI * 2); ctx.fill();

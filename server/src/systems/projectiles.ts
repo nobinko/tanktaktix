@@ -108,7 +108,7 @@ export function updateBullets(room: Room, dtSec: number, now: number) {
     }
 
     // 2. Wall Collision -> Explode (rope just disappears)
-    if (!exploded && isBulletBlockedByWall(curr.x, curr.y, b.vx, b.vy, room.mapData.walls)) {
+    if (!exploded && isBulletBlockedByWall(curr.x, curr.y, b.vx, b.vy, room.geometry)) {
       if (b.isAmmoPass || b.isHealPass || b.isFlagPass) {
         passFinished = true;
       } else if (!b.isRope) {

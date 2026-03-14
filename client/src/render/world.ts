@@ -1,4 +1,5 @@
 import { state } from "../state.js";
+import { drawTerrainShape } from "./terrain.js";
 
 /**
  * 壁の描画（回転対応）
@@ -171,14 +172,12 @@ export const drawWorld = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasEleme
   ctx.lineWidth = 4;
   ctx.strokeRect(0, 0, state.mapSize.width, state.mapSize.height);
 
-  if (state.mapData && state.mapData.walls) {
-    // パス1: リバーを先に描画
-    for (const w of state.mapData.walls) {
-      if ((w.type || "wall") === "river") drawWall(ctx, w);
+  if (state.mapGeometry) {
+    for (const shape of state.mapGeometry.renderables) {
+      if (shape.terrain === "river") drawTerrainShape(ctx, shape);
     }
-    // パス2: リバー以外を描画（ブリッジがリバーを不透明に上書き）
-    for (const w of state.mapData.walls) {
-      if ((w.type || "wall") !== "river") drawWall(ctx, w);
+    for (const shape of state.mapGeometry.renderables) {
+      if (shape.terrain !== "river") drawTerrainShape(ctx, shape);
     }
   }
 

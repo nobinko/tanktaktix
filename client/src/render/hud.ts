@@ -1,4 +1,5 @@
 import { state } from "../state.js";
+import { drawGeometryFlat } from "./terrain.js";
 
 const drawMinimap = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => {
   const maxMboxW = 160;
@@ -23,16 +24,12 @@ const drawMinimap = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) =
   ctx.lineWidth = 1;
   ctx.strokeRect(mmX, mmY, mmW, mmH);
 
-  if (state.mapData && state.mapData.walls) {
-    for (const w of state.mapData.walls) {
-      const type = (w as any).type || "wall";
-      if (type === "bush") ctx.fillStyle = "rgba(90, 120, 50, 0.6)";
-      else if (type === "water") ctx.fillStyle = "rgba(70, 100, 120, 0.6)";
-      else if (type === "house") ctx.fillStyle = "#c4a070";
-      else if (type === "oneway") ctx.fillStyle = "rgba(180, 140, 40, 0.6)";
-      else ctx.fillStyle = "rgba(180, 160, 140, 0.6)";
-      ctx.fillRect(mmX + w.x * scaleX, mmY + w.y * scaleY, Math.max(1, w.width * scaleX), Math.max(1, w.height * scaleY));
-    }
+  if (state.mapGeometry) {
+    ctx.save();
+    ctx.translate(mmX, mmY);
+    ctx.scale(scaleX, scaleY);
+    drawGeometryFlat(ctx, state.mapGeometry);
+    ctx.restore();
   }
 
   const bullets = (state as any).bullets ?? [];

@@ -6,6 +6,7 @@ import type {
   Item,
   MapData,
   PlayerSummary,
+  RuntimeMapGeometry,
   RoomSummary,
   Vector2,
 } from "@tanktaktix/shared";
@@ -28,6 +29,7 @@ export const state = {
   bullets: [] as BulletPublic[],
   explosions: [] as (Explosion & { startedAt: number })[],
   mapData: null as MapData | null,
+  mapGeometry: null as RuntimeMapGeometry | null,
   teamScores: { red: 0, blue: 0 } as { red: number; blue: number },
   camera: { x: 0, y: 0, zoom: 1, rotation: 0 },
   lobbyChat: [] as { from: string; message: string }[],

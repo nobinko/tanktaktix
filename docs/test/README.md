@@ -1,38 +1,33 @@
-# TankTaktix テストドキュメント体系
+# テストドキュメント
 
-本ディレクトリは TankTaktix の品質保証および仕様検証に関するドキュメントを管理します。
+このディレクトリは Tank Taktix の仕様確認と検証メモを置く場所です。
 
-## ディレクトリ構成
+## 構成
 
-- **[spec/](./spec/)**: コンポーネント別のテスト仕様書。恒久的な検証項目を定義します。
-- **[reports/](./reports/)**: テスト実施結果の履歴。日付別に検証結果を記録します。
-- **scripts/**: プロジェクトルートの `scripts/` にある各種検証用オートメーションスクリプトを使用します。
+- `spec/`: 受け入れ仕様
+- `reports/`: 実施レポート
 
-## ドキュメント一覧
+## ランタイム地形の検証
 
-### テスト仕様 (Specifications)
-| ドキュメント | 対象内容 | ランク |
-|---|---|---|
-| [core.md](./spec/core.md) | 基本移動、戦闘、クールダウン、HP/弾薬 | Aランク |
-| [multiplayer.md](./spec/multiplayer.md) | 8v8 (16人接続) 安定性、同期、負荷 | Bランク |
-| [modes.md](./spec/modes.md) | CTF (Capture The Flag)、デスマッチ | A/Bランク |
-| [items.md](./spec/items.md) | アイテム取得/制限、AIMアクション（パス）、特殊フラッグ挙動 | Cランク |
-| [spectator.md](./spec/spectator.md) | 観戦モード（参加・可視性・行動制限・チャット・UI） | Bランク |
+曲線地形、map compiler、collision、描画を触ったら次を実行します。
 
-### 実施レポート (Execution Reports)
-- [2026-02-22](./reports/2026-02-22.md): 8v8 負荷試験および最新仕様の再検証結果
-- [spectator_2026-02-22](./reports/spectator_2026-02-22.md): 観戦モード (B-6) 自動テスト結果（14/14 PASS）
+```powershell
+npx tsx tasks/verify_geometry_runtime.ts
+```
 
-## テストの実行方法
-詳細は各スクリプトのソースファイルを参照してください。
+このスクリプトが確認する内容:
 
-```bash
-# CTF挙動の検証
-npx tsx scripts/verify_ctf.ts
+- river elbow prefab が `ringSector` にコンパイルされる
+- server collision が曲線地形に当たる
+- `createRoom()` 後も raw prefab object を保持している
+- client world renderer が曲線地形で `arc()` を使う
 
-# 8v8 多人数戦の負荷シミュレーション
-npx tsx scripts/simulate_8v8.ts
+## ビルド確認
 
-# 基本メカニクスの自動検証
-npx tsx scripts/verify_game_mechanics.ts
+最低限この 3 つを通します。
+
+```powershell
+npm run build -w shared
+npm run build -w server
+npm run build -w client
 ```

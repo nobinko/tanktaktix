@@ -91,7 +91,7 @@ export function tick() {
       if (p.respawnAt && p.respawnAt > now) continue;
 
       // Update visibility (B-2/B-5) — bush内は常に隠密、射撃で解除しない
-      let inBush = isPointInBush(p.x, p.y, room.mapData.walls);
+      let inBush = isPointInBush(p.x, p.y, room.geometry);
 
       if (!inBush) {
         // Phase 4: SmokeCloud visibility mechanism
@@ -191,7 +191,7 @@ export function tick() {
         const nextY = clamp(p.y + dy, 0, room.mapData.height);
 
         // Check wall collision
-        const hitWall = checkWallCollision(nextX, nextY, TANK_SIZE, room.mapData.walls);
+        const hitWall = checkWallCollision(nextX, nextY, TANK_SIZE, room.geometry);
 
         // Check player-to-player collision
         let hitPlayer = false;

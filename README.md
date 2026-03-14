@@ -1,22 +1,19 @@
 # Tank Taktix
 
-Viteクライアント、Express + `ws` サーバー、共有TypeScript型定義を備えた、Renderデプロイ対応のモノレポです。
-サーバーはHTTPとWebSocketを同一ポートでホストし、本番環境ではビルド済みのクライアントを配信します。
+Canvas 2D の見下ろし型タンクゲームです。モノレポ構成で、`client` が描画と UI、`server` が 20Hz のゲーム進行、`shared` が共通型とマップ定義を持ちます。
 
-## ローカル開発 (Windows PowerShell)
+## 開発
 
 ```powershell
-# リポジトリルートで実行
 npm install
-
-# クライアントとサーバーを開発モードで同時起動
 npm run dev
 ```
 
-- クライアント: http://localhost:5173
-- サーバー (HTTP + WebSocket): http://localhost:3000
+- client: `http://localhost:5173`
+- server: `http://localhost:3000`
+- health: `http://localhost:3000/health`
 
-## 本番ビルドのローカル実行 (Windows PowerShell)
+## 本番ビルド
 
 ```powershell
 npm install
@@ -24,68 +21,41 @@ npm run build
 npm run start
 ```
 
-その後、 http://localhost:3000 を開いてください。
+## ランタイム地形の現仕様
 
-## Renderへのデプロイ
+2026-03 時点で、マップの保存形式とゲーム内の地形処理は分離されています。
 
-このリポジトリには単一のWebサービス用の `render.yaml` ブループリントが含まれています。Render上での手順:
+- 保存と通信は `MapData` を使います。
+- `MapData` には `walls` と、必要に応じて prefab `objects` を含められます。
+- 実行時は `@tanktaktix/shared` の `compileMapGeometry(mapData)` が `RuntimeMapGeometry` を生成します。
+- 現在の地形プリミティブは `rect` と `ringSector` です。
+- river elbow prefab は runtime で `ringSector` になり、見た目も衝突も曲線として扱われます。
+- server は room ごとに geometry を一度だけコンパイルし、移動・弾・茂み・スポーン安全確認に使います。
+- client は `roomInit.mapData` を受け取って同じ geometry をローカルでコンパイルし、ワールド描画・ミニマップ・タイトル背景・ルームサムネイルに再利用します。
 
-1. このリポジトリから新しい **Blueprint** を作成します。
-2. Renderが `render.yaml` を読み込み、ビルド・起動コマンドを設定します。
-3. デプロイします。
+## CTF フラグの現仕様
 
-ヘルスチェックは同サービスの `GET /health` エンドポイントで行われます。
+- `flagPositions` を指定したときだけ旗が出ます。
+- `flagPositions` を省略しても `spawnPoints` から旗は自動生成されません。
+- 旗なしマップを map editor からそのまま作れます。
 
-## ゲームプレイの概要
+## 主要ファイル
 
-- **ログイン:** 司令官名を入力するか、ランダムなコールサインを生成します。
-- **ロビー:** 3つのロビー（Main / Sub 1 / Sub 2）でルームの作成や参加が可能です（パスワード設定可）。
-- **ゲームモード:** デスマッチ（チーム戦）または CTF（旗取り）を選択できます。
-- **戦闘:** マウス操作によるトップダウン2Dシューティング。
-    - **移動:** マウス左クリック（移動先を指定）。先行入力で最大5件キューイング可能。
-    - **射撃:** 自機をドラッグ＆ドロップ（スリングショット方式、引っ張った逆方向に発射）。
-- **クールダウン:** 行動後に短いクールダウンが発生しますが、移動コマンドは先行入力が可能です。
-- **弾薬:** 初期20発。発射ごとに1消費します。
-- **HP:** 初期100。被弾すると20ダメージ。HPの減少に伴い車体がボロボロに欠損し、装甲が剥がれ、火を吹く視覚的フィードバックが発生します（HPバーは非表示）。HPが0になるとフル回復状態で即時リスポーンします。
-- **スコア:** 撃破 +1（チームスコア +1）。死亡ペナルティなし。制限時間終了後に結果画面が表示されます。
-- **アイテム:** マップ上に7種のアイテムが出現します（各マップ14個固定）。
-    - 回復キット（HP+20）/ ハート（HP全回復）/ 弾薬ボックス（弾薬+10）
-    - ボム（次の射撃が3倍爆発）/ スモーク（煙幕展開で隠蔽）/ ロープ（遠距離でアイテムや旗を回収）/ ブーツ（移動速度1.5倍×3回）
-- **AIMアクション:** AIM中にキーを押すとアイテムを投げる・ロープ射出などの特殊行動が可能です。
-- **地形:** ブッシュ（隠密状態になれる）、ウォーター（通行不可）があります。
-- **チャット:** `T`キーでチャット入力、`Enter`で送信。
-- **チーム戦:** 赤チーム・青チームに分かれて戦います。自機の戦車も所属チームの色で表示されます。
-- **再接続:** ブラウザリロード後60秒以内なら同セッションに復帰できます。
+- `shared/src/index.ts`: 共通型とメッセージ型
+- `shared/src/maps.ts`: 既定マップ
+- `shared/src/prefabs.ts`: prefab 定義
+- `shared/src/geometry.ts`: runtime 地形コンパイラ
+- `server/src/room.ts`: room 生成と geometry 準備
+- `server/src/utils/collision.ts`: runtime geometry ベースの衝突判定
+- `client/src/render/world.ts`: 本編ワールド描画
+- `client/src/render/terrain.ts`: runtime 地形描画
+- `client/src/ui/mapEditor.ts`: map editor
 
-## 現在の進捗状況
+## ドキュメント
 
-ドキュメント一覧は [docs/INDEX.md](./docs/INDEX.md) を参照してください。
-詳細なロードマップは [docs/ROADMAP.md](./docs/ROADMAP.md) を、受入条件は [docs/ACCEPTANCE.md](./docs/ACCEPTANCE.md) を、スケール方針は [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) を参照してください。
-
-**Phase 1〜4 完了。Phase 5 進行中（17項目中16項目完了）。**
-
-- **Phase 1**: WebSocket同期、ルーム管理、チャット、ロビー
-- **Phase 2**: 移動・射撃・当たり判定・チームデスマッチ・HUD
-- **Phase 3**: 5マップ、アイテム、地形（ブッシュ・ウォーター）、CTF、再接続、隠密、観戦モード
-- **Phase 4**: アイテムシステム刷新（6種・固定プール）、AIMアクション派生、ダメージ表現、UI改善
-- **インフラ**: Render.comデプロイ、モノレポ構成
-
-## Phase 5 進捗
-
-- [x] アイテム当たり判定の抜本改修 (5-1)
-- [x] サウンドエフェクト (5-2)
-- [x] マルチロビー (5-3)
-- [ ] 実況配信連携 — NOW ON AIR (5-4)
-- [x] マップエディタ (5-5)
-- [x] ゲームプレイルール調整 / UI整理 (5-6)
-- [ ] 簡易Bot / 戦術コマンド設計 (5-7)
-- [x] カスタムマップ制作 (5-8)
-- [x] ロビー機能追加（マップサムネイル）(5-9)
-- [x] タイトル画面リデザイン (5-10)
-- [x] ロビー画面リデザイン (5-11)
-- [x] ゲームルームオプション4種 (5-12)
-- [x] ゲーム内 UI 改善 / ダメージ表現の刷新 (5-13)
-- [x] 複数フラッグ CTF 対応 (5-14)
-- [x] サーバ・クライアント通信最適化＆描画補間（大規模人数対応）(5-15)
-- [x] 大規模人数向けのリスポーン最適化とスタック回避 (5-16)
-- [x] スモークアイテム実装 (5-17)
+- `docs/INDEX.md`: 全体案内
+- `docs/ARCHITECTURE.md`: システム構成
+- `docs/domain/maps.md`: マップ、prefab、runtime geometry
+- `docs/domain/network.md`: 通信と payload
+- `docs/domain/ui.md`: 描画と UI
+- `docs/test/README.md`: 検証スクリプト

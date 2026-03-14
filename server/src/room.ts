@@ -1,4 +1,5 @@
 import type { Item, ItemType, MapData, Team, RoomOptions } from "@tanktaktix/shared";
+import { compileMapGeometry, MAPS } from "@tanktaktix/shared";
 import { ACTION_COOLDOWN_MS, AMMO_REFILL_AMOUNT, COOLDOWN_LONG_MS, COOLDOWN_SHORT_MS, HULL_ROTATION_SPEED, ITEM_RADIUS, MEDIC_HEAL_AMOUNT, MOVE_SPEED, RECONNECT_TIMEOUT_MS, RESPAWN_MS, TANK_SIZE, TURRET_ROTATION_SPEED, DEFAULT_MAP, ITEM_POOL, MOVE_QUEUE_MAX } from "./constants.js";
 import { players, rooms, send } from "./state.js";
 import type { PlayerRuntime, Room } from "./types.js";
@@ -81,7 +82,7 @@ export function spawnPlayer(p: PlayerRuntime, room: Room) {
     const tx = clamp(baseX + Math.cos(angle) * dist, TANK_SIZE, map.width - TANK_SIZE);
     const ty = clamp(baseY + Math.sin(angle) * dist, TANK_SIZE, map.height - TANK_SIZE);
 
-    if (checkWallCollision(tx, ty, TANK_SIZE, map.walls)) {
+    if (checkWallCollision(tx, ty, TANK_SIZE, room.geometry)) {
       attempts++;
       continue;
     }
@@ -117,11 +118,11 @@ export function spawnPlayer(p: PlayerRuntime, room: Room) {
   p.bootsCharges = 0;
 }
 
-function findRandomItemPosition(map: MapData): { x: number; y: number } | null {
+function findRandomItemPosition(room: Room): { x: number; y: number } | null {
   for (let attempts = 0; attempts < 30; attempts++) {
-    const x = Math.random() * (map.width - 100) + 50;
-    const y = Math.random() * (map.height - 100) + 50;
-    if (!checkWallCollision(x, y, ITEM_RADIUS, map.walls)) return { x, y };
+    const x = Math.random() * (room.mapData.width - 100) + 50;
+    const y = Math.random() * (room.mapData.height - 100) + 50;
+    if (!checkWallCollision(x, y, ITEM_RADIUS, room.geometry)) return { x, y };
   }
   return null;
 }
@@ -130,7 +131,7 @@ export function initializeItems(room: Room) {
   room.items = [];
   for (const entry of ITEM_POOL) {
     for (let i = 0; i < entry.count; i++) {
-      const pos = findRandomItemPosition(room.mapData);
+      const pos = findRandomItemPosition(room);
       if (pos) room.items.push({ id: newId(), x: pos.x, y: pos.y, type: entry.type, spawnedAt: nowMs() });
     }
   }
@@ -173,7 +174,7 @@ export function applyItemEffect(p: PlayerRuntime, item: Item, room: Room) {
 }
 
 export function respawnItem(room: Room, type: ItemType) {
-  const pos = findRandomItemPosition(room.mapData);
+  const pos = findRandomItemPosition(room);
   if (pos) room.items.push({ id: newId(), x: pos.x, y: pos.y, type, spawnedAt: nowMs() });
 }
 
@@ -205,18 +206,29 @@ export function joinRoom(p: PlayerRuntime, roomId: string, password?: string, re
   broadcastLobby(room.lobbyId);
 }
 
-import { MAPS, expandMapObjects } from "@tanktaktix/shared";
+function cloneMapData(mapData: MapData): MapData {
+  return {
+    ...mapData,
+    walls: mapData.walls.map((wall) => ({ ...wall })),
+    spawnPoints: mapData.spawnPoints.map((spawn) => ({ ...spawn })),
+    objects: mapData.objects?.map((obj) => ({ ...obj })),
+    dynamicBushes: mapData.dynamicBushes?.map((bush) => ({ ...bush })),
+    flagPositions: mapData.flagPositions?.map((flag) => ({ ...flag })),
+    itemSpawns: mapData.itemSpawns?.map((item) => ({ ...item })),
+  };
+}
 
 export function createRoom(roomData: { roomName: string; roomId: string; mapId: string; customMapData?: MapData; passwordProtected: boolean; password?: string; maxPlayers: number; timeLimitSec: number; gameMode: "deathmatch" | "ctf"; lobbyId: string; hostId: string; options?: RoomOptions; }) {
   const createdAt = nowMs();
   const endsAt = createdAt + roomData.timeLimitSec * 1000;
   const rawMapData = roomData.customMapData ?? MAPS[roomData.mapId] ?? DEFAULT_MAP;
   const resolvedMapId = roomData.customMapData?.id ?? roomData.mapId;
-  const mapData = expandMapObjects(rawMapData);
-  const flagSrc = mapData.flagPositions ?? mapData.spawnPoints;
+  const mapData = cloneMapData(rawMapData);
+  const geometry = compileMapGeometry(mapData);
+  const flagSrc = mapData.flagPositions ?? [];
   const flags = roomData.gameMode === "ctf" ? flagSrc.map(s => ({ team: s.team as "red" | "blue", x: s.x, y: s.y, baseX: s.x, baseY: s.y, carrierId: null as string | null })) : [];
   const defaultOptions: RoomOptions = { teamSelect: false, instantKill: false, noItemRespawn: false, noShooting: false };
-  const room: Room = { id: roomData.roomId, name: roomData.roomName, mapId: resolvedMapId, mapData, lobbyId: roomData.lobbyId, passwordProtected: roomData.passwordProtected, password: roomData.password, maxPlayers: roomData.maxPlayers, timeLimitSec: roomData.timeLimitSec, createdAt, endsAt, ended: false, gameMode: roomData.gameMode, options: roomData.options || defaultOptions, playerIds: new Set(), spectatorIds: new Set(), bullets: [], explosions: [], smokeClouds: [], items: [], lastItemSpawnAt: createdAt, flags, scoreRed: 0, scoreBlue: 0, hostId: roomData.hostId, history: new Map() };
+  const room: Room = { id: roomData.roomId, name: roomData.roomName, mapId: resolvedMapId, mapData, geometry, lobbyId: roomData.lobbyId, passwordProtected: roomData.passwordProtected, password: roomData.password, maxPlayers: roomData.maxPlayers, timeLimitSec: roomData.timeLimitSec, createdAt, endsAt, ended: false, gameMode: roomData.gameMode, options: roomData.options || defaultOptions, playerIds: new Set(), spectatorIds: new Set(), bullets: [], explosions: [], smokeClouds: [], items: [], lastItemSpawnAt: createdAt, flags, scoreRed: 0, scoreBlue: 0, hostId: roomData.hostId, history: new Map() };
   rooms.set(roomData.roomId, room);
   initializeItems(room);
   broadcastLobby(room.lobbyId);

@@ -1,118 +1,152 @@
-# Maps
+# マップ
 
-> 対応コード: `shared/src/maps.ts`, `shared/src/prefabs.ts`, `server/src/utils/collision.ts`, `client/src/render/world.ts`, `client/src/ui/mapEditor.ts`
-> コードと本ドキュメントに乖離がある場合はコードを優先すること。
+対象コード:
 
----
+- `shared/src/maps.ts`
+- `shared/src/prefabs.ts`
+- `shared/src/geometry.ts`
+- `server/src/room.ts`
+- `server/src/utils/collision.ts`
+- `client/src/render/world.ts`
+- `client/src/render/terrain.ts`
+- `client/src/ui/mapEditor.ts`
 
-## 基本パラメータ
+## 基本方針
 
-| パラメータ | 値 | 定数名 | 定義元 |
-|---|---|---|---|
-| Canvas サイズ | 1200×675 px（16:9） | — | renderer.ts |
-| サーバ tick | 50 ms（20Hz） | `TICK_MS` | constants.ts |
-| タンクサイズ（衝突円） | 半径 18 px | `TANK_SIZE` | constants.ts |
-| タンクサイズ（回転矩形） | 26×20 px | — | constants.ts |
+マップは 2 層あります。
 
-マップごとのワールドサイズは下記マップ一覧を参照。
+1. 保存・通信用の `MapData`
+2. 実行用の `RuntimeMapGeometry`
 
----
+`MapData` は editor、JSON export/import、network payload のための形式です。ゲーム本編は `compileMapGeometry(mapData)` が作る runtime geometry を使います。
 
-## マップ一覧
+## `MapData`
 
-| マップID | ワールドサイズ | レイアウト | 特徴 |
-|---|---|---|---|
-| **riverside** | 1600×1200 px | 川戦場 | 中央を縦断する川と2本の橋。橋付近ブッシュ、斜めワンウェイ |
-| **fortress** | 1800×1200 px | 二つの砦 | 4隅水場、中央アイランド、各チーム2拠点ベース構造、ワンウェイ |
+代表的な形:
 
-全マップは点対称設計。設計原則は `docs/inbox.md` の「マップ設計のノウハウ」を参照。
+```ts
+type MapData = {
+  id: string;
+  width: number;
+  height: number;
+  walls: Wall[];
+  objects?: MapObject[];
+  spawnPoints: { team: Team; x: number; y: number; radius?: number }[];
+  flagPositions?: { team: Team; x: number; y: number }[];
+  itemMode?: "random" | "manual";
+  itemSpawns?: { x: number; y: number; type: ItemType }[];
+};
+```
 
----
+### フィールド要点
 
-## 地形タイプ
+- `walls`: 直線地形や単純地形
+- `objects`: prefab 配置
+- `spawnPoints`: チームごとのスポーン地点
+- `flagPositions`: CTF の旗位置
+- `itemMode` / `itemSpawns`: アイテム配置制御
 
-| タイプ | 通行 | 弾丸 | 特殊効果 |
-|---|---|---|---|
-| **wall** | 不可 | 遮断（爆発） | なし |
-| **bush** | 可 | 貫通 | 内部のプレイヤーを隠密状態にする |
-| **water** | 不可 | 貫通 | なし |
-| **house** | 不可 | 遮断（爆発） | 建物型の外観 |
-| **oneway** | 不可 | 条件付き透過 | 指定方向の弾だけ透過、逆方向の弾は遮断。`rotation` で斜め配置可 |
-| **river** | 不可 | 貫通 | 水色の川描画。`rotation` で斜め配置可 |
-| **bridge** | 可 (`passable: true`) | 貫通 | メタリック調の橋描画。リバー上を不透明に上書き |
+## CTF フラグの現仕様
 
----
+重要:
 
-## 隠密（B-5）
+- `flagPositions` があるときだけ旗が出ます。
+- `flagPositions` を省略しても `spawnPoints` から旗は作られません。
 
-- bush 内にいるプレイヤーは `isHidden = true` となる
-- 隠密中は**敵チームに座標が送信されない**（ミニマップにも映らない）
-- **bush 内で射撃しても隠密は解除されない**（bush 外に出た瞬間に `isHidden = false`）
-- 味方チームには常に可視
-- 観戦者には全プレイヤーが可視（隠密フィルタなし）
+旧仕様の「`flagPositions` 省略時はスポーン中心に旗を置く」は廃止済みです。
 
-### 隠密フィルタリング
+## prefab
 
-- サーバ側で `broadcast.ts` が敵チームへの `RoomState` 送信時に隠密プレイヤーをフィルタリング
-- 観戦者向け送信にはフィルタを適用しない
+代表的な prefab:
 
----
+- house 系
+- base 系
+- straight river 系
+- `river-elbow-gentle-*`
+- `river-elbow-mid-*`
+- `river-elbow-sharp-*`
+- bridge 系
+- `oneway`
+- `bush`
 
-## CTF フラッグ詳細
+`MapObject` は配置情報だけを持ちます。
 
-- 各チームの陣地にフラッグ（旗）が配置される（**1チーム複数本可**）
-- 初期位置: `MapData.flagPositions`（省略時は `spawnPoints` を使用）
-- （参考）リスポーン時の密集スタックを防ぐため、`spawnPoints` には `radius`（半径）を設定可能になっており、その領域内でランダムに分散して湧く仕様です。
-- 各フラッグは `baseX`/`baseY` で固有の元位置を保持し、リセット時にその位置に戻る
-- 旗の数はセオリー上 **各2〜3本** が理想（戦略分散と集中のバランス）
+```ts
+type MapObject = {
+  type: PrefabType;
+  x: number;
+  y: number;
+  rotation?: number;
+};
+```
 
-### フラッグルール
+## ランタイム geometry
 
-| アクション | 結果 |
+`compileMapGeometry(mapData)` が `RuntimeMapGeometry` を返します。
+
+現行 shape:
+
+- `rect`
+- `ringSector`
+
+### shape の対応
+
+| shape | 用途 |
 |---|---|
-| 敵旗の位置に接触 | 旗を取得（キャリア状態）。頭上に 🚩 アイコン表示 |
-| 自陣スポーンゾーン内で完全停止 | チームスコア +5 / 個人スコア +5 / 旗リセット |
-| キャリアが被弾（致死でなくても） | 旗をドロップ → ベース位置に即時リセット |
-| キャリアが死亡 | 旗をドロップ → ベース位置に即時リセット |
-| ロープ弾が旗キャリアに命中 | 旗を回収（味方からも奪取可能） |
-| AIM+F | 旗をパス弾として射出、味方がキャッチ可能 |
+| `rect` | wall, bush, water, house, oneway, bridge, straight river |
+| `ringSector` | river elbow |
 
-### 「完全停止」ルール
+## river elbow
 
-自陣の**スポーンゾーン（スポーン地点を中心とした 200×200 の矩形エリア）**内で `isMoving === false && isRotating === false` になった瞬間にスコアが加算される。
+### 現在の挙動
 
-- 旗を持って自陣に戻っただけではスコアにならない
-- 立ち止まりでは旗を再取得しない（`droppedById` による即再拾得防止）
+- editor では曲線表示
+- client 本編でも曲線表示
+- server collision でも曲線判定
 
-### ミニマップ表示
+### つまり何が変わったか
 
-- 旗はミニマップ上に赤/青の円として表示される
+以前:
 
----
+- editor だけ滑らか
+- 本編は矩形分割
+- 衝突も矩形分割ベース
 
-## カスタムマップ（JSON インポート）
+現在:
 
-部屋作成モーダルでマップセレクトを **「Custom Map (Paste JSON)」** に切り替えると、任意の `MapData` JSON を貼り付けてそのマップで遊べる。
+- runtime で `ringSector` を使う
+- 見た目と衝突の両方が曲線ベース
 
-### UI フロー
+## `expandMapObjects()` の扱い
 
-1. `+ NEW GAME` → Map 選択で「Custom Map (Paste JSON)」を選択
-2. 表示される textarea に JSON を貼り付け
-3. リアルタイムバリデーション（`✓ Valid` / `✗ エラー内容`）
-4. CREATE を押すと部屋が作成される
+`expandMapObjects()` は残っていますが、river elbow の authoritative runtime path ではありません。
 
-### 必須フィールド
+現在の位置づけ:
 
-| フィールド | 型 | 説明 |
-|---|---|---|
-| `width` | number | マップの幅（px） |
-| `height` | number | マップの高さ（px） |
-| `walls` | Wall[] | 地形オブジェクト配列（空配列可） |
-| `spawnPoints` | SpawnPoint[] | 2エントリ以上必須（red・blue各1以上） |
+- editor 内の補助
+- export 互換
+- rectangle-only の補助処理
 
-`id`・`flagPositions` など他フィールドは省略可（省略時はサーバーのデフォルト値を使用）。
+本編 gameplay は `compileMapGeometry()` を基準にしてください。
 
-### JSON 例（riverside マップをベースにした最小構成）
+## server 側の使い方
+
+- `createRoom()` が raw `MapData` を保持
+- 同時に `Room.geometry` をコンパイル
+- 移動判定、弾判定、茂み判定、スポーン確認が `Room.geometry` を参照
+
+## client 側の使い方
+
+- `roomInit.mapData` を受信
+- `compileMapGeometry(mapData)` を 1 回だけ実行
+- `state.mapGeometry` に保持
+- world / minimap / title / room thumbnail で再利用
+
+## custom map JSON
+
+map editor の `EXPORT JSON` と `Custom Map (Paste JSON)` は `MapData` をやり取りします。
+
+最小例:
 
 ```json
 {
@@ -122,128 +156,23 @@
   "walls": [
     { "x": 760, "y": 0, "width": 80, "height": 350, "type": "river" }
   ],
+  "objects": [
+    { "type": "river-elbow-mid-s", "x": 800, "y": 350, "rotation": 0 }
+  ],
   "spawnPoints": [
     { "team": "red", "x": 150, "y": 600, "radius": 120 },
     { "team": "blue", "x": 1450, "y": 600, "radius": 120 }
-  ],
-  "flagPositions": [
-    { "team": "red", "x": 550, "y": 600 },
-    { "team": "blue", "x": 1050, "y": 600 }
   ]
 }
 ```
 
-### 実装詳細
+この例では `flagPositions` がないので旗は出ません。
 
-| 処理 | 場所 |
-|---|---|
-| クライアントバリデーション | `client/src/main.ts` – `validateCustomMapJson()` |
-| UI（textarea・ステータス表示） | `client/src/ui/dom.ts` `#custom-map-area` |
-| 送信フィールド | `shared/src/index.ts` `createRoom.payload.customMapData` |
-| サーバー受信 | `server/src/network/handlers.ts` `createRoom` ケース |
-| マップ解決 | `server/src/room.ts` – `customMapData ?? MAPS[mapId] ?? DEFAULT_MAP` |
+## 確認ポイント
 
----
+map 周りを触ったら最低限これを確認します。
 
-## プリファブオブジェクト（MapObject）
-
-マップには Wall の他に `objects: MapObject[]` でプリファブオブジェクトを配置できる。
-`expandMapObjects()` がゲーム起動時に MapObject を Wall[] にフラット展開し、物理衝突に使用する。
-
-### PrefabType 一覧
-
-| カテゴリ | タイプ | 概要 |
-|---|---|---|
-| **HOUSES** | `house-s` / `house-m` / `house-l` | 小/中/大の建物。wall タイプの壁で構成 |
-| **BASES** | `base-1open` | 1方向が開いた要塞 |
-| | `base-2open-opposite` | 向かい合う2方向が開いた要塞 |
-| | `base-2open-adjacent` | 隣接する2方向が開いた要塞 |
-| | `base-3open` | 3方向が開いた要塞 |
-| **RIVERS** | `river-s` / `river-m` / `river-l` | 直線の川（短/中/長）|
-| | `river-elbow-gentle-s` / `-l` | 緩やかなカーブ（半径 300 / 500） |
-| | `river-elbow-mid-s` / `-l` | 中程度のカーブ（半径 200 / 350） |
-| | `river-elbow-sharp-s` / `-l` | 急カーブ（半径 120 / 180） |
-| **BRIDGES** | `bridge-s` / `bridge-l` | 短/長の橋（passable） |
-| **OTHER** | `oneway` | 単体ワンウェイ壁 |
-| | `bush` | 単体ブッシュ |
-
-### エルボー描画
-
-エルボー系（`river-elbow-*`）はエディタ上では Canvas `ctx.arc()` によるドーナツセクター形状で描画される（矩形の重ね合わせではなくスムーズな曲線）。ゲーム内衝突判定は `expandMapObjects()` が生成した Wall[] を使用。
-
-```typescript
-// MapObject の型（shared/src/index.ts）
-type MapObject = {
-  type: PrefabType;
-  x: number;       // 配置原点 X（ワールド座標）
-  y: number;       // 配置原点 Y
-  rotation?: number; // 回転（度）
-};
-```
-
-### 実装詳細
-
-| 処理 | 場所 |
-|---|---|
-| プリファブ定義 | `shared/src/prefabs.ts` – `PREFAB_REGISTRY` |
-| Wall展開 | `shared/src/prefabs.ts` – `expandMapObjects(mapData)` |
-| エディタ描画 | `client/src/ui/mapEditor.ts` – `drawRiverElbow()` / `expandObject()` |
-
----
-
-## マップエディタ
-
-ロビーの **MAP EDITOR** ボタン（`#map-editor-btn`）から開くビジュアルエディタ。
-
-### 機能概要
-
-| 機能 | 操作 |
-|---|---|
-| マップサイズ | Small (800×600) / Medium (1200×900) / Large (1800×1200) / Custom 選択 |
-| 壁描画 | パレットから地形タイプを選択してキャンバス上でドラッグ |
-| スポーン/フラッグ/アイテム配置 | パレットから選択してクリック配置 |
-| プリファブ配置 | PREFABSセクションから選択してクリック配置 |
-| 対称配置 | NONE / H（左右）/ V（上下）/ PT（点対称） |
-| 選択・移動 | オブジェクトをクリック選択後にドラッグ |
-| リサイズ | 壁選択時に8方向ハンドルが表示される |
-| 回転 | R / Q キーで ±15° 回転（プリファブのみ有効） |
-| 削除 | Del キー または DELETE ボタン |
-| アンドゥ/リドゥ | Ctrl+Z / Ctrl+Y（最大50ステップ） |
-| グリッドスナップ | Grid Snap チェックボックス（グリッドサイズ 20px） |
-| ズーム・パン | スクロールでズーム、Space+ドラッグでパン |
-| JSON インポート | LOAD JSON ボタンで既存 MapData を読み込み |
-| JSON エクスポート | EXPORT JSON ボタンでクリップボードに書き出し |
-| プレイテスト | PLAY TEST ボタンでカスタムマップとして即座にルーム作成 |
-
-### 実装
-
-| 処理 | 場所 |
-|---|---|
-| エディタ全体 | `client/src/ui/mapEditor.ts` – `openMapEditor()` |
-| ボタン登録 | `client/src/main.ts` – `#map-editor-btn` click handler |
-| コンテナ DOM | `client/src/ui/dom.ts` – `#map-editor-container` |
-
----
-
-## MapData 型
-
-```typescript
-type MapData = {
-  id: string;
-  width: number;
-  height: number;
-  walls: Wall[];
-  spawnPoints: { team: Team; x: number; y: number; radius?: number }[];
-  flagPositions?: { team: Team; x: number; y: number }[]; // 省略時はspawnPointsを使用。同チーム複数可
-};
-
-type Flag = {
-  team: Team;
-  x: number;
-  y: number;
-  baseX: number; // 元の配置位置（リセット先）
-  baseY: number;
-  carrierId: string | null;
-  droppedById?: string;
-};
-```
+- river elbow が本編で滑らかに見える
+- タンクが elbow の曲線縁に沿って止まる
+- 弾が曲線地形で止まる
+- `flagPositions` 未指定マップで旗が出ない
